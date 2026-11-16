@@ -1,18 +1,31 @@
 # Privacy and data flow
 
-The desktop app calls the public GitHub Search API to download public repository metadata. Requests contain a fixed star threshold, pagination and sort settings. They do not contain personal interest scores or browser history. GitHub receives ordinary network metadata such as the connection IP address.
+RepoPulse requests public GitHub repository metadata and release availability. Personal notes, tags, collections, ratings, reading queues, viewing history and interest weights are not included in those requests. GitHub receives ordinary connection metadata such as the IP address.
 
-Desktop state is stored in Electron's per-user application-data folder as `state.json`: interest scores, saved repositories, hidden and presented repository IDs, cached public metadata, daily picks and appearance preferences. It is not encrypted at rest. File permissions use the operating system's normal per-user controls; other software running as your user may read it.
+## Desktop storage
 
-The browser companion requests optional history access in response to a deliberate Analyze click. It searches a limited recent history window, classifies titles and host names in memory and exports only the eight recognized topic weights. It never requests cookies, passwords, page contents or host permissions. No background service worker is used. Closing the popup discards analysis memory. Revoke history permission in the popup or browser extension settings. Existing exported JSON files remain yours to delete.
+Electron's per-user application-data folder contains state.json: interests, saved projects, hidden/presented IDs, cached public metadata, daily picks, up to 500 visits, annotations, collections, exclusions, snooze deadlines, preferences and window geometry. It is not encrypted at rest. Other software running as the same OS user may read it.
 
-Importing an interest profile is explicit and user initiated. The desktop app validates the schema, size and recognized score fields. Manual interests are always available instead.
+Notes are limited to 20,000 characters per project. Validated workspaces contain at most 2,000 annotated records and 50 collections. Search, comparison and Insights run on local state. The focus timer runs locally while the app is running; it does not schedule an external service.
 
-Local-data deletion requires confirmation in the app. It deletes RepoPulse preferences, recommendations and history in its active state. It does not delete browser history, exported JSON files, installer artifacts, OS backups or previously preserved corrupt-state recovery files.
+An explicit workspace JSON export includes personal notes, tags and annotations. CSV export includes personal notes as well as public project metadata. The user chooses where to save these files. Import validates the schema and merges newer annotated records; existing collections are merged by identifier. Notes are not automatically synchronized between devices.
 
-Renderer security: context isolation, sandbox, no Node integration, restrictive content security policy, denied renderer navigation/popups and permission prompts, fixed IPC methods, sender verification and GitHub-only external URLs derived from validated repository names. Repository text is inserted with textContent rather than interpreted as HTML.
+## Browser companion
 
-No telemetry, remote user profile, cookies, account registration, advertising identifiers, hosted AI requests or paid subscriptions are included.
+The optional companion requests history access only after Analyze is chosen. It classifies a limited recent history window in memory and exports recognized topic weights. It does not request cookies, passwords, page contents or host permissions. There is no background service worker or automatic desktop synchronization.
 
+## Clipboard and external navigation
 
-Version 0.2 also stores up to 500 timestamped repository opens, owner exclusions, snooze deadlines, visual preferences and the dragged window center. Clipboard actions copy only the user-selected public link or source command. Opening a project may replace that row with another public project. Optional learning pause stops open/like updates to the local interest weights. New-day notifications are off by default. No command execution is exposed to the renderer.
+Clipboard actions copy the chosen public link, metadata, JSON or clone command. They do not execute commands. Browser actions construct fixed GitHub URLs from validated public repository names. Some repository sections may be disabled by the owner.
+
+## Removal and recovery
+
+Resetting local data requires confirmation. Collection deletion and clearing membership also require confirmation; project annotations and saved projects are retained when deleting a collection. Local reset does not delete browser history, exported files, installers, OS backups or corrupt-state recovery copies.
+
+State updates roll back in memory when a mutation or persistence step fails. Unreadable active state is preserved as a recovery copy before defaults are loaded.
+
+## Renderer isolation
+
+Context isolation and sandbox remain enabled; Node integration is disabled. The renderer has a restrictive content security policy, denied navigation/popups and permissions, narrow IPC methods, sender verification and GitHub-only validated external links. Repository text, notes and collection names are inserted as text, not HTML.
+
+No telemetry, remote user profile, hosted AI service, advertising identifier, account registration or subscription is included.

@@ -1,18 +1,16 @@
 # Release checks
 
-- Unit tests and syntax/JSON checks pass.
-- Native UI smoke verifies the display-clamped wide panel, two rows, readable descriptions and commands, footer bounds and non-empty screenshot pixels.
-- Native UI smoke saves a repository, opens it, checks replacement at the same slot, verifies neighbor stability and Undo, then visits interests, settings and saved views.
-- Verify Learn More targets the exact repository and Install targets verified public Releases; test missing releases and rate limits.
-- Verify stable row DOM after Save, 150% text, three rows and rapid collapse/expand.
-- Check screenshots in the native-preview artifact; fixtures contain illustrative star counts.
-- All required platform packaging jobs succeed before distributing that platform artifact.
-- Test the EXE, DMG and Linux packages on real devices, including transparency and display scaling at 100%, 150% and 200%.
-- Test multi-monitor bounds, dragging, position memory, anchors, opacity, tray, global shortcut and hide/reopen.
-- Exercise offline cache, API timeouts, rate limits, filters and an exhausted unseen pool.
-- Test local midnight rollover, day-one interest selection, duplicate clicks, pause replacement and pause learning.
-- Verify 7-day snooze expiry, owner blocking, restoring exclusions and resetting history.
-- Verify collection/profile imports reject malformed and oversized JSON; export correct schemas and valid RSS.
-- Test companion history permission approval, rejection, revocation and score-only export.
-- Check keyboard focus, narrow displays, compact mode, reduced motion and high contrast.
-- Review dependency lock, distribution license, platform signing and update strategy before production release.
+- Unit tests and syntax/JSON checks must pass.
+- Native Electron smoke must pass, including direct Learn/Install destinations, replacement/undo, readable text, 150% text and narrow layout.
+- Verify private notes, tags, rating, pinned/queued/read state, search operators and focus/cursor preservation.
+- Verify bulk read, collection creation/membership, comparison, Insights and command palette.
+- Verify focus-session start/stop, pointer-leave automatic collapse, hover reveal and visible hover scale.
+- Inspect desktop, workspace, Insights, compact dock and hover screenshots from the native-preview artifact.
+- All three OS packaging jobs must pass before distributing that platform's artifact.
+- Current package targets: Windows x64 EXE, Linux x64 AppImage/DEB/RPM, macOS arm64 DMG/ZIP.
+- Confirm public release notes describe the actual download location. A release label does not attach installer binaries by itself.
+- Test installed packages on real devices, including transparency, dragging, multi-monitor bounds, 100/150/200% OS scaling, tray and global shortcut.
+- Test offline cache, rate limits, release timeout/missing states, catalog exhaustion and local midnight rollover.
+- Test workspace JSON/CSV, import limits, note conflicts, deletion confirmations and recovery copies.
+- Test companion history permission approval/rejection/revocation and explicit score-only transfer.
+- Signing, dependency-lock review, distribution license and automatic updates remain production gates.
