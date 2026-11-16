@@ -62,6 +62,11 @@ function attachIpc(){
       else {s.hidden=[...new Set([...s.hidden,id])];s.daily=selectDaily(s.cache,s);s.seen=[...new Set([...s.seen,...s.daily.repos.map(r=>r.id)])];}
     });emit();return visibleState();
   });
+  handle('feed:export',async()=>{
+    const result=await dialog.showSaveDialog(window,{title:'Export daily discoveries as RSS',defaultPath:'repopulse-daily.xml',filters:[{name:'RSS feed',extensions:['xml']}]});
+    if(result.canceled||!result.filePath)return false;
+    fs.writeFileSync(result.filePath,require('../src/feed.cjs').rss(store.state.daily),'utf8');return true;
+  });
   handle('profile:set',input=>{const weights=validWeights(input);store.update(s=>{s.profile={weights,source:'manual',importedAt:new Date().toISOString()};});emit();return visibleState();});
   handle('profile:import',async()=>{
     const result=await dialog.showOpenDialog(window,{title:'Import local interest profile',filters:[{name:'RepoPulse interest profile',extensions:['json']}],properties:['openFile']});
@@ -96,5 +101,6 @@ if(singleton) app.whenReady().then(()=>{
 app.on('before-quit',()=>{quitting=true;clearInterval(timer);});
 app.on('will-quit',()=>{globalShortcut.unregisterAll();});
 app.on('window-all-closed',()=>{});
+
 
 

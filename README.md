@@ -10,7 +10,7 @@ A floating Dynamic Island for discovering three personalized GitHub projects eac
 - Daily three-project selection based on local calendar date. Existing picks stay stable through the day; previously presented projects are not repeated.
 - GitHub Search API catalog with six-hour local cache, timeouts, rate-limit errors and cached offline access.
 - Eight interest categories, affinity ranking, brief explanations, owner diversity and deterministic daily variety.
-- Save, search saved projects, like, hide, and open repositories with one click.
+- Save, search saved projects, like, hide, and open repositories with one click. Export daily discoveries as RSS 2.0 XML.
 - On-device personalization from chosen interests, reactions and an explicitly imported browser interest profile.
 - Optional browser companion for Chrome, Edge and Brave. History permission is requested only when the user clicks Analyze. Revocation is included.
 - Reduced-motion controls, keyboard focus states, safe text rendering, sandboxed renderer and a limited preload API.
@@ -76,3 +76,4 @@ See [Product plan](docs/PLAN.md), [Privacy](docs/PRIVACY.md) and [Release checkl
 Version **0.1.0 — initial implementation**. Automated logic tests are included. Native installers and platform behavior require successful CI builds and platform smoke tests before this can be described as production-ready. App-store publication, code signing, automatic updates and continuous browser synchronization are not implemented.
 
 Copyright © 2026 Ravan Sariyev. No license has been granted for redistribution; choose a license before accepting external contributions.
+

@@ -19,10 +19,11 @@ The source reference image was not included in the active request, so this first
 5. Add localization and a guided first-run flow.
 6. Consider opt-in OS notifications and a user-selected delivery time.
 7. Improve local topic detection, document relevance quality and expose a history of personalization changes.
-8. Add RSS/Atom export of the selected daily projects if requested. The initial product is an RSS-style discovery feed, not an RSS protocol reader.
+8. RSS 2.0 export is implemented. A hosted subscription URL or general-purpose RSS reader is a separate future feature.
 
 ## Future ideas
 Optional local language-model summaries; read-later notes; release tracking for saved projects; project comparisons; adjustable discovery versus familiarity balance. Never infer that any of these are already implemented.
 
 ## Constraints
 A strict 50K+ star catalog is finite and heavily favors popular projects. No-repeat discovery will eventually run out. Explain this transparently. Do not manufacture star counts, fabricate AI summaries, or lower the threshold without user choice.
+

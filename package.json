@@ -4,7 +4,10 @@
   "description": "Your daily open-source signal. A private, personalized GitHub discovery island.",
   "main": "app/main.cjs",
   "license": "UNLICENSED",
-  "author": "Ravan Sariyev",
+  "author": {
+    "name": "Ravan Sariyev",
+    "email": "242032059+rvnsre@users.noreply.github.com"
+  },
   "scripts": {
     "start": "electron .",
     "test": "node --test test/*.test.cjs",
@@ -54,5 +57,6 @@
       ],
       "category": "Development"
     }
-  }
+  },
+  "homepage": "https://github.com/rvnsre/RepoPulse"
 }

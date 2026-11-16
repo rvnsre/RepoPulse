@@ -22,7 +22,7 @@ function renderCard(repo){
 }
 function empty(title,description,action,label){const e=element('div',{class:'empty'});e.append(element('div',{class:'empty-symbol','aria-hidden':'true'},'⌘'),element('h2',{},title),element('p',{},description));if(action)e.append(button(label,action,'primary'));return e;}
 function renderToday(root){
- const repos=state.daily?.repos||[],label=element('div',{class:'section-label'});label.append(element('strong',{},'CURATED FOR YOUR CURIOSITY'),element('span',{},`${repos.length} / 3 discoveries`));root.append(label);
+ const repos=state.daily?.repos||[],label=element('div',{class:'section-label'});label.append(element('strong',{},'CURATED FOR YOUR CURIOSITY'),element('span',{},`${repos.length} / 3 discoveries`));root.append(label);if(repos.length)root.append(button('Export today as RSS',async()=>{if(await api.exportRss())toast('Daily RSS feed exported.');},'rss-export'));
  if(!Object.keys(state.profile.weights).length){const n=element('div',{class:'notice'},'Make this yours. Pick a few interests in Tune your feed, or import a local browser profile.');root.append(n);}
  if(!repos.length){root.append(empty('Your next favorite starts here.',state.cacheAt?'No unseen repositories remain in the current 50K+ catalog. Refresh later for new eligible projects.':'Connect to GitHub to discover three standout projects. No account or API key needed.',()=>refresh(true),'Discover my three'));return;}
  repos.forEach(r=>root.append(renderCard(r)));
@@ -58,3 +58,4 @@ function render(){if(!state)return;document.body.classList.toggle('reduced',stat
 async function refresh(force=false){if(busy)return;busy=true;$('refresh').disabled=true;try{const result=await api.refresh(force);state=result.state;render();if(result.error)toast(result.error);else if(force)toast('Your catalog is up to date.');}finally{busy=false;$('refresh').disabled=false;}}
 $('toggle').addEventListener('click',()=>run(()=>expand(!open)));$('count').addEventListener('click',()=>run(()=>expand(!open)));$('collapse').addEventListener('click',()=>run(()=>expand(false)));$('refresh').addEventListener('click',()=>run(()=>refresh(true)));document.querySelectorAll('[data-tab]').forEach(e=>e.addEventListener('click',()=>navigate(e.dataset.tab)));document.addEventListener('keydown',e=>{if(e.key==='Escape')run(()=>expand(false));});
 (async()=>{if(!api){$('content').append(empty('Desktop preview','This interface runs inside the RepoPulse desktop app.'));await expand(true);return;}state=await api.state();draft={...state.profile.weights};api.onState(next=>{state=next;render();});render();if(state.recoveryNotice)toast(state.recoveryNotice);await refresh();})().catch(e=>toast(e.message));
+
