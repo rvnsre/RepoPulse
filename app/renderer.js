@@ -26,7 +26,7 @@ function compact(number){return state?.settings.exactStars?Intl.NumberFormat('en
 function commands(repo){const name=repo.full_name.split('/')[1];return{clone:'git clone https://github.com/'+repo.full_name+'.git',inspect:'git -C "'+name+'" status\ngit -C "'+name+'" log -1 --oneline'};}
 function choose(id){selectedId=id;document.querySelectorAll('.repo-row').forEach(row=>row.classList.toggle('selected',Number(row.dataset.repoId)===id));updateActions();if(drawer&&section==='details')renderDrawer(false);}
 async function checkRelease(repo,force=false){
- const previous=releaseStates.get(repo.id);if(!force&&previous&&previous.status!=='unknown')return previous;
+ const previous=releaseStates.get(repo.id);if(!force&&previous&&previous.status!=='unknown'&&(previous.status==='checking'||Date.now()-Date.parse(previous.checkedAt)<900000))return previous;
  releaseStates.set(repo.id,{status:'checking',available:null});updateActions();
  const value=await api.releaseCheck(repo.id,force);releaseStates.set(repo.id,value);updateActions();if(drawer&&section==='details'&&selectedId===repo.id)renderDrawer(false);return value;
 }
@@ -158,7 +158,7 @@ function exclusionsView(root){
 function renderDrawer(force=true){
  if(!state||!drawer)return;
  document.querySelectorAll('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===section);b.setAttribute('aria-current',b.dataset.tab===section?'page':'false');});
- const stamp=JSON.stringify([section,section==='details'?[selected(),releaseStates.get(selected()?.id)]:null,section==='saved'?state.saved:null,section==='history'?state.history:null,section==='tune'?state.profile:null,section==='settings'?[state.settings,state.saved.length,state.history.length,state.catalogSize]:null,section==='exclusions'?state.exclusions:null]);
+ const stamp=JSON.stringify([section,section==='history'?[state.settings.uniqueHistory,state.settings.exactStars]:section==='saved'?state.settings.exactStars:null,section==='details'?[selected(),releaseStates.get(selected()?.id)]:null,section==='saved'?state.saved:null,section==='history'?state.history:null,section==='tune'?state.profile:null,section==='settings'?[state.settings,state.saved.length,state.history.length,state.catalogSize]:null,section==='exclusions'?state.exclusions:null]);
  if(!force&&stamp===drawerStamp)return;drawerStamp=stamp;
  const root=$('drawerContent'),active=document.activeElement,within=root.contains(active),key=within?(active.dataset.focusKey||active.id):null,scroll=root.scrollTop;
  let cursor=null;try{if(within&&typeof active.selectionStart==='number')cursor=[active.selectionStart,active.selectionEnd];}catch{}
@@ -172,7 +172,7 @@ $('menu').addEventListener('click',()=>run(()=>drawer?closeDrawer():openDrawer('
 $('closeDrawer').addEventListener('click',()=>run(closeDrawer));
 $('refresh').addEventListener('click',()=>run(()=>refresh(true)));
 $('undo').addEventListener('click',()=>run(async()=>{adopt(await api.undo());selectedId=repos()[0]?.id??null;render();toast('Last replacement restored.');}));
-$('next').addEventListener('click',()=>{pair=(pair+(state.settings.visibleRows||2))%Math.max(1,repos().length);render();});
+$('next').addEventListener('click',()=>{pair=(pair+(state.settings.visibleRows||2))%Math.max(1,repos().length);selectedId=visible()[0]?.id??null;render();});
 $('install').addEventListener('click',()=>run(()=>{const r=selected();return r&&openRepo(r,'releases');}));
 $('learn').addEventListener('click',()=>run(()=>{const r=selected();return r&&openRepo(r,'learn');}));
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>run(()=>openDrawer(b.dataset.tab))));
