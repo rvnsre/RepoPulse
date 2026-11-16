@@ -2,9 +2,9 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 async function smoke({app,window,store,resize,TOPICS,snapshot}){
  const root=path.join(__dirname,'../dist');fs.mkdirSync(root,{recursive:true});const errors=[];
- window.webContents.on('console-message',(_event,level,message)=>{if(level>=3)errors.push(message);});
+ window.webContents.on('console-message',(event,...legacy)=>{const level=event.level??legacy[0],message=event.message??legacy[1];if(level==='error'||typeof level==='number'&&level>=3){errors.push(message);console.error('RENDERER_ERROR:',message);}});
  await new Promise(resolve=>window.webContents.isLoading()?window.webContents.once('did-finish-load',resolve):resolve());
- const evaluate=script=>window.webContents.executeJavaScript(script);
+ const evaluate=async script=>{try{return await window.webContents.executeJavaScript(script);}catch(error){console.error('FAILED_NATIVE_SCRIPT:',script,'Renderer errors:',JSON.stringify(errors));throw error;}};
  async function until(check){for(let i=0;i<50;i++){if(await check())return;await new Promise(resolve=>setTimeout(resolve,100));}throw new Error('Native UI did not reach the expected state: '+JSON.stringify(await evaluate(`({rows:[...document.querySelectorAll('.repo-row')].map(r=>r.dataset.repoId),selected:document.getElementById('selectedLabel').textContent,toast:document.getElementById('toast').textContent,expanded:!document.getElementById('expanded').hidden,drawer:!document.getElementById('drawer').hidden})`)));}
  await until(()=>evaluate(`!!document.querySelector('.repo-row')`));
  await new Promise(r=>setTimeout(r,500));let dimensions=await evaluate(`({rows:document.querySelectorAll('.repo-row').length,width:innerWidth,height:innerHeight,footer:document.querySelector('footer').getBoundingClientRect().bottom})`);
@@ -47,9 +47,9 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await until(()=>store.state.workspace.records[first.id]?.queued===true);
  await evaluate("document.querySelector('[data-tab=\"library\"]').click()");
  await until(()=>evaluate("document.querySelectorAll('.library-row').length>0"));
- await evaluate("const search=document.querySelector('[aria-label=\"Search project library\"]');search.value='tag:native';search.dispatchEvent(new Event('input',{bubbles:true}));");
+ await evaluate("document.querySelector('[aria-label=\"Search project library\"]').value='tag:native';document.querySelector('[aria-label=\"Search project library\"]').dispatchEvent(new Event('input',{bubbles:true}));");
  await until(()=>evaluate("document.querySelectorAll('.library-row').length===1"));
- await evaluate("const search=document.querySelector('[aria-label=\"Search project library\"]');search.focus();search.setSelectionRange(2,2);");
+ await evaluate("document.querySelector('[aria-label=\"Search project library\"]').focus();document.querySelector('[aria-label=\"Search project library\"]').setSelectionRange(2,2);");
  await evaluate("window.pulse.workspacePatch("+first.id+",{rating:5})");
  await until(()=>store.state.workspace.records[first.id].rating===5);
  await new Promise(r=>setTimeout(r,150));
