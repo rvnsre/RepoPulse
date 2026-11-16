@@ -1,4 +1,6 @@
-# Implemented additions in 0.2
+# Feature inventory
+
+See [56 additions and corrections in 0.3](CHANGES-v0.3.md) for the current usability changes. The table below also retains the original 0.2 feature set.
 
 The following are working controls or behaviors, not a list of proposed ideas.
 
@@ -17,7 +19,7 @@ The following are working controls or behaviors, not a list of proposed ideas.
 | 11 | Source copy | Git clone commands copied without execution |
 | 12 | Inspection copy | Deterministic git status/log commands |
 | 13 | Link copy | Validated GitHub repository links |
-| 14 | Installation guide | Install opens the official repository README |
+| 14 | Installation guide | Install checks and opens public Releases; Guide opens the README |
 | 15 | Project overview | Relevance, stars, language, license, last push and topics |
 | 16 | Seven-day snooze | Temporarily exclude a project, allow return after expiry |
 | 17 | Owner exclusions | Exclude all projects by an owner |
@@ -45,4 +47,4 @@ Existing features retained: daily local-date rollover, saved projects, likes/hid
 
 ## Explicit limits
 
-Install is a link to official installation instructions, not autonomous code execution. Browser interest transfer is explicit JSON import/export. Native preview screenshots use synthetic fixtures. OS-specific runtime behavior still needs real-machine release checks.
+Install opens public Releases in the browser; it does not execute an installer. Browser interest transfer is explicit JSON import/export. Native preview screenshots use synthetic fixtures. OS-specific runtime behavior still needs real-machine release checks.

@@ -1,8 +1,10 @@
 # Release checks
 
 - Unit tests and syntax/JSON checks pass.
-- Native UI smoke verifies the wide panel at 1080 pixels, two rows, footer bounds and non-empty screenshot pixels.
+- Native UI smoke verifies the display-clamped wide panel, two rows, readable descriptions and commands, footer bounds and non-empty screenshot pixels.
 - Native UI smoke saves a repository, opens it, checks replacement at the same slot, verifies neighbor stability and Undo, then visits interests, settings and saved views.
+- Verify Learn More targets the exact repository and Install targets verified public Releases; test missing releases and rate limits.
+- Verify stable row DOM after Save, 150% text, three rows and rapid collapse/expand.
 - Check screenshots in the native-preview artifact; fixtures contain illustrative star counts.
 - All required platform packaging jobs succeed before distributing that platform artifact.
 - Test the EXE, DMG and Linux packages on real devices, including transparency and display scaling at 100%, 150% and 200%.

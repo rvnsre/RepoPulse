@@ -1,6 +1,10 @@
 # Product plan
 
-## 0.2 scope
+## 0.3 delivered
+
+Readable typography and text zoom, explicit browser navigation, verified public release links, stable per-slot animation, motion preferences, display-aware geometry and collection/exclusion management are implemented. See [the change inventory](CHANGES-v0.3.md) for the detailed list.
+
+## Original 0.2 scope
 
 Rebuild the visual surface around the supplied horizontal reference: two repository rows, diagonal connectors, shell command panels, warm-to-teal color flow and Install/Learn actions. Preserve the system tray and provide a larger secondary workspace for management tools.
 

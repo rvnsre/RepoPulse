@@ -4,9 +4,9 @@ A personalized GitHub discovery island for Windows, macOS and Linux, focused on 
 
 The warm brown-to-teal reference layout now uses readable typography: 24px repository names, 14px descriptions and 13px command text, with 100–150% text scaling. Choose one to three rows, panel width, command visibility and motion preferences.
 
-![Native application preview](docs/preview-v0.2.png)
+![Native application preview](docs/preview-v0.3.png)
 
-Preview above is from 0.2 with illustrative test metadata; 0.3 preview will be recorded by the native UI check.
+Native Electron preview with illustrative test metadata; star counts in the preview are fixtures.
 
 **Learn More** opens that repository directly in your default browser. **Install** checks public GitHub releases and opens its Releases page when available. Projects without releases show **No release**; **Guide** in Details opens the README. Commands are copied only.
 
