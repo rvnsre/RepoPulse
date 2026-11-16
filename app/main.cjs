@@ -4,6 +4,7 @@ const path=require('node:path'),fs=require('node:fs');
 const {Store}=require('../src/store.cjs');
 const {TOPICS,localDay,validateProfile,validWeights,repoTopics,defaults,normalizeRepo}=require('../src/engine.cjs');
 const discovery=require('../src/discovery.cjs');
+const workspace=require('../src/workspace.cjs');
 const {fetchCatalog}=require('../src/github.cjs');
 const {ReleaseClient,destination,repositoryUrl}=require('../src/navigation.cjs');
 const {bounds:layoutBounds}=require('../src/layout.cjs');
@@ -12,9 +13,9 @@ let releaseClient;
 let window,store,tray,timer,refreshPromise,quitting=false,mode='panel',lastError=null,moveTimer,adjusting=false;
 const opening=new Map(),smokeMode=!app.isPackaged&&process.argv.includes('--smoke-test');
 const singleton=app.requestSingleInstanceLock();if(!singleton)app.quit();
-function snapshot(){const s=store.state;return {revision,daily:s.daily,saved:s.saved,history:s.history,settings:s.settings,profile:s.profile,topics:TOPICS,cacheAt:s.cacheAt,catalogSize:s.cache.length,languages:[...new Set(s.cache.map(r=>r.language).filter(Boolean))].sort(),blockedOwners:s.blockedOwners,snoozedCount:Object.values(s.snoozed).filter(t=>t>Date.now()).length,canUndo:!!s.lastRotation&&s.lastRotation.day===localDay(),lastError,version:app.getVersion(),platform:process.platform,recoveryNotice:s.recoveryNotice||null,...(smokeMode?{lastExternal}:{}),exclusions:{hidden:s.hidden.map(id=>({id,name:findRepo(id)?.full_name||String(id)})),snoozed:Object.entries(s.snoozed).filter(([,until])=>until>Date.now()).map(([id,until])=>({id:Number(id),name:findRepo(Number(id))?.full_name||id,until})),owners:s.blockedOwners}};}
+function snapshot(){const s=store.state;return {windowMode:mode,workspace:s.workspace,catalog:[...new Map([...s.cache,...s.saved,...Object.values(s.workspace?.records||{}).map(r=>r.repo)].map(r=>[r.id,r])).values()],analytics:workspace.analytics(s.history,s.workspace),revision,daily:s.daily,saved:s.saved,history:s.history,settings:s.settings,profile:s.profile,topics:TOPICS,cacheAt:s.cacheAt,catalogSize:s.cache.length,languages:[...new Set(s.cache.map(r=>r.language).filter(Boolean))].sort(),blockedOwners:s.blockedOwners,snoozedCount:Object.values(s.snoozed).filter(t=>t>Date.now()).length,canUndo:!!s.lastRotation&&s.lastRotation.day===localDay(),lastError,version:app.getVersion(),platform:process.platform,recoveryNotice:s.recoveryNotice||null,...(smokeMode?{lastExternal}:{}),exclusions:{hidden:s.hidden.map(id=>({id,name:findRepo(id)?.full_name||String(id)})),snoozed:Object.entries(s.snoozed).filter(([,until])=>until>Date.now()).map(([id,until])=>({id:Number(id),name:findRepo(Number(id))?.full_name||id,until})),owners:s.blockedOwners}};}
 function emit(){revision++;if(window&&!window.isDestroyed())window.webContents.send('state:changed',snapshot());}
-function findRepo(id){return [...(store.state.daily?.repos||[]),...store.state.saved,...store.state.cache,...store.state.history.map(h=>h.repo)].find(r=>r?.id===id);}
+function findRepo(id){return [...(store.state.daily?.repos||[]),...store.state.saved,...store.state.cache,...store.state.history.map(h=>h.repo),...Object.values(store.state.workspace?.records||{}).map(r=>r.repo)].find(r=>r?.id===id);}
 function resize(next='panel',anchor=false){
  mode=next===false||next==='collapsed'?'collapsed':next==='workspace'?'workspace':'panel';if(!window)return;
  const area=screen.getDisplayMatching(window.getBounds()).workArea,current=window.getBounds();
@@ -28,12 +29,12 @@ async function refresh(force=false){
  refreshPromise=(async()=>{lastError=null;const previousDay=store.state.daily?.day;
   if(force||!Number.isFinite(Date.parse(store.state.cacheAt))||Date.now()-Date.parse(store.state.cacheAt)>6*3600000){try{const cache=await fetchCatalog(store.state.cache);store.update(s=>{s.cache=cache;s.cacheAt=new Date().toISOString();});}catch(e){lastError=e.message;}}
   store.update(s=>{discovery.present(s);});emit();
-  if(previousDay&&previousDay!==localDay()&&store.state.settings.notifications&&Notification.isSupported()&&store.state.daily.repos.length)new Notification({title:'Your GitHub discoveries are ready',body:`${store.state.daily.repos.length} new 50K+ star projects, selected for you.`}).show();
+  if(previousDay&&previousDay!==localDay()&&store.state.settings.notifications&&!store.state.settings.quietMode&&Notification.isSupported()&&store.state.daily.repos.length)new Notification({title:'Your GitHub discoveries are ready',body:`${store.state.daily.repos.length} new 50K+ star projects, selected for you.`}).show();
   return {state:snapshot(),error:lastError};
  })().finally(()=>{refreshPromise=null;});return refreshPromise;
 }
 function recordOpen(id){
- return store.update(s=>{const repo=findRepo(id);s.history=[{repo:{...repo},openedAt:new Date().toISOString()},...s.history].slice(0,500);
+ return store.update(s=>{const repo=findRepo(id);if(s.settings.markReadOnOpen)s.workspace=workspace.patch(s.workspace,repo,{read:true});s.history=[{repo:{...repo},openedAt:new Date().toISOString()},...s.history].slice(0,500);
   if(!s.settings.pausedLearning)for(const key of Object.keys(repoTopics(repo)))s.profile.weights[key]=Math.min(100,(s.profile.weights[key]||0)+0.5);
   if(s.settings.autoReplace)discovery.rotate(s,id);
  });
@@ -41,7 +42,7 @@ function recordOpen(id){
 async function openRepo(id,kind='repository'){
  if(!Number.isSafeInteger(id))throw new Error('Invalid repository');
  const repo=findRepo(id);if(!repo)throw new Error('Repository is no longer available.');
- if(!['repository','learn','releases','readme'].includes(kind))throw new Error('Unsupported repository action.');
+ if(!['repository','learn','releases','readme','issues','pulls','discussions','wiki','actions','contributors','license','commits','tags','forks','stargazers'].includes(kind))throw new Error('Unsupported repository action.');
  const key=id+':'+kind;
  if(opening.has(key)){await opening.get(key);return snapshot();}
  const task=(async()=>{
@@ -49,7 +50,7 @@ async function openRepo(id,kind='repository'){
   if(kind==='releases'&&release.available!==true)throw new Error(release.available===false?'No public release is available for this repository. Use Guide for setup instructions.':release.error||'Release availability could not be checked. Try again.');
   const url=destination(repo,kind,release);
   if(!smokeMode)await shell.openExternal(url);else lastExternal={url,kind,id};
-  if(kind!=='readme')recordOpen(id);
+  if(['repository','learn','releases'].includes(kind))recordOpen(id);
   emit();return snapshot();
  })();
  opening.set(key,task);try{return await task;}finally{opening.delete(key);}
@@ -69,27 +70,33 @@ async function exportData(kind){
  if(kind==='rss'){content=require('../src/feed.cjs').rss(s.daily);name='repopulse-daily';extension='xml';}
  else if(kind==='collection'){content=JSON.stringify({schema:'repopulse.collection.v1',repos:s.saved},null,2);name='repopulse-collection';}
  else if(kind==='profile'){content=JSON.stringify({schema:'repopulse.interests.v1',weights:s.profile.weights},null,2);name='repopulse-interests';}
+ else if(kind==='workspace'){content=JSON.stringify(workspace.normalize(s.workspace),null,2);name='repopulse-workspace';}
+ else if(kind==='workspacecsv'){content=workspace.csv([...new Map([...s.saved,...Object.values(s.workspace.records).map(r=>r.repo)].map(r=>[r.id,r])).values()],s.workspace);name='repopulse-workspace';extension='csv';}
  else if(kind==='history'){content=JSON.stringify({schema:'repopulse.history.v1',entries:s.history},null,2);name='repopulse-history';}
  else throw new Error('Unsupported export');
  const result=await dialog.showSaveDialog(window,{title:'Export RepoPulse data',defaultPath:`${name}.${extension}`,filters:[{name:extension.toUpperCase(),extensions:[extension]}]});if(result.canceled||!result.filePath)return false;
  fs.writeFileSync(result.filePath,content,'utf8');return true;
 }
 async function importData(kind){
- if(!['profile','collection'].includes(kind))throw new Error('Unsupported import');
+ if(!['profile','collection','workspace'].includes(kind))throw new Error('Unsupported import');
  const result=await dialog.showOpenDialog(window,{title:`Import ${kind}`,filters:[{name:'RepoPulse JSON',extensions:['json']}],properties:['openFile']});if(result.canceled)return null;
  const file=result.filePaths[0];if(fs.statSync(file).size>(kind==='profile'?65536:2000000))throw new Error('The selected file is too large.');
  const input=JSON.parse(fs.readFileSync(file,'utf8').replace(/^\uFEFF/,''));
- const data=kind==='profile'?validateProfile(input):discovery.collection(input);
- store.update(s=>{if(kind==='profile'){const initial=!Object.keys(s.profile.weights).length;s.profile=data;if(initial){s.daily=null;discovery.present(s);}}else s.saved=[...new Map([...data,...s.saved].map(r=>[r.id,r])).values()];});emit();return snapshot();
+ const data=kind==='profile'?validateProfile(input):kind==='workspace'?workspace.merge(store.state.workspace,input):discovery.collection(input);
+ store.update(s=>{if(kind==='workspace')s.workspace=data;else if(kind==='profile'){const initial=!Object.keys(s.profile.weights).length;s.profile=data;if(initial){s.daily=null;discovery.present(s);}}else s.saved=[...new Map([...data,...s.saved].map(r=>[r.id,r])).values()];});emit();return snapshot();
 }
 function attachIpc(){
  const handle=(name,fn)=>ipcMain.handle(name,(event,...args)=>{if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('Untrusted sender');return fn(...args);});
+ handle('library:query',input=>{if(!input||typeof input!=='object')input={};return workspace.query(snapshot().catalog,input,store.state.workspace,store.state.saved,store.state.history);});
+ handle('workspace:patch',(id,input)=>{if(!Number.isSafeInteger(id))throw new Error('Invalid repository');const repo=findRepo(id);if(!repo)throw new Error('Repository unavailable');store.update(s=>{s.workspace=workspace.patch(s.workspace,repo,input);});emit();return snapshot();});
+ handle('workspace:bulk',(ids,action)=>{if(!Array.isArray(ids)||ids.length>2000||!['save','unsave','read','unread','queue','unqueue','pin','unpin'].includes(action))throw new Error('Invalid bulk action');const found=[...new Set(ids)].filter(Number.isSafeInteger).map(findRepo).filter(Boolean);store.update(s=>{for(const repo of found){if(action==='save'&&!s.saved.some(r=>r.id===repo.id))s.saved.push(repo);else if(action==='unsave')s.saved=s.saved.filter(r=>r.id!==repo.id);else if(!['save','unsave'].includes(action)){const key=({read:'read',unread:'read',queue:'queued',unqueue:'queued',pin:'pinned',unpin:'pinned'})[action];s.workspace.records[repo.id]={...workspace.metadata({...s.workspace.records[repo.id],[key]:['read','queue','pin'].includes(action)}),repo,updatedAt:new Date().toISOString()};}}});emit();return snapshot();});
+ handle('workspace:collection',async(action,payload)=>{if(['delete','clear'].includes(action)&&!await confirm(action==='delete'?'Delete this collection?':'Clear this collection?','Repository notes, ratings and saved projects remain available.'))return null;if(action==='create')payload={...payload,id:require('node:crypto').randomUUID()};store.update(s=>{s.workspace=workspace.collection(s.workspace,action,payload,[...s.cache,...s.saved,...Object.values(s.workspace.records).map(r=>r.repo)].map(r=>r.id));if(action==='add')for(const id of payload.repos||[]){const repo=findRepo(id);if(repo&&!s.workspace.records[id])s.workspace.records[id]={...workspace.metadata(),repo,updatedAt:new Date().toISOString()};}});emit();return snapshot();});
  handle('state:get',()=>snapshot());handle('catalog:refresh',force=>refresh(force===true));
  handle('window:expand',next=>resize(next));
- handle('window:fit',payload=>{if(!payload||payload.mode!==mode||!Number.isFinite(payload.height))return;const current=window.getBounds(),area=screen.getDisplayMatching(current).workArea,height=Math.round(Math.max(mode==='collapsed'?52:160,Math.min(payload.height,area.height-12)));if(Math.abs(current.height-height)>1){adjusting=true;window.setBounds({height,y:Math.round(Math.max(area.y,Math.min(current.y,area.y+area.height-height)))},false);setTimeout(()=>{adjusting=false;},100);}});handle('window:hide',()=>window.hide());handle('app:quit',()=>{quitting=true;app.quit();});
+ handle('window:fit',payload=>{if(!payload||payload.mode!==mode||!Number.isFinite(payload.height))return;const current=window.getBounds(),area=screen.getDisplayMatching(current).workArea,height=Math.round(Math.max(mode==='collapsed'?80:160,Math.min(payload.height,area.height-12)));if(Math.abs(current.height-height)>1){adjusting=true;window.setBounds({height,y:Math.round(Math.max(area.y,Math.min(current.y,area.y+area.height-height)))},false);setTimeout(()=>{adjusting=false;},100);}});handle('window:hide',()=>window.hide());handle('app:quit',()=>{quitting=true;app.quit();});
  handle('repo:open',openRepo);
  handle('repo:release-check',async(id,force=false)=>{const repo=findRepo(id);if(!repo)throw new Error('Repository unavailable');return {...await releaseClient.get(repo,force===true),id};});
- handle('repo:copy',(id,kind)=>{const repo=findRepo(id);if(!repo)throw new Error('Repository unavailable');const commands=discovery.sources(repo);const values={url:`https://github.com/${repo.full_name}`,clone:commands.clone,inspect:commands.inspect,markdown:`[${repo.full_name}](https://github.com/${repo.full_name})`,releases:repositoryUrl(repo)+'/releases'};if(!Object.hasOwn(values,kind))throw new Error('Unsupported copy');clipboard.writeText(values[kind]);return true;});
+ handle('repo:copy',(id,kind)=>{const repo=findRepo(id);if(!repo)throw new Error('Repository unavailable');const commands=discovery.sources(repo);const values={url:`https://github.com/${repo.full_name}`,clone:commands.clone,inspect:commands.inspect,markdown:`[${repo.full_name}](https://github.com/${repo.full_name})`,releases:repositoryUrl(repo)+'/releases',name:repo.full_name,owner:repo.full_name.split('/')[0],shallow:'git clone --depth 1 '+repositoryUrl(repo)+'.git',ssh:'git clone git@github.com:'+repo.full_name+'.git',cli:'gh repo clone '+repo.full_name,json:JSON.stringify(repo,null,2),stars:String(repo.stargazers_count)};if(!Object.hasOwn(values,kind))throw new Error('Unsupported copy');clipboard.writeText(values[kind]);return true;});
  handle('repo:react',(id,action)=>{
   if(!Number.isSafeInteger(id)||!['save','like','hide','snooze','block'].includes(action))throw new Error('Invalid reaction');const repo=findRepo(id);if(!repo)throw new Error('Repository unavailable');
   store.update(s=>{
@@ -118,9 +125,9 @@ function attachIpc(){
 }
 if(singleton)app.whenReady().then(()=>{
  store=new Store(path.join(app.getPath('userData'),smokeMode?'smoke-state.json':'state.json'));discovery.initialize(store.state);
- if(smokeMode){store.state=discovery.initialize(defaults());store.state.cache=require('../test/fixtures.cjs');store.state.cacheAt=new Date().toISOString();store.state.profile.weights={ai:10,tools:8,systems:6};discovery.present(store.state);}
+ if(smokeMode){store.state=discovery.initialize(defaults());store.state.settings.autoHide=false;store.state.cache=require('../test/fixtures.cjs');store.state.cacheAt=new Date().toISOString();store.state.profile.weights={ai:10,tools:8,systems:6};discovery.present(store.state);}
  releaseClient=new ReleaseClient(smokeMode?{fetchImpl:async()=>({ok:true,json:async()=>[{tag_name:'v1.0.0',draft:false}]})}:{});
- createWindow();attachIpc();tray=new Tray(nativeImage.createFromDataURL(require('./tray-icon.cjs')));tray.setToolTip('RepoPulse - GitHub rss');tray.setContextMenu(Menu.buildFromTemplate([{label:'Open RepoPulse',click:()=>{show();resize('panel');}},{label:'Refresh catalog',click:()=>refresh(true)},{type:'separator'},{label:'Quit',click:()=>{quitting=true;app.quit();}}]));tray.on('click',()=>{show();resize(mode==='collapsed'?'panel':'collapsed');});
+ createWindow();attachIpc();if(store.state.settings.startCollapsed&&!smokeMode)window.webContents.once('did-finish-load',()=>resize('collapsed'));tray=new Tray(nativeImage.createFromDataURL(require('./tray-icon.cjs')));tray.setToolTip('RepoPulse - GitHub rss');tray.setContextMenu(Menu.buildFromTemplate([{label:'Open RepoPulse',click:()=>{show();resize('panel');}},{label:'Refresh catalog',click:()=>refresh(true)},{type:'separator'},{label:'Quit',click:()=>{quitting=true;app.quit();}}]));tray.on('click',()=>{show();resize(mode==='collapsed'?'panel':'collapsed');});
  globalShortcut.register('CommandOrControl+Shift+Space',()=>{show();resize(mode==='collapsed'?'panel':'collapsed');});
  timer=setInterval(()=>{if(store.state.daily?.day!==localDay())refresh();},60000);app.on('second-instance',show);app.on('activate',show);
  if(smokeMode)require('../scripts/smoke.cjs').smoke({app,window,store,resize,TOPICS,snapshot}).catch(error=>{console.error(error);app.exit(1);});

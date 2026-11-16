@@ -1,7 +1,7 @@
 'use strict';
 const {normalizeRepo}=require('./engine.cjs');
 function repositoryUrl(repo){if(!normalizeRepo(repo))throw new Error('Invalid repository');return 'https://github.com/'+repo.full_name;}
-function destination(repo,kind='repository',release){const base=repositoryUrl(repo);if(['repository','learn'].includes(kind))return base;if(kind==='readme')return base+'#readme';if(kind==='releases'){if(release?.available!==true)return null;return base+'/releases';}throw new Error('Unsupported repository action');}
+function destination(repo,kind='repository',release){const base=repositoryUrl(repo);if(['repository','learn'].includes(kind))return base;if(kind==='readme')return base+'#readme';const paths={issues:'/issues',pulls:'/pulls',discussions:'/discussions',wiki:'/wiki',actions:'/actions',contributors:'/graphs/contributors',license:'#license-1-ov-file',commits:'/commits',tags:'/tags',forks:'/forks',stargazers:'/stargazers'};if(Object.hasOwn(paths,kind))return base+paths[kind];if(kind==='releases'){if(release?.available!==true)return null;return base+'/releases';}throw new Error('Unsupported repository action');}
 class ReleaseClient{
  constructor({fetchImpl=fetch,now=Date.now,ttl=900000,timeout=8000}={}){this.fetch=fetchImpl;this.now=now;this.ttl=ttl;this.timeout=timeout;this.cache=new Map();this.inflight=new Map();}
  async get(repo,force=false){

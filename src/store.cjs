@@ -20,6 +20,6 @@ class Store {
     }
   }
   save() { fs.mkdirSync(path.dirname(this.file),{recursive:true}); const temp=`${this.file}.tmp`; fs.writeFileSync(temp,JSON.stringify(this.state,null,2),{mode:0o600}); fs.renameSync(temp,this.file); }
-  update(fn) { fn(this.state);this.save();return this.state; }
+  update(fn) { const previous=this.state,next=structuredClone(previous);fn(next);this.state=next;try{this.save();}catch(error){this.state=previous;throw error;}return this.state; }
 }
 module.exports={Store};
