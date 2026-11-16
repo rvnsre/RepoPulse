@@ -1,12 +1,13 @@
 'use strict';
 const {selectDaily, ranked, eligible, localDay, normalizeRepo, defaults}=require('./engine.cjs');
-const SETTINGS={pinned:true,reducedMotion:false,launchAtLogin:false,autoReplace:true,hoverExpand:false,notifications:false,pausedLearning:false,opacity:100,anchor:'center',theme:'reference',density:'comfortable',minStars:50000,languages:[]};
+const SETTINGS={pinned:true,reducedMotion:false,launchAtLogin:false,autoReplace:true,hoverExpand:false,notifications:false,pausedLearning:false,opacity:100,anchor:'center',theme:'reference',density:'comfortable',minStars:50000,languages:[],textScale:100,motion:'system',motionDuration:220,visibleRows:2,panelWidth:1280,showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,shortcuts:true,exactStars:false,toastSeconds:5,uniqueHistory:false};
 function settings(input={}) {
  const out={...SETTINGS};
- for(const key of ['pinned','reducedMotion','launchAtLogin','autoReplace','hoverExpand','notifications','pausedLearning'])if(typeof input[key]==='boolean')out[key]=input[key];
+ for(const key of ['pinned','reducedMotion','launchAtLogin','autoReplace','hoverExpand','notifications','pausedLearning','showCommands','showDescriptions','showOwners','showReasons','wrapNames','codeWrap','shortcuts','exactStars','uniqueHistory'])if(typeof input[key]==='boolean')out[key]=input[key];
  if(Number.isFinite(input.opacity))out.opacity=Math.max(65,Math.min(100,Math.round(input.opacity)));
  if(Number.isFinite(input.minStars))out.minStars=Math.max(50000,Math.min(1000000,Math.round(input.minStars)));
- for(const [key,values]of Object.entries({anchor:['left','center','right'],theme:['reference','graphite','contrast'],density:['comfortable','compact']}))if(values.includes(input[key]))out[key]=input[key];
+ for(const [key,values]of Object.entries({anchor:['left','center','right'],motion:['system','full','none'],theme:['reference','graphite','contrast'],density:['comfortable','compact']}))if(values.includes(input[key]))out[key]=input[key];
+ for(const [key,values]of Object.entries({textScale:[100,115,130,150],motionDuration:[140,220,320],visibleRows:[1,2,3],panelWidth:[1080,1280,1440],toastSeconds:[3,5,8]}))if(values.includes(Number(input[key])))out[key]=Number(input[key]);
  if(Array.isArray(input.languages))out.languages=[...new Set(input.languages.filter(s=>typeof s==='string'&&s.length<40))].slice(0,20);
  return out;
 }

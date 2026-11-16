@@ -1,40 +1,22 @@
-# RepoPulse 0.2
+# RepoPulse 0.3
 
-A reference-inspired, wide GitHub RSS island for Windows, macOS and Linux.
+A personalized GitHub discovery island for Windows, macOS and Linux, focused on established **50,000+ star** projects.
 
-Two repository rows, a warm-to-ocean gradient, connecting arrows, source command blocks, Copy controls and centered **Install / Learn More** actions. A third daily pick is kept in the queue and can be shown with **Next pair**. The surrounding laptop, wallpaper and editing tools in the reference are presentation context, not part of the desktop widget.
+The warm brown-to-teal reference layout now uses readable typography: 24px repository names, 14px descriptions and 13px command text, with 100–150% text scaling. Choose one to three rows, panel width, command visibility and motion preferences.
 
-![RepoPulse reference panel](docs/preview-v0.2.png)
+![Native application preview](docs/preview-v0.2.png)
 
-*Native application preview with illustrative test metadata.*
+Preview above is from 0.2 with illustrative test metadata; 0.3 preview will be recorded by the native UI check.
 
-## Click, discover, continue
+**Learn More** opens that repository directly in your default browser. **Install** checks public GitHub releases and opens its Releases page when available. Projects without releases show **No release**; **Guide** in Details opens the README. Commands are copied only.
 
-Opening a repository successfully replaces that exact row with the highest-ranked unseen eligible project. The neighboring row remains in place. Double clicks do not consume multiple recommendations. **Undo** restores the last replacement. Saved and history views preserve deliberate access to older projects.
+Opening a project replaces its exact row with an unseen eligible recommendation. The neighboring row stays in place. Undo restores the previous selection. Save no longer rebuilds rows, hover does not change the action target, and superseded animations are cancelled. Text zoom, responsive columns and content-aware native sizing keep the panel readable.
 
-The initial queue contains up to three projects per local day. Opening projects can reveal additional projects that day. The catalog remains strictly **50,000+ stars**, non-archived and non-fork. If the eligible pool runs out, the app shows an honest empty state instead of repeating projects or fabricating data.
-
-## Included
-
-- Wide reference layout, responsive narrow-screen behavior, collapsed island and expanded workspace.
-- Exact-row replacement, undo, duplicate-click protection and no-repeat memory.
-- History with timestamps, saved collection, search and sorting by name, recency or stars.
-- Copy source commands, inspect commands and repository links.
-- Official installation guide access: **Install opens the repository README**. It does not run an installer or execute copied commands. **Learn More** opens local project details.
-- Owner exclusions, seven-day snooze, hidden-project controls and explicit restoration.
-- Language filters, adjustable minimum stars with a hard 50K floor, and transparent relevance explanations.
-- Manual interests, browser-profile import/export and an option to pause reaction learning.
-- Local collection import/export and daily RSS 2.0 export.
-- Reference, graphite and high-contrast palettes; compact density, reduced motion and opacity control.
-- Screen anchoring, remembered window position, hover expansion, system tray and a global shortcut.
-- Optional new-day notifications and launch at login on Windows/macOS; Linux uses session settings.
-- Cached offline access, rate-limit feedback, corrupted-state recovery and local-data reset.
-
-The [feature inventory](docs/FEATURES.md) maps 36 additions to their implementation. See the [product plan](docs/PLAN.md), [privacy details](docs/PRIVACY.md) and [release checklist](docs/RELEASE.md).
+See [56 implemented changes](docs/CHANGES-v0.3.md), the [feature inventory](docs/FEATURES.md), [privacy details](docs/PRIVACY.md) and [release checklist](docs/RELEASE.md).
 
 ## Run and build
 
-Requires Node.js 24+ and npm:
+Requires Node.js 24+.
 
 ```sh
 npm install
@@ -44,35 +26,40 @@ npm run check
 npm run dist
 ```
 
-GitHub [Actions](https://github.com/rvnsre/RepoPulse/actions) builds Windows NSIS/portable EXE, macOS DMG/ZIP and Linux AppImage/DEB/RPM. Download artifacts from a successful run. They are unsigned preview builds. Packaging success does not replace real-device checks for display scaling, transparency, multi-monitor behavior or OS installation prompts.
+[GitHub Actions](https://github.com/rvnsre/RepoPulse/actions) tests the code and packages Windows EXE, macOS DMG/ZIP, Linux AppImage/DEB/RPM. Download artifacts from a successful run. These preview builds are unsigned; packaging does not replace OS installation and real-device display testing.
 
-The Linux native UI test opens the real Electron interface, checks layout dimensions, captures pixels, saves a project, opens and replaces a row, undoes the replacement and visits the interests/settings/collection screens. The native preview uses sample public-project metadata; its star counts are illustrative, not live claims.
+The native Linux Electron smoke test verifies browser destinations without launching an external browser, independent row replacement, undo, stable row DOM, readable font sizes, large-text layout and rapid mode changes. It also captures native screenshots.
+
+## Discover and organize
+
+Saved collections, multi-term search, language filters, sorting, history export and individual history removal are local. Minimum stars cannot go below 50K. Owner blocking, hidden projects and snoozes can be restored individually. Projects remain non-archived and non-forks. Manual interests and reaction learning personalize future picks; learning can be paused.
+
+The initial daily queue contains up to three projects. Opening projects can reveal more that day. A finite catalog cannot supply unlimited unseen projects; exhaustion shows an empty state. Undo and explicit restoration intentionally allow earlier projects to return.
 
 ## Browser interests
 
-Load `extension/` unpacked in Edge, Chrome or Brave. Its popup requests optional history permission only when you choose Analyze. It processes up to 1,000 recently visited pages locally and exports `repopulse-interests.json`, containing recognized topic weights only. Import that file under **Interests** in the desktop app.
-
-There is no cookie access, background tracking, remote AI service or automatic browser-to-desktop synchronization in this release. Topic detection is a local keyword heuristic. Closing the popup discards analysis memory; permission can be revoked in the popup.
+Load `extension/` unpacked in Edge, Chrome or Brave. Choose Analyze to request optional history permission, process recent pages locally and export topic weights. Import that JSON under Interests in the app. There is no cookie access, secret extraction, background tracking, remote AI service or automatic browser synchronization.
 
 ## Keyboard
 
 | Shortcut | Action |
-| --- | --- |
+|---|---|
 | Ctrl/Cmd + Shift + Space | Toggle island |
-| J / K | Select repository row |
+| Ctrl/Cmd + plus / minus / zero | Text scale |
+| J / K | Select row |
 | Enter | Open focused repository |
-| S | Toggle save for selected repository |
-| U | Undo last replacement |
+| S | Save selected project |
+| U | Undo replacement |
 | R | Refresh catalog |
-| / | Search saved repositories |
-| Escape | Close workspace or collapse panel |
+| N | Next rows |
+| I | Open releases when available |
+| / | Search saved projects |
+| Escape | Close workspace or collapse |
 
-## Data and limits
+Shortcuts can be disabled in Settings.
 
-The app keeps a public GitHub metadata cache for up to six hours. Personal interest weights, history, exclusions, preferences and collections stay in per-user local storage. No GitHub account, API key or hosted backend is required. GitHub still receives ordinary connection metadata when public catalog requests are made.
+## Data
 
-A finite 50K+ catalog cannot supply unlimited unseen projects. Snooze deliberately permits a project to return after seven days; Undo deliberately restores an earlier row. These are explicit exceptions to automatic no-repeat selection. Filters do not reduce the threshold below 50K. Opening or liking projects updates future relevance unless learning is paused.
+Personal weights, history, preferences and collections stay in per-user local storage. Public metadata is cached for six hours, release availability for 15 minutes. No account or API key is required. GitHub receives normal network metadata for public requests. Rate limits and timeouts show recoverable messages.
 
-Source layout: `app/` desktop UI and process isolation; `src/` recommendation/state/feed logic; `extension/` optional local analysis; `test/` automated tests; `scripts/` validation and native UI checks; `docs/` product and privacy documentation.
-
-Copyright 2026 Ravan Sariyev. Distribution license is not yet selected. Code signing, automatic application updates, browser-store publication and automatic browser synchronization remain future work.
+Copyright 2026 Ravan Sariyev. Distribution license is not yet selected. Code signing, automatic updates and browser-store publication remain future work.
