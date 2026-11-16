@@ -1,7 +1,7 @@
 'use strict';
 const api=window.pulse,$=id=>document.getElementById(id);
 let state,section='details',expanded=true,drawer=false,selectedId=null,pair=0,draft={},toastTimer,busy=false,search='',sort='recent';
-const pending=new Set();
+const pending=new Set(),hero=document.querySelector('.hero-actions');
 function el(tag,props={},text){const e=document.createElement(tag);for(const [k,v]of Object.entries(props))e.setAttribute(k,v);if(text!==undefined)e.textContent=text;return e;}
 function btn(text,action,cls='',label){const e=el('button',{class:cls},text);if(label){e.setAttribute('aria-label',label);e.title=label;}e.addEventListener('click',()=>run(action));return e;}
 function toast(message){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,5000);}
@@ -23,7 +23,7 @@ function row(repo,index){const saved=state.saved.some(r=>r.id===repo.id),article
  name.addEventListener('focus',()=>{selectedId=repo.id;});article.addEventListener('mouseenter',()=>{selectedId=repo.id;});
  const meta=el('div',{class:'repo-meta'});meta.append(el('span',{},`${compact(repo.stargazers_count)} stars`),el('span',{},repo.language||'Open source'));identity.append(name,meta);
  const description=el('p',{class:'repo-description'},repo.description);description.title=`${repo.full_name}\n${repo.reason||''}`;
- article.append(identity,description,el('div',{class:'connector','aria-hidden':'true'}),codeBlock(repo,'clone','Source / Bash + PowerShell'),el('div',{class:'connector second down','aria-hidden':'true'}),codeBlock(repo,'inspect','Inspect / after cloning','inspect-block'));
+ const source=index===1?el('div',{class:'action-slot'}):codeBlock(repo,'clone','Source / Bash + PowerShell');if(index===1)source.append(hero);article.append(identity,description,el('div',{class:'connector','aria-hidden':'true'}),source,el('div',{class:'connector second down','aria-hidden':'true'}),codeBlock(repo,'inspect','Inspect / after cloning','inspect-block'));
  const extra=el('div',{class:'row-extra'});extra.append(btn(saved?'Saved':'Save',()=>react(repo,'save'),saved?'active':'',`${saved?'Unsave':'Save'} ${repo.full_name}`),btn('Like',()=>react(repo,'like'),'',`Like ${repo.full_name}`),btn('7d',()=>react(repo,'snooze'),'',`Snooze ${repo.full_name} for 7 days`),btn('Hide',()=>react(repo,'hide'),'',`Hide ${repo.full_name}`),btn('More',()=>{selectedId=repo.id;return openDrawer('details');},'',`Details for ${repo.full_name}`));article.append(extra);return article;
 }
 function empty(title,body,action,label){const box=el('div',{class:'empty'});box.append(el('h2',{},title),el('p',{},body));if(action)box.append(btn(label,action,'secondary'));return box;}
@@ -35,8 +35,8 @@ function render(){if(!state)return;const prefs=state.settings;
  $('status').title=state.lastError||'Only public GitHub metadata is requested. Your interest profile stays on this device.';
  $('system').textContent=`${({win32:'Windows',darwin:'macOS',linux:'Linux'})[state.platform]||'Desktop'} / 50K+ stars / local interests / ${new Date().toLocaleDateString('en',{month:'short',day:'numeric'})}`;
  $('undo').disabled=!state.canUndo;$('install').disabled=!selected();$('learn').disabled=!selected();$('next').disabled=repos().length<3;
- $('feed').replaceChildren();if(repos().length)visible().forEach((repo,i)=>$('feed').append(row(repo,i)));else $('feed').append(empty('Your next discovery starts here.',state.cacheAt?'No unseen projects meet your filters. Broaden your languages or star threshold, or refresh later.':'Connect to GitHub to get personalized projects with at least 50,000 stars.',()=>refresh(true),'Refresh catalog'));
- if(drawer)renderDrawer();
+ hero.remove();$('feed').replaceChildren();if(repos().length)visible().forEach((repo,i)=>$('feed').append(row(repo,i)));else $('feed').append(empty('Your next discovery starts here.',state.cacheAt?'No unseen projects meet your filters. Broaden your languages or star threshold, or refresh later.':'Connect to GitHub to get personalized projects with at least 50,000 stars.',()=>refresh(true),'Refresh catalog'));
+ if(!hero.isConnected)document.querySelector('footer').append(hero);if(drawer)renderDrawer();
 }
 function heading(root,title,actions=[]){const h=el('div',{class:'drawer-heading'});h.append(el('h2',{},title));const stack=el('div',{class:'stack'});stack.append(...actions);h.append(stack);root.append(h);}
 function overview(root){const repo=selected();if(!repo){root.append(empty('Nothing selected yet.','Choose a repository when your feed is ready.'));return;}

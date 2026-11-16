@@ -40,7 +40,7 @@ async function openRepo(id,kind='repository'){
  if(!Number.isSafeInteger(id))throw new Error('Invalid repository');
  const repo=findRepo(id);if(!repo)throw new Error('Repository is no longer available.');
  if(kind==='readme'){if(!smokeMode)await shell.openExternal(discovery.sources(repo).readme);return snapshot();}
- if(opening.has(id))return opening.get(id);
+ if(opening.has(id)){await opening.get(id);return snapshot();}
  const task=(async()=>{if(!smokeMode)await shell.openExternal(`https://github.com/${repo.full_name}`);recordOpen(id);emit();return snapshot();})();
  opening.set(id,task);try{return await task;}finally{setTimeout(()=>opening.delete(id),700);}
 }
