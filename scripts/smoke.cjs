@@ -1,32 +1,25 @@
 'use strict';
-// Native smoke check runs only in development via --smoke-test.
-const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
-async function smoke({app,window,store,resize,TOPICS}){
-  const root=path.join(__dirname,'../dist');fs.mkdirSync(root,{recursive:true});
-  const errors=[];window.webContents.on('console-message',(_event,level,message)=>{if(level>=3)errors.push(message);});
-  await new Promise(resolve=>{if(window.webContents.isLoading())window.webContents.once('did-finish-load',resolve);else resolve();});
-  const fixture=require('../test/fixtures.cjs');store.state.cache=fixture;
-  store.state.cacheAt=new Date().toISOString();store.state.profile.weights={ai:10,tools:8,systems:6};
-  const {selectDaily}=require('../src/engine.cjs');store.state.daily=selectDaily(fixture,store.state);
-  // Refresh uses the prepopulated cache; test fixtures never enter the shipped application.
-  window.webContents.send('state:changed',{daily:store.state.daily,saved:[],settings:store.state.settings,profile:store.state.profile,topics:TOPICS,cacheAt:store.state.cacheAt,catalogSize:fixture.length});
-  resize(true);
-  await window.webContents.executeJavaScript(`document.getElementById('toggle').click()`);
-  await new Promise(resolve=>setTimeout(resolve,450));
-  const dimensions=await window.webContents.executeJavaScript(`({cards:document.querySelectorAll('article.repo').length, footer:document.querySelector('footer').getBoundingClientRect().bottom, height:innerHeight, expanded:!document.getElementById('expanded').hidden})`);
-  assert.equal(dimensions.cards,3);assert.equal(dimensions.expanded,true);assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
-  const preview=await window.webContents.capturePage({x:0,y:0,width:508,height:730},{stayHidden:false,stayAwake:true});
-  assert.equal(preview.isEmpty(),false,'The native preview must contain rendered pixels.');
-  const png=preview.toPNG();assert.ok(png.length>5000,'The native preview must contain a visible interface.');
-  fs.writeFileSync(path.join(root,'desktop-preview.png'),png);
-  await window.webContents.executeJavaScript(`document.querySelector('[data-tab="tune"]').click()`);
-  assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.topic').length`),8);
-  await window.webContents.executeJavaScript(`document.querySelector('[data-tab="today"]').click();document.querySelector('.actions button:nth-child(2)').click()`);
-  await new Promise(resolve=>setTimeout(resolve,200));
-  assert.equal(store.state.saved.length,1);
-  assert.deepEqual(errors,[]);
-  console.log('Native UI smoke passed: three cards, fitted footer, tune page and saved state.');
-  app.exit(0);
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+async function smoke({app,window,store,resize,TOPICS,snapshot}){
+ const root=path.join(__dirname,'../dist');fs.mkdirSync(root,{recursive:true});const errors=[];
+ window.webContents.on('console-message',(_event,level,message)=>{if(level>=3)errors.push(message);});
+ await new Promise(resolve=>window.webContents.isLoading()?window.webContents.once('did-finish-load',resolve):resolve());
+ const evaluate=script=>window.webContents.executeJavaScript(script);
+ async function until(check){for(let i=0;i<50;i++){if(await check())return;await new Promise(resolve=>setTimeout(resolve,100));}throw new Error('Native UI did not reach the expected state.');}
+ await until(()=>evaluate(`!!document.querySelector('.repo-row')`));
+ let dimensions=await evaluate(`({rows:document.querySelectorAll('.repo-row').length,width:innerWidth,height:innerHeight,footer:document.querySelector('footer').getBoundingClientRect().bottom})`);
+ assert.equal(dimensions.rows,2);assert.ok(dimensions.width>=900);assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
+ async function capture(name){await new Promise(resolve=>setTimeout(resolve,350));const b=window.getBounds();const image=await window.webContents.capturePage({x:0,y:0,width:b.width,height:b.height},{stayHidden:false,stayAwake:true});assert.equal(image.isEmpty(),false);const png=image.toPNG();assert.ok(png.length>5000);fs.writeFileSync(path.join(root,name),png);if(name==='desktop-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_PREVIEW:'+encoded.slice(n,n+4096));}}
+ await capture('desktop-preview.png');
+ const first=store.state.daily.repos[0],second=store.state.daily.repos[1];
+ await evaluate(`document.querySelector('.row-extra button').click()`);await until(()=>store.state.saved.length===1);
+ await evaluate(`document.querySelector('.repo-name').click()`);await until(()=>store.state.history.length===1);
+ assert.notEqual(store.state.daily.repos[0].id,first.id);assert.equal(store.state.daily.repos[1].id,second.id);
+ await evaluate(`document.getElementById('undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
+ await evaluate(`document.getElementById('learn').click()`);await until(()=>evaluate(`!document.getElementById('drawer').hidden`));await capture('workspace-preview.png');
+ await evaluate(`document.querySelector('[data-tab="tune"]').click()`);await until(()=>evaluate(`document.querySelectorAll('.topic').length===8`));
+ await evaluate(`document.querySelector('[data-tab="settings"]').click()`);await until(()=>evaluate(`document.querySelectorAll('.setting').length>=12`));
+ await evaluate(`document.querySelector('[data-tab="saved"]').click()`);await until(()=>evaluate(`document.querySelectorAll('.list-row').length===1`));
+ assert.deepEqual(errors,[]);console.log('Native UI passed: reference panel, two rows, pixel capture, save, auto-replace in place, undo, interests, settings and saved collection.');app.exit(0);
 }
 module.exports={smoke};
-

@@ -1,18 +1,16 @@
 # Release checks
 
-Before publishing a production release:
-
-- Core tests and syntax/JSON checks pass.
-- All three CI packaging jobs succeed. Inspect uploaded build artifacts and dependency lock.
-- Launch installers on Windows, macOS and Linux; confirm tray menu and shortcut behavior.
-- Verify native window bounds at 100%, 150% and 200% scaling and on a smaller display.
-- Verify expand/collapse, dragging, multiple monitors, hide/reopen, quit and launch at login.
-- Exercise online fetch, offline cache, API timeout, rate limit and an empty or exhausted catalog.
-- Test local midnight rollover and next-day startup, preserving no-repeat behavior.
-- Load the companion unpacked in Edge/Chrome/Brave; approve and deny history permission; verify export contains only schema and recognized scores; revoke access.
-- Import valid, invalid, oversized and manually edited profiles in the desktop app.
-- Verify saved search, idempotent likes, hide/refill and data reset.
-- Verify keyboard focus, reduced motion and screen-reader labels.
-- Review dependency lock, platform signing, license and distribution instructions.
-
-Do not label native builds tested simply because they were packaged. CI build success and real desktop behavior are separate checks.
+- Unit tests and syntax/JSON checks pass.
+- Native UI smoke verifies the wide panel at 1080 pixels, two rows, footer bounds and non-empty screenshot pixels.
+- Native UI smoke saves a repository, opens it, checks replacement at the same slot, verifies neighbor stability and Undo, then visits interests, settings and saved views.
+- Check screenshots in the native-preview artifact; fixtures contain illustrative star counts.
+- All required platform packaging jobs succeed before distributing that platform artifact.
+- Test the EXE, DMG and Linux packages on real devices, including transparency and display scaling at 100%, 150% and 200%.
+- Test multi-monitor bounds, dragging, position memory, anchors, opacity, tray, global shortcut and hide/reopen.
+- Exercise offline cache, API timeouts, rate limits, filters and an exhausted unseen pool.
+- Test local midnight rollover, day-one interest selection, duplicate clicks, pause replacement and pause learning.
+- Verify 7-day snooze expiry, owner blocking, restoring exclusions and resetting history.
+- Verify collection/profile imports reject malformed and oversized JSON; export correct schemas and valid RSS.
+- Test companion history permission approval, rejection, revocation and score-only export.
+- Check keyboard focus, narrow displays, compact mode, reduced motion and high contrast.
+- Review dependency lock, distribution license, platform signing and update strategy before production release.

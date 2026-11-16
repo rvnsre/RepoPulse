@@ -1,79 +1,74 @@
-# RepoPulse
+# RepoPulse 0.2
 
-**A little signal. A lot of possibility.**
+A reference-inspired, wide GitHub RSS island for Windows, macOS and Linux.
 
-A floating Dynamic Island for discovering three personalized GitHub projects each day. Designed for Windows, macOS and Linux. Private interests, meaningful explanations, and a strict **50,000+ star** threshold.
+Two repository rows, a warm-to-ocean gradient, connecting arrows, source command blocks, Copy controls and centered **Install / Learn More** actions. A third daily pick is kept in the queue and can be shown with **Next pair**. The surrounding laptop, wallpaper and editing tools in the reference are presentation context, not part of the desktop widget.
 
-## What is implemented
+## Click, discover, continue
 
-- Transparent, frameless, draggable island; collapse/expand, always-on-top control and system tray.
-- Daily three-project selection based on local calendar date. Existing picks stay stable through the day; previously presented projects are not repeated.
-- GitHub Search API catalog with six-hour local cache, timeouts, rate-limit errors and cached offline access.
-- Eight interest categories, affinity ranking, brief explanations, owner diversity and deterministic daily variety.
-- Save, search saved projects, like, hide, and open repositories with one click. Export daily discoveries as RSS 2.0 XML.
-- On-device personalization from chosen interests, reactions and an explicitly imported browser interest profile.
-- Optional browser companion for Chrome, Edge and Brave. History permission is requested only when the user clicks Analyze. Revocation is included.
-- Reduced-motion controls, keyboard focus states, safe text rendering, sandboxed renderer and a limited preload API.
-- Atomic local settings storage, recovery copies for unreadable state, and a confirmed local-data reset.
-- GitHub Actions verification and Windows/macOS/Linux packaging; browser companion download artifact.
+Opening a repository successfully replaces that exact row with the highest-ranked unseen eligible project. The neighboring row remains in place. Double clicks do not consume multiple recommendations. **Undo** restores the last replacement. Saved and history views preserve deliberate access to older projects.
 
-## Run from source
+The initial queue contains up to three projects per local day. Opening projects can reveal additional projects that day. The catalog remains strictly **50,000+ stars**, non-archived and non-fork. If the eligible pool runs out, the app shows an honest empty state instead of repeating projects or fabricating data.
 
-Requires Node.js 24+ and npm.
+## Included
+
+- Wide reference layout, responsive narrow-screen behavior, collapsed island and expanded workspace.
+- Exact-row replacement, undo, duplicate-click protection and no-repeat memory.
+- History with timestamps, saved collection, search and sorting by name, recency or stars.
+- Copy source commands, inspect commands and repository links.
+- Official installation guide access: **Install opens the repository README**. It does not run an installer or execute copied commands. **Learn More** opens local project details.
+- Owner exclusions, seven-day snooze, hidden-project controls and explicit restoration.
+- Language filters, adjustable minimum stars with a hard 50K floor, and transparent relevance explanations.
+- Manual interests, browser-profile import/export and an option to pause reaction learning.
+- Local collection import/export and daily RSS 2.0 export.
+- Reference, graphite and high-contrast palettes; compact density, reduced motion and opacity control.
+- Screen anchoring, remembered window position, hover expansion, system tray and a global shortcut.
+- Optional new-day notifications and launch at login on Windows/macOS; Linux uses session settings.
+- Cached offline access, rate-limit feedback, corrupted-state recovery and local-data reset.
+
+The [feature inventory](docs/FEATURES.md) maps 30 additions to their implementation. See the [product plan](docs/PLAN.md), [privacy details](docs/PRIVACY.md) and [release checklist](docs/RELEASE.md).
+
+## Run and build
+
+Requires Node.js 24+ and npm:
 
 ```sh
 npm install
 npm start
-```
-
-Toggle the island with **Ctrl/Cmd + Shift + Space**. Drag its top bar to move it. Hide it from Settings; open it again from the system tray. Use Quit to stop the process.
-
-```sh
 npm test
 npm run check
 npm run dist
 ```
 
-Packaging targets: Windows NSIS installer and portable EXE; macOS DMG and ZIP; Linux AppImage, DEB and RPM. Artifacts are built by the [Actions workflow](https://github.com/rvnsre/RepoPulse/actions). Check the run status before downloading. Installers are unsigned until platform signing identities are configured.
+GitHub [Actions](https://github.com/rvnsre/RepoPulse/actions) builds Windows NSIS/portable EXE, macOS DMG/ZIP and Linux AppImage/DEB/RPM. Download artifacts from a successful run. They are unsigned preview builds. Packaging success does not replace real-device checks for display scaling, transparency, multi-monitor behavior or OS installation prompts.
 
-Build tools are pinned to explicit versions. The first build produces a dependency lock in its artifact; a reviewed lockfile should be committed before a production release.
+The Linux native UI test opens the real Electron interface, checks layout dimensions, captures pixels, saves a project, opens and replaces a row, undoes the replacement and visits the interests/settings/collection screens. The native preview uses sample public-project metadata; its star counts are illustrative, not live claims.
 
-## Connect browser interests
+## Browser interests
 
-1. Open Edge/Chrome/Brave extensions, enable Developer mode, choose **Load unpacked**, and select the `extension` folder.
-2. Open the RepoPulse companion and choose **Allow history & analyze locally**.
-3. The companion classifies titles and host names from at most 1,000 pages visited over 30 days. Classification happens in the popup on your device.
-4. Export `repopulse-interests.json`. It contains a schema name and topic weights only: no URLs, page titles, cookies or identifiers.
-5. In the desktop app open **Tune your feed → Import browser profile**.
+Load `extension/` unpacked in Edge, Chrome or Brave. Its popup requests optional history permission only when you choose Analyze. It processes up to 1,000 recently visited pages locally and exports `repopulse-interests.json`, containing recognized topic weights only. Import that file under **Interests** in the desktop app.
 
-The companion has no background worker, telemetry, remote API, or cookie permission. It does not continuously sync. Reanalyze and import whenever you want to update interests. Manual interests work without installing the companion. History analysis is a lightweight keyword heuristic, not a claim of AI-level understanding.
+There is no cookie access, background tracking, remote AI service or automatic browser-to-desktop synchronization in this release. Topic detection is a local keyword heuristic. Closing the popup discards analysis memory; permission can be revoked in the popup.
 
-## Daily discovery rules
+## Keyboard
 
-Only non-archived, non-fork projects at or above 50,000 stars qualify, based on the most recently fetched GitHub catalog. Up to 300 of the most-starred eligible projects are cached. Reactions update future rankings without rearranging today's existing picks. Hiding a pick fills that slot from unseen eligible projects if possible. All displayed daily picks are marked presented so the next day will not repeat them.
-
-There is a finite pool of 50K+ projects. If fewer than three unseen projects remain, the app shows fewer picks and explains why. It does not silently lower the threshold or recycle old recommendations. Refresh the catalog later, or deliberately reset local data to restart discovery. Counts can be up to six hours old. GitHub may rate-limit unauthenticated requests.
-
-The date changes at local midnight while the app runs, or on the next launch. No operating-system background schedule is installed. Linux autostart is configured through desktop session settings. No GitHub account, API key, paid AI provider or backend is required.
-
-## Architecture
-
-| Folder | Responsibility |
+| Shortcut | Action |
 | --- | --- |
-| `app` | Electron main process, isolated preload, accessible vanilla JavaScript UI |
-| `src` | Pure recommendation engine, GitHub catalog client, local atomic store |
-| `extension` | On-demand browsing-interest analysis and score-only JSON export |
-| `test` | Ranking, no-repeat, threshold, profile validation, API and storage tests |
-| `scripts` | Static checks, shared taxonomy generation and a development visual harness |
-| `docs` | Product plan, privacy design and release checks |
+| Ctrl/Cmd + Shift + Space | Toggle island |
+| J / K | Select repository row |
+| Enter | Open focused repository |
+| S | Toggle save for selected repository |
+| U | Undo last replacement |
+| R | Refresh catalog |
+| / | Search saved repositories |
+| Escape | Close workspace or collapse panel |
 
-`node scripts/preview.cjs` serves a development-only design preview at `http://127.0.0.1:4173`. Its repository descriptions and star counts are **sample data**, never used by the desktop app. It is excluded from packaged apps.
+## Data and limits
 
-See [Product plan](docs/PLAN.md), [Privacy](docs/PRIVACY.md) and [Release checklist](docs/RELEASE.md).
+The app keeps a public GitHub metadata cache for up to six hours. Personal interest weights, history, exclusions, preferences and collections stay in per-user local storage. No GitHub account, API key or hosted backend is required. GitHub still receives ordinary connection metadata when public catalog requests are made.
 
-## Status
+A finite 50K+ catalog cannot supply unlimited unseen projects. Snooze deliberately permits a project to return after seven days; Undo deliberately restores an earlier row. These are explicit exceptions to automatic no-repeat selection. Filters do not reduce the threshold below 50K. Opening or liking projects updates future relevance unless learning is paused.
 
-Version **0.1.0 — initial implementation**. Automated logic tests are included. Native installers and platform behavior require successful CI builds and platform smoke tests before this can be described as production-ready. App-store publication, code signing, automatic updates and continuous browser synchronization are not implemented.
+Source layout: `app/` desktop UI and process isolation; `src/` recommendation/state/feed logic; `extension/` optional local analysis; `test/` automated tests; `scripts/` validation and native UI checks; `docs/` product and privacy documentation.
 
-Copyright © 2026 Ravan Sariyev. No license has been granted for redistribution; choose a license before accepting external contributions.
-
+Copyright 2026 Ravan Sariyev. Distribution license is not yet selected. Code signing, automatic application updates, browser-store publication and automatic browser synchronization remain future work.

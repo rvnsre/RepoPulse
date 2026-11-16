@@ -34,7 +34,7 @@ function validateProfile(input) {
 }
 function normalizeRepo(r) {
   if (!r || !Number.isSafeInteger(r.id) || !/^[\w.-]+\/[\w.-]+$/.test(r.full_name || '') || !Number.isFinite(r.stargazers_count)) return null;
-  return {id:r.id, full_name:r.full_name, description:String(r.description || 'Explore this open-source project on GitHub.').slice(0,600), stargazers_count:r.stargazers_count, language:typeof r.language==='string'?r.language:null, topics:Array.isArray(r.topics)?r.topics.filter(t=>typeof t==='string').slice(0,30):[], archived:!!r.archived, fork:!!r.fork, pushed_at:r.pushed_at || '', html_url:`https://github.com/${r.full_name}`, license:r.license?.spdx_id || null};
+  return {id:r.id, full_name:r.full_name, description:String(r.description || 'Explore this open-source project on GitHub.').slice(0,600), stargazers_count:r.stargazers_count, language:typeof r.language==='string'?r.language:null, topics:Array.isArray(r.topics)?r.topics.filter(t=>typeof t==='string').slice(0,30):[], archived:!!r.archived, fork:!!r.fork, pushed_at:r.pushed_at || '', html_url:`https://github.com/${r.full_name}`, license:typeof r.license==='string'?r.license:r.license?.spdx_id || null};
 }
 function eligible(repo) { return !!repo && repo.stargazers_count >= 50000 && !repo.archived && !repo.fork; }
 function repoTopics(r) {
