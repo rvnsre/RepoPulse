@@ -1,0 +1,6 @@
+'use strict';
+const zlib=require('node:zlib');const fs=require('node:fs');const size=24;const raw=Buffer.alloc(size*(size*4+1));
+for(let y=0;y<size;y++)for(let x=0;x<size;x++){const offset=y*(size*4+1)+1+x*4;const inside=(x-11.5)**2+(y-11.5)**2<121;const bar=inside&&((x>=6&&x<=8&&y>=10&&y<=14)||(x>=11&&x<=13&&y>=6&&y<=17)||(x>=16&&x<=18&&y>=9&&y<=14));raw[offset]=bar?25:185;raw[offset+1]=bar?34:245;raw[offset+2]=bar?18:139;raw[offset+3]=inside?255:0;}
+function crc(buffer){let c=0xffffffff;for(const byte of buffer){c^=byte;for(let i=0;i<8;i++)c=(c>>>1)^((c&1)?0xedb88320:0);}return(c^0xffffffff)>>>0;}
+function chunk(type,data){const tag=Buffer.from(type),length=Buffer.alloc(4),checksum=Buffer.alloc(4);length.writeUInt32BE(data.length);checksum.writeUInt32BE(crc(Buffer.concat([tag,data])));return Buffer.concat([length,tag,data,checksum]);}
+const header=Buffer.alloc(13);header.writeUInt32BE(size,0);header.writeUInt32BE(size,4);header[8]=8;header[9]=6;const png=Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),chunk('IHDR',header),chunk('IDAT',zlib.deflateSync(raw)),chunk('IEND',Buffer.alloc(0))]);fs.writeFileSync('app/tray-icon.cjs',`module.exports='data:image/png;base64,${png.toString('base64')}';\n`);

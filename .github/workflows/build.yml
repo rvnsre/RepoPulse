@@ -1,0 +1,73 @@
+name: Build and verify RepoPulse
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm test
+      - run: npm run check
+  package:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install build dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm xvfb libgtk-3-0 libnss3 libasound2t64 libgbm1
+      - name: Native UI smoke test
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run smoke -- --no-sandbox
+      - name: Package desktop app
+        run: npm run dist
+      - name: Upload installers and dependency lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: RepoPulse-${{ runner.os }}
+          path: |
+            dist/*.png
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.rpm
+            package-lock.json
+          if-no-files-found: error
+          retention-days: 30
+  extension:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RepoPulse-browser-companion
+          path: extension/
+          retention-days: 30
+

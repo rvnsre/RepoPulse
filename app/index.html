@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>RepoPulse</title><link rel="stylesheet" href="styles.css"></head>
+<body>
+<div class="island" id="island">
+  <header class="island-bar"><button id="toggle" class="brand" aria-expanded="false" aria-controls="expanded"><span class="pulse-mark">⌘</span><span>RepoPulse</span><span class="live-dot"></span></button><button id="count" class="daily-count" aria-label="Open daily discoveries">3 discoveries <span>↗</span></button></header>
+  <section id="expanded" hidden>
+    <div class="masthead"><div><span class="eyebrow">YOUR OPEN-SOURCE RADAR</span><h1>A little signal.<br><span>A lot of possibility.</span></h1></div><button id="collapse" class="icon" aria-label="Collapse island">−</button></div>
+    <div class="day-line"><span id="date"></span><span class="local-badge"><i></i> Private by design</span></div>
+    <nav aria-label="Sections"><button class="tab active" data-tab="today">Today <span id="todayCount">0</span></button><button class="tab" data-tab="saved">Saved <span id="savedCount">0</span></button><button class="tab" data-tab="tune">Tune your feed</button><button class="tab gear" data-tab="settings" aria-label="Settings">⚙</button></nav>
+    <main id="content" tabindex="-1"></main>
+    <footer><span><i class="signal"></i> 50K+ stars. Zero noise.</span><button id="refresh" aria-label="Refresh GitHub catalog">↻ <span>Refresh</span></button></footer>
+  </section>
+</div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<script src="renderer.js"></script></body></html>

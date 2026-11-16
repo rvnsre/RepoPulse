@@ -1,0 +1,1 @@
+const fs=require('node:fs');const {TOPICS}=require('../src/engine.cjs');const source=fs.readFileSync('src/engine.cjs','utf8');const classify=source.slice(source.indexOf('function classify('),source.indexOf('function validWeights('));fs.writeFileSync('extension/taxonomy.js',`'use strict';\nconst TOPICS = ${JSON.stringify(TOPICS,null,2)};\n${classify}`);
