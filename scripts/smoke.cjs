@@ -15,7 +15,10 @@ async function smoke({app,window,store,resize,TOPICS}){
   await new Promise(resolve=>setTimeout(resolve,450));
   const dimensions=await window.webContents.executeJavaScript(`({cards:document.querySelectorAll('article.repo').length, footer:document.querySelector('footer').getBoundingClientRect().bottom, height:innerHeight, expanded:!document.getElementById('expanded').hidden})`);
   assert.equal(dimensions.cards,3);assert.equal(dimensions.expanded,true);assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
-  fs.writeFileSync(path.join(root,'desktop-preview.png'),(await window.webContents.capturePage()).toPNG());
+  const preview=await window.webContents.capturePage({x:0,y:0,width:508,height:730},{stayHidden:false,stayAwake:true});
+  assert.equal(preview.isEmpty(),false,'The native preview must contain rendered pixels.');
+  const png=preview.toPNG();assert.ok(png.length>5000,'The native preview must contain a visible interface.');
+  fs.writeFileSync(path.join(root,'desktop-preview.png'),png);
   await window.webContents.executeJavaScript(`document.querySelector('[data-tab="tune"]').click()`);
   assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.topic').length`),8);
   await window.webContents.executeJavaScript(`document.querySelector('[data-tab="today"]').click();document.querySelector('.actions button:nth-child(2)').click()`);
@@ -26,3 +29,4 @@ async function smoke({app,window,store,resize,TOPICS}){
   app.exit(0);
 }
 module.exports={smoke};
+

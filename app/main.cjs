@@ -6,6 +6,7 @@ const {Store}=require('../src/store.cjs');
 const {TOPICS,localDay,selectDaily,validateProfile,validWeights,repoTopics}=require('../src/engine.cjs');
 const {fetchCatalog}=require('../src/github.cjs');
 let window,store,tray,timer,refreshPromise,quitting=false,expanded=false;
+const smokeMode=!app.isPackaged && process.argv.includes('--smoke-test');
 const singleton=app.requestSingleInstanceLock();
 if(!singleton) app.quit();
 const visibleState=()=>({daily:store.state.daily,saved:store.state.saved,settings:store.state.settings,profile:store.state.profile,topics:TOPICS,cacheAt:store.state.cacheAt,catalogSize:store.state.cache.length,recoveryNotice:store.state.recoveryNotice || null});
@@ -26,7 +27,7 @@ async function refresh(force=false){
 }
 function createWindow(){
   const area=screen.getPrimaryDisplay().workArea;
-  window=new BrowserWindow({width:288,height:68,x:Math.round(area.x+(area.width-288)/2),y:area.y+12,transparent:true,frame:false,resizable:false,hasShadow:false,alwaysOnTop:store.state.settings.pinned,skipTaskbar:true,backgroundColor:'#00000000',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
+  window=new BrowserWindow({width:288,height:68,x:Math.round(area.x+(area.width-288)/2),y:area.y+12,transparent:!smokeMode,frame:false,resizable:false,hasShadow:false,alwaysOnTop:store.state.settings.pinned,skipTaskbar:true,backgroundColor:smokeMode?'#151619':'#00000000',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
   window.loadFile(path.join(__dirname,'index.html'));
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   window.webContents.on('will-navigate',(event)=>event.preventDefault());
@@ -101,6 +102,7 @@ if(singleton) app.whenReady().then(()=>{
 app.on('before-quit',()=>{quitting=true;clearInterval(timer);});
 app.on('will-quit',()=>{globalShortcut.unregisterAll();});
 app.on('window-all-closed',()=>{});
+
 
 
 
