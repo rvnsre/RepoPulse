@@ -1,5 +1,5 @@
 'use strict';
-let uKeyboardFocus=false;
+let uKeyboardFocus=false,uMotionSignature='';
 let islandController=null,hoverAnimation=null,uFocusUntil=0,uFocusTimer=null,uQueryVersion=0,uLimit=60,uLastTab='details';
 const uDrafts=new Map(),uCompare=new Set(),uSelected=new Set();
 const uFilters={query:'',scope:'all',sort:'stars',language:'',topic:'',license:'',collection:'',pinnedFirst:true};
@@ -19,12 +19,12 @@ function ultimateStatus(){
 }
 function ultimateRender(){
  const p=state.settings;document.body.dataset.accent=p.accent;document.body.dataset.card=p.cardStyle;document.body.dataset.roundness=String(p.roundness);document.body.classList.toggle('no-glow',!p.glow);document.body.classList.toggle('hide-hints',!p.showHints);$('status').hidden=!p.showStatus;
- islandController?.configure(p,expanded?(drawer?'workspace':'panel'):'collapsed');ultimateStatus();
+ islandController?.configure(p,expanded?(drawer?'workspace':'panel'):'collapsed');const signature=JSON.stringify([p.hoverLift,p.hoverScale,p.motionPreset,p.motion,p.reducedMotion,p.motionDuration]);if(signature!==uMotionSignature){uMotionSignature=signature;if(hoverAnimation||islandController?.pointer)ultimateMagnify(!!islandController?.pointer);}ultimateStatus();
 }
 function ultimateMagnify(active){
- hoverAnimation?.cancel();document.body.classList.toggle('pointer-near',active);
+ const current=getComputedStyle($('island')).transform;hoverAnimation?.cancel();document.body.classList.toggle('pointer-near',active);
  if(!state?.settings.hoverLift||!canAnimate())return;
- const c=IslandMotion.config(state.settings);hoverAnimation=$('island').animate([{transform:'scale('+ (active?1:c.scale)+')'},{transform:'scale('+(active?c.scale:1)+')'}],{duration:active?c.duration:Math.round(c.duration*.7),easing:c.easing,fill:'forwards'});
+ const c=IslandMotion.config(state.settings);hoverAnimation=$('island').animate([{transform:current==='none'?'scale(1)':current},{transform:'scale('+(active?c.scale:1)+')'}],{duration:active?c.duration:Math.round(c.duration*.7),easing:c.easing,fill:'forwards'});
 }
 function ultimateFocus(){
  if(uFocusUntil>Date.now()){uFocusUntil=0;islandController.hold('focus session',false);clearInterval(uFocusTimer);ultimateStatus();toast('Focus session ended.');return;}
@@ -43,7 +43,7 @@ function ultimateInit(){
  document.addEventListener('focusout',()=>queueMicrotask(()=>{const active=document.activeElement;islandController.focus($('island').contains(active)&&(uKeyboardFocus||['INPUT','TEXTAREA','SELECT'].includes(active?.tagName)));islandController.hold('editing',state.settings.protectEditing&&['INPUT','TEXTAREA','SELECT'].includes(active?.tagName));}));
  window.addEventListener('blur',()=>{islandController.focus(false);islandController.hold('editing',false);});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)hoverAnimation?.cancel();});
- matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',()=>{hoverAnimation?.cancel();document.body.classList.remove('pointer-near');});
+ matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',()=>{if(state.settings.motion!=='full'||state.settings.reducedMotion){hoverAnimation?.cancel();document.body.classList.remove('pointer-near');}});
  $('commandButton').addEventListener('click',()=>run(()=>openDrawer('commands')));$('focusButton').addEventListener('click',()=>run(ultimateFocus));
  $('autoHideButton').addEventListener('click',()=>{islandController.pause(islandController.status().paused?0:300000);ultimateStatus();});
  $('queueButton').addEventListener('click',()=>run(async()=>{uFilters.scope='queued';await openDrawer('library');}));

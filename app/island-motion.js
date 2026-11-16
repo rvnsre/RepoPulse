@@ -7,7 +7,7 @@ function frames(kind,prefs={},reduced=false){const c=config(prefs,reduced),d=c.d
  return {keyframes:pairs[kind]||pairs.enter,options:{duration:c.duration,easing:c.easing}};
 }
 class Controller{
- constructor({onExpand=()=>{},onCollapse=()=>{},onChange=()=>{},setTimer=setTimeout,clearTimer=clearTimeout,now=Date.now}={}){
+ constructor({onExpand=()=>{},onCollapse=()=>{},onChange=()=>{},setTimer=(fn,ms)=>setTimeout(fn,ms),clearTimer=id=>clearTimeout(id),now=Date.now}={}){
   this.onExpand=onExpand;this.onCollapse=onCollapse;this.onChange=onChange;this.setTimer=setTimer;this.clearTimer=clearTimer;this.now=now;this.timers={};this.pointer=false;this.focused=false;this.holds=new Set();this.pausedUntil=0;this.mode='panel';this.prefs={};this.destroyed=false;this.lastActivity=now();
  }
  clear(name){if(this.timers[name]!==undefined){this.clearTimer(this.timers[name]);delete this.timers[name];}}
