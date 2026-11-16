@@ -5,7 +5,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  window.webContents.on('console-message',(_event,level,message)=>{if(level>=3)errors.push(message);});
  await new Promise(resolve=>window.webContents.isLoading()?window.webContents.once('did-finish-load',resolve):resolve());
  const evaluate=script=>window.webContents.executeJavaScript(script);
- async function until(check){for(let i=0;i<50;i++){if(await check())return;await new Promise(resolve=>setTimeout(resolve,100));}throw new Error('Native UI did not reach the expected state.');}
+ async function until(check){for(let i=0;i<50;i++){if(await check())return;await new Promise(resolve=>setTimeout(resolve,100));}throw new Error('Native UI did not reach the expected state: '+JSON.stringify(await evaluate(`({rows:[...document.querySelectorAll('.repo-row')].map(r=>r.dataset.repoId),selected:document.getElementById('selectedLabel').textContent,toast:document.getElementById('toast').textContent,expanded:!document.getElementById('expanded').hidden,drawer:!document.getElementById('drawer').hidden})`)));}
  await until(()=>evaluate(`!!document.querySelector('.repo-row')`));
  await new Promise(r=>setTimeout(r,500));let dimensions=await evaluate(`({rows:document.querySelectorAll('.repo-row').length,width:innerWidth,height:innerHeight,footer:document.querySelector('footer').getBoundingClientRect().bottom})`);
  assert.equal(dimensions.rows,2);assert.ok(dimensions.width>=900);assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
@@ -29,9 +29,9 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  assert.ok(fonts.description>=14);assert.ok(fonts.code>=13);assert.equal(fonts.overflow,false);
  await evaluate(`document.getElementById('learn').click()`);await until(()=>store.state.history.length===1);
  assert.equal(snapshot().lastExternal.url,'https://github.com/'+first.full_name);assert.equal(snapshot().lastExternal.kind,'learn');assert.notEqual(store.state.daily.repos[0].id,first.id);assert.equal(store.state.daily.repos[1].id,second.id);
- await evaluate(`document.getElementById('undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
+ await until(()=>evaluate(`!document.getElementById('undo').disabled`));await evaluate(`document.getElementById('undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
  await until(()=>evaluate(`document.querySelector('.repo-row').dataset.repoId==='${first.id}'&&document.getElementById('selectedLabel').textContent==='${first.full_name}'&&!document.getElementById('install').disabled`));await evaluate(`document.getElementById('install').click()`);await until(()=>snapshot().lastExternal?.kind==='releases');assert.equal(snapshot().lastExternal.url,'https://github.com/'+first.full_name+'/releases');
- await evaluate(`document.getElementById('undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
+ await until(()=>evaluate(`!document.getElementById('undo').disabled`));await evaluate(`document.getElementById('undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
  await until(()=>evaluate(`document.querySelector('.repo-row').dataset.repoId==='${first.id}'`));
  await evaluate(`document.querySelector('.row-extra button:last-child').click()`);await until(()=>evaluate(`!document.getElementById('drawer').hidden`));await capture('workspace-preview.png');
  await evaluate(`document.querySelector('[data-tab="tune"]').click()`);await until(()=>evaluate(`document.querySelectorAll('.topic').length===8`));
