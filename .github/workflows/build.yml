@@ -2,6 +2,7 @@ name: Build and verify RepoPulse
 on:
   push:
     branches: [main]
+    paths-ignore: ['**/*.md', 'docs/**']
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -25,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        os: [windows-latest, macos-15, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
@@ -43,6 +44,20 @@ jobs:
       - name: Native UI smoke test
         if: runner.os == 'Linux'
         run: xvfb-run -a npm run smoke -- --no-sandbox
+      - name: Upload native preview
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: RepoPulse-native-preview
+          path: dist/desktop-preview.png
+          if-no-files-found: error
+      - name: Upload dependency lock
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: RepoPulse-dependency-lock
+          path: package-lock.json
+          if-no-files-found: error
       - name: Package desktop app
         run: npm run dist
       - name: Upload installers and dependency lock
@@ -70,4 +85,5 @@ jobs:
           name: RepoPulse-browser-companion
           path: extension/
           retention-days: 30
+
 
