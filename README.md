@@ -4,6 +4,10 @@ A reference-inspired, wide GitHub RSS island for Windows, macOS and Linux.
 
 Two repository rows, a warm-to-ocean gradient, connecting arrows, source command blocks, Copy controls and centered **Install / Learn More** actions. A third daily pick is kept in the queue and can be shown with **Next pair**. The surrounding laptop, wallpaper and editing tools in the reference are presentation context, not part of the desktop widget.
 
+![RepoPulse reference panel](docs/preview-v0.2.png)
+
+*Native application preview with illustrative test metadata.*
+
 ## Click, discover, continue
 
 Opening a repository successfully replaces that exact row with the highest-ranked unseen eligible project. The neighboring row remains in place. Double clicks do not consume multiple recommendations. **Undo** restores the last replacement. Saved and history views preserve deliberate access to older projects.
@@ -26,7 +30,7 @@ The initial queue contains up to three projects per local day. Opening projects 
 - Optional new-day notifications and launch at login on Windows/macOS; Linux uses session settings.
 - Cached offline access, rate-limit feedback, corrupted-state recovery and local-data reset.
 
-The [feature inventory](docs/FEATURES.md) maps 30 additions to their implementation. See the [product plan](docs/PLAN.md), [privacy details](docs/PRIVACY.md) and [release checklist](docs/RELEASE.md).
+The [feature inventory](docs/FEATURES.md) maps 36 additions to their implementation. See the [product plan](docs/PLAN.md), [privacy details](docs/PRIVACY.md) and [release checklist](docs/RELEASE.md).
 
 ## Run and build
 
