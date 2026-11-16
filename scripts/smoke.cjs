@@ -9,7 +9,18 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await until(()=>evaluate(`!!document.querySelector('.repo-row')`));
  let dimensions=await evaluate(`({rows:document.querySelectorAll('.repo-row').length,width:innerWidth,height:innerHeight,footer:document.querySelector('footer').getBoundingClientRect().bottom})`);
  assert.equal(dimensions.rows,2);assert.ok(dimensions.width>=900);assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
- async function capture(name){await new Promise(resolve=>setTimeout(resolve,350));const b=window.getBounds();const image=await window.webContents.capturePage({x:0,y:0,width:b.width,height:b.height},{stayHidden:false,stayAwake:true});assert.equal(image.isEmpty(),false);const png=image.toPNG();assert.ok(png.length>5000);fs.writeFileSync(path.join(root,name),png);if(name==='desktop-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_PREVIEW:'+encoded.slice(n,n+4096));}}
+
+ async function capture(name){
+  window.show();window.focus();window.webContents.focus();let png=null;
+  for(let attempt=0;attempt<12;attempt++){
+   await new Promise(resolve=>setTimeout(resolve,400));const bounds=window.getBounds();
+   const image=await window.webContents.capturePage({x:0,y:0,width:bounds.width,height:bounds.height},{stayHidden:false,stayAwake:true});
+   if(!image.isEmpty()){const bytes=image.toPNG();if(bytes.length>5000){png=bytes;break;}}
+  }
+  assert.ok(png,'The compositor must produce a visible native preview within five seconds.');fs.writeFileSync(path.join(root,name),png);
+  if(name==='desktop-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_PREVIEW:'+encoded.slice(n,n+4096));}
+ }
+
  await capture('desktop-preview.png');
  const first=store.state.daily.repos[0],second=store.state.daily.repos[1];
  await evaluate(`document.querySelector('.row-extra button').click()`);await until(()=>store.state.saved.length===1);
