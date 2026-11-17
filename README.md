@@ -1,4 +1,4 @@
-# RepoPulse 10.0.0
+# RepoPulse 10.0.1
 
 A personalized GitHub discovery island for Windows, macOS and Linux, focused on **50,000+ star** public projects.
 
@@ -6,9 +6,13 @@ The island gently grows when the pointer enters, reveals from a compact dock on 
 
 Choose Fluid, Snappy, Calm or Soft Spring motion, hover growth, timing, card appearance, accent and text scaling. The native window reserves room around transforms so hover growth stays inside its bounds. System reduced-motion preferences remain respected.
 
-![Native application preview](docs/preview-v10.png)
+![Native application preview](docs/preview-v10.0.1.png)
 
 Native Electron screenshot using sample metadata. The native test temporarily disables automatic hiding to capture a stable desktop view.
+
+## Compact update 10.0.1
+
+960px discovery panel, 360px compact dock, zero hover/leave delay and approximately 69ms default transitions. Existing appearance settings migrate once. See [changes and downloads](docs/CHANGES-v10.0.1.md).
 
 ## Version 10
 
