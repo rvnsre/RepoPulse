@@ -47,8 +47,8 @@ function state(){const s=D.initialize(defaults());s.cache=fixture;s.history=[];D
 test('Automatic cycle replaces exactly one row without recording a visit or learning',()=>{
  const s=state(),before=structuredClone(s),id=s.daily.repos[0].id,result=D.cycle(s,id);assert.equal(result.changed,true);assert.notEqual(s.daily.repos[0].id,id);assert.deepEqual(s.daily.repos.slice(1),before.daily.repos.slice(1));assert.deepEqual(s.history,[]);assert.deepEqual(s.profile,before.profile);assert.ok(s.seen.includes(id)&&s.seen.includes(result.id));
 });
-test('Automatic exhaustion keeps all existing cards and undo state intact',()=>{
- const s=state();s.seen=s.cache.map(r=>r.id);const before=structuredClone(s);const r=D.cycle(s,s.daily.repos[0].id);assert.equal(r.exhausted,true);assert.deepEqual(s,before);
+test('When only current projects remain, rotation keeps all cards and undo intact',()=>{
+ const s=state();s.cache=s.daily.repos;s.seen=s.cache.map(r=>r.id);const before=structuredClone(s);const r=D.cycle(s,s.daily.repos[0].id);assert.equal(r.exhausted,true);assert.deepEqual(s,before);
 });
 test('Automatic rotation rejects stale day and stale row identifiers',()=>{
  const s=state(),before=structuredClone(s);assert.equal(D.cycle(s,999).reason,'stale');assert.equal(D.cycle(s,s.daily.repos[0].id,'1990-01-01').reason,'stale');assert.deepEqual(s,before);
