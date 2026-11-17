@@ -25,11 +25,11 @@ function desiredHeight(){
  if(!expanded)return 64;
  if(drawer||insightOpen)return undefined;
  const feed=$('feed'),nodes=[...feed.querySelectorAll('.repo-slot')],style=getComputedStyle(feed);
- return IslandMorph.panelHeight({header:document.querySelector('.topbar').getBoundingClientRect().height,
- heading:document.querySelector('.feed-heading').getBoundingClientRect().height,
- footer:document.querySelector('footer').getBoundingClientRect().height,padding:state.windowPolicy?.padding??8,
+ return IslandMorph.panelHeight({header:document.querySelector('.topbar').offsetHeight,
+ heading:document.querySelector('.feed-heading').offsetHeight,
+ footer:document.querySelector('footer').offsetHeight,padding:state.windowPolicy?.padding??8,
  gap:parseFloat(style.rowGap)||12,count:state.settings.visibleRows||2,
- rows:nodes.map(n=>n.getBoundingClientRect().height),empty:feed.querySelector('.empty')?.getBoundingClientRect().height||210});
+ rows:nodes.map(n=>n.offsetHeight),empty:feed.querySelector('.empty')?.offsetHeight||210});
 }
 async function windowMode(){
  fitKey='';const serial=++transition,currentTransform=getComputedStyle($('island')).transform;
