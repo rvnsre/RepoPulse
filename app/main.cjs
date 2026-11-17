@@ -7,21 +7,22 @@ const discovery=require('../src/discovery.cjs');
 const workspace=require('../src/workspace.cjs');
 const {fetchCatalog}=require('../src/github.cjs');
 const {ReleaseClient,destination,repositoryUrl}=require('../src/navigation.cjs');
-const {bounds:layoutBounds,fittedHeight}=require('../src/layout.cjs');
+const {bounds:layoutBounds,fittedHeight,defaultAnchor}=require('../src/layout.cjs');
 let lastExternal=null,revision=0;
-let releaseClient,lastAutomaticAt=0;
+let releaseClient,lastAutomaticAt=0,windowAnchor=null,lastWindowRequest=0;
 let window,store,tray,timer,refreshPromise,quitting=false,mode='panel',lastError=null,moveTimer,adjusting=false;
 const opening=new Map(),smokeMode=!app.isPackaged&&process.argv.includes('--smoke-test');
 const singleton=app.requestSingleInstanceLock();if(!singleton)app.quit();
 function snapshot(){const s=store.state;return {windowMode:mode,workspace:s.workspace,catalog:[...new Map([...s.cache,...s.saved,...Object.values(s.workspace?.records||{}).map(r=>r.repo)].map(r=>[r.id,r])).values()],analytics:workspace.analytics(s.history,s.workspace),revision,daily:s.daily,saved:s.saved,history:s.history,settings:s.settings,profile:s.profile,topics:TOPICS,cacheAt:s.cacheAt,catalogSize:s.cache.length,languages:[...new Set(s.cache.map(r=>r.language).filter(Boolean))].sort(),blockedOwners:s.blockedOwners,snoozedCount:Object.values(s.snoozed).filter(t=>t>Date.now()).length,canUndo:!!s.lastRotation&&s.lastRotation.day===localDay(),lastError,version:app.getVersion(),platform:process.platform,recoveryNotice:s.recoveryNotice||null,...(smokeMode?{lastExternal}:{}),exclusions:{hidden:s.hidden.map(id=>({id,name:findRepo(id)?.full_name||String(id)})),snoozed:Object.entries(s.snoozed).filter(([,until])=>until>Date.now()).map(([id,until])=>({id:Number(id),name:findRepo(Number(id))?.full_name||id,until})),owners:s.blockedOwners}};}
 function emit(){revision++;if(window&&!window.isDestroyed())window.webContents.send('state:changed',snapshot());}
 function findRepo(id){return [...(store.state.daily?.repos||[]),...store.state.saved,...store.state.cache,...store.state.history.map(h=>h.repo),...Object.values(store.state.workspace?.records||{}).map(r=>r.repo)].find(r=>r?.id===id);}
-function resize(next='panel',anchor=false){
+function resize(next='panel',anchor=false,requestId=null){
  mode=next===false||next==='collapsed'?'collapsed':next==='workspace'?'workspace':'panel';if(!window)return;
  const area=screen.getDisplayMatching(window.getBounds()).workArea,current=window.getBounds();
- const rect=layoutBounds(area,store.state.settings,mode,anchor?null:{cx:current.x+current.width/2,y:current.y});
+ if(anchor||!windowAnchor)windowAnchor=defaultAnchor(area,store.state.settings);
+ const rect=layoutBounds(area,store.state.settings,mode,windowAnchor);
  if(['x','y','width','height'].some(k=>rect[k]!==current[k])){adjusting=true;window.setBounds(rect,false);setTimeout(()=>{adjusting=false;},100);}
- window.webContents.send('window:mode',mode);
+ window.webContents.send('window:mode',{mode,requestId});
 }
 function show(){window.show();window.focus();}
 async function refresh(force=false){
@@ -57,11 +58,12 @@ async function openRepo(id,kind='repository'){
 }
 function createWindow(){
  const geometry=store.state.geometry,display=Number.isFinite(geometry?.cx)&&Number.isFinite(geometry?.y)?screen.getDisplayNearestPoint({x:Math.round(geometry.cx),y:Math.round(geometry.y)}):screen.getPrimaryDisplay(),area=display.workArea,rect=layoutBounds(area,store.state.settings,'panel',geometry);
+ windowAnchor=Number.isFinite(geometry?.cx)&&Number.isFinite(geometry?.y)?{...geometry}:defaultAnchor(area,store.state.settings);
  window=new BrowserWindow({...rect,transparent:!smokeMode,frame:false,resizable:false,hasShadow:false,alwaysOnTop:store.state.settings.pinned,skipTaskbar:true,backgroundColor:smokeMode?'#253d43':'#00000000',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
  window.setOpacity(store.state.settings.opacity/100);resize('panel',!geometry);
  window.loadFile(path.join(__dirname,'index.html'));
  window.webContents.setWindowOpenHandler(()=>({action:'deny'}));window.webContents.on('will-navigate',event=>event.preventDefault());window.webContents.session.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
- window.on('moved',()=>{if(adjusting)return;clearTimeout(moveTimer);moveTimer=setTimeout(()=>{if(window.isDestroyed())return;const b=window.getBounds();store.update(s=>{s.geometry={cx:b.x+b.width/2,y:b.y};});},300);});
+ window.on('moved',()=>{if(adjusting)return;clearTimeout(moveTimer);moveTimer=setTimeout(()=>{if(window.isDestroyed())return;const b=window.getBounds();store.update(s=>{windowAnchor={cx:b.x+b.width/2,y:b.y};s.geometry={...windowAnchor};});},300);});
  window.on('close',event=>{if(!quitting){event.preventDefault();window.hide();}});
 }
 async function confirm(message,detail='') {const r=await dialog.showMessageBox(window,{type:'warning',buttons:['Cancel','Confirm'],defaultId:0,cancelId:0,message,detail});return r.response===1;}
@@ -92,8 +94,8 @@ function attachIpc(){
  handle('workspace:bulk',(ids,action)=>{if(!Array.isArray(ids)||ids.length>2000||!['save','unsave','read','unread','queue','unqueue','pin','unpin'].includes(action))throw new Error('Invalid bulk action');const found=[...new Set(ids)].filter(Number.isSafeInteger).map(findRepo).filter(Boolean);store.update(s=>{for(const repo of found){if(action==='save'&&!s.saved.some(r=>r.id===repo.id))s.saved.push(repo);else if(action==='unsave')s.saved=s.saved.filter(r=>r.id!==repo.id);else if(!['save','unsave'].includes(action)){const key=({read:'read',unread:'read',queue:'queued',unqueue:'queued',pin:'pinned',unpin:'pinned'})[action];s.workspace.records[repo.id]={...workspace.metadata({...s.workspace.records[repo.id],[key]:['read','queue','pin'].includes(action)}),repo,updatedAt:new Date().toISOString()};}}});emit();return snapshot();});
  handle('workspace:collection',async(action,payload)=>{if(['delete','clear'].includes(action)&&!await confirm(action==='delete'?'Delete this collection?':'Clear this collection?','Repository notes, ratings and saved projects remain available.'))return null;if(action==='create')payload={...payload,id:require('node:crypto').randomUUID()};store.update(s=>{s.workspace=workspace.collection(s.workspace,action,payload,[...s.cache,...s.saved,...Object.values(s.workspace.records).map(r=>r.repo)].map(r=>r.id));if(action==='add')for(const id of payload.repos||[]){const repo=findRepo(id);if(repo&&!s.workspace.records[id])s.workspace.records[id]={...workspace.metadata(),repo,updatedAt:new Date().toISOString()};}});emit();return snapshot();});
  handle('state:get',()=>snapshot());handle('catalog:refresh',force=>refresh(force===true));
- handle('window:expand',next=>resize(next));
- handle('window:fit',payload=>{if(!payload||payload.mode!==mode||!Number.isFinite(payload.height))return;const current=window.getBounds(),area=screen.getDisplayMatching(current).workArea,height=fittedHeight(payload.height,area.height,mode==='collapsed');if(Math.abs(current.height-height)>1){adjusting=true;window.setBounds({height,y:Math.round(Math.max(area.y,Math.min(current.y,area.y+area.height-height)))},false);setTimeout(()=>{adjusting=false;},100);}});handle('window:hide',()=>window.hide());handle('app:quit',()=>{quitting=true;app.quit();});
+ handle('window:expand',input=>{const next=typeof input==='object'?input?.mode:input,requestId=typeof input==='object'?input?.requestId:null;if(!['panel','collapsed','workspace'].includes(next))throw new Error('Invalid window mode');if(requestId!=null){if(!Number.isSafeInteger(requestId)||requestId<=0)throw new Error('Invalid window request');if(requestId<=lastWindowRequest)return{mode,requestId,ignored:true};lastWindowRequest=requestId;}resize(next,false,requestId);return{mode,requestId};});
+ handle('window:fit',payload=>{if(!payload||payload.mode!==mode||!Number.isFinite(payload.height))return;const current=window.getBounds(),area=screen.getDisplayMatching(current).workArea,height=fittedHeight(payload.height,area.height,mode==='collapsed');if(Math.abs(current.height-height)>1){adjusting=true;window.setBounds({height,y:Math.round(Math.max(area.y,Math.min(windowAnchor?.y??current.y,area.y+area.height-height)))},false);setTimeout(()=>{adjusting=false;},100);}});handle('window:hide',()=>window.hide());handle('app:quit',()=>{quitting=true;app.quit();});
  handle('repo:open',openRepo);
  handle('repo:release-check',async(id,force=false)=>{const repo=findRepo(id);if(!repo)throw new Error('Repository unavailable');return {...await releaseClient.get(repo,force===true),id};});
  handle('repo:copy',(id,kind)=>{const repo=findRepo(id);if(!repo)throw new Error('Repository unavailable');const commands=discovery.sources(repo);const values={url:`https://github.com/${repo.full_name}`,clone:commands.clone,inspect:commands.inspect,markdown:`[${repo.full_name}](https://github.com/${repo.full_name})`,releases:repositoryUrl(repo)+'/releases',name:repo.full_name,owner:repo.full_name.split('/')[0],shallow:'git clone --depth 1 '+repositoryUrl(repo)+'.git',ssh:'git clone git@github.com:'+repo.full_name+'.git',cli:'gh repo clone '+repo.full_name,json:JSON.stringify(repo,null,2),stars:String(repo.stargazers_count)};if(!Object.hasOwn(values,kind))throw new Error('Unsupported copy');clipboard.writeText(values[kind]);return true;});

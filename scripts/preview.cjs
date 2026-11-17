@@ -9,7 +9,7 @@ function createPreviewServer(){
  const find=id=>[...state.cache,...state.saved].find(r=>r.id===id);
  async function command(name,args=[]){
   if(name==='state')return snapshot();if(name==='refresh')return{state:snapshot(),error:null};
-  if(name==='expand'){mode=args[0];return null;}if(name==='fit'||name==='copy')return true;
+  if(name==='expand'){mode=typeof args[0]==='object'?args[0].mode:args[0];return null;}if(name==='fit'||name==='copy')return true;
   if(name==='libraryQuery')return W.query(state.cache,args[0],state.workspace,state.saved,state.history);
   if(name==='releaseCheck')return{id:args[0],status:'available',available:true,tag:'v1.0.0',checkedAt:new Date().toISOString()};
   if(name==='settings'){state.settings=D.settings({...state.settings,...args[0]});D.present(state);}

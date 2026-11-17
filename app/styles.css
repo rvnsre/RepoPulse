@@ -83,3 +83,7 @@ footer{padding:8px 14px;min-height:54px;gap:9px}
 .collapsed .toolbar button{min-width:26px;width:28px;min-height:32px}
 .collapsed .toolbar #focusButton[aria-pressed=true]{font-size:11px;width:auto}
 @media(max-width:330px){.collapsed .brand b{display:none}.collapsed .topbar{gap:6px;padding-inline:9px}}
+
+/* Pointer boundaries stay fixed while the island scales inside its viewport. */
+html{height:100%;min-height:100%}
+body{min-height:100vh}

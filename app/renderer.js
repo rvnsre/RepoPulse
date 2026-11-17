@@ -19,7 +19,7 @@ async function windowMode(){
  islandController?.configure(state?.settings||{},mode);
  if(!expanded&&canAnimate()){const spec=IslandMotion.frames('exit',state.settings);rootAnimation=$('expanded').animate(spec.keyframes,{...spec.options,duration:Math.min(80,spec.options.duration)});try{await rootAnimation.finished;}catch{}if(serial!==transition)return;}
  $('expanded').hidden=!expanded;$('drawer').hidden=!drawer;document.body.classList.toggle('collapsed',!expanded);document.body.classList.toggle('workspace-open',expanded&&drawer);$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));
- await api?.expand(mode);if(serial!==transition)return;if(drawer)renderDrawer(false);requestFit();
+ await api?.expand({mode,requestId:serial});if(serial!==transition)return;if(drawer)renderDrawer(false);requestFit();
  if(canAnimate()){const spec=IslandMotion.frames(expanded?'enter':'dock',state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches);rootAnimation=(expanded?$('expanded'):$('island')).animate(spec.keyframes,spec.options);try{await rootAnimation.finished;}catch{}}
  ultimateStatus();
 }
@@ -220,7 +220,7 @@ window.addEventListener('keydown',e=>{
  if(!api){$('feed').append(empty('RepoPulse desktop','Open this interface in the desktop app.'));return;}
  adopt(await api.state());draft={...state.profile.weights};selectedId=repos()[0]?.id??null;
  api.onState(next=>{adopt(next);render();});
- api.onMode?.(next=>{const nextExpanded=next!=='collapsed',nextDrawer=next==='workspace';if(nextExpanded===expanded&&nextDrawer===drawer)return;transition++;rootAnimation?.cancel();expanded=nextExpanded;drawer=nextDrawer;document.body.classList.toggle('collapsed',!expanded);document.body.classList.toggle('workspace-open',expanded&&drawer);$('expanded').hidden=!expanded;$('drawer').hidden=!drawer;$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));islandController?.configure(state.settings,next);ultimateStatus();requestFit();if(drawer)renderDrawer(false);});
+ api.onMode?.(message=>{const next=UI.externalMode(message);if(!next)return;const nextExpanded=next!=='collapsed',nextDrawer=next==='workspace';if(nextExpanded===expanded&&nextDrawer===drawer)return;transition++;rootAnimation?.cancel();expanded=nextExpanded;drawer=nextDrawer;document.body.classList.toggle('collapsed',!expanded);document.body.classList.toggle('workspace-open',expanded&&drawer);$('expanded').hidden=!expanded;$('drawer').hidden=!drawer;$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));islandController?.configure(state.settings,next);ultimateStatus();requestFit();if(drawer)renderDrawer(false);});
  new ResizeObserver(requestFit).observe($('island'));if(state.windowMode==='collapsed'){expanded=false;drawer=false;$('expanded').hidden=true;document.body.classList.add('collapsed');}ultimateInit();render();if(state.recoveryNotice)toast(state.recoveryNotice);await refresh();
 })().catch(e=>toast(e.message));
 

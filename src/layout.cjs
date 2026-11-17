@@ -12,4 +12,5 @@ function bounds(area,prefs={},mode='panel',center){
  return{x:Math.round(Math.max(area.x+margin,Math.min(cx-width/2,area.x+area.width-width-margin))),y:Math.round(Math.max(area.y,Math.min(y,area.y+area.height-height))),width:Math.max(1,Math.floor(width)),height:Math.max(1,Math.floor(height))};
 }
 function fittedHeight(requested,areaHeight,collapsed=false){const available=Math.max(1,Math.floor(Number.isFinite(areaHeight)?areaHeight:1));const minimum=Math.min(available,collapsed?80:160);return Math.round(Math.max(minimum,Math.min(Number.isFinite(requested)?requested:minimum,available)));}
-module.exports={bounds,fittedHeight};
+function defaultAnchor(area,prefs){const rect=bounds(area,prefs,'collapsed');return{cx:rect.x+rect.width/2,y:rect.y};}
+module.exports={bounds,fittedHeight,defaultAnchor};

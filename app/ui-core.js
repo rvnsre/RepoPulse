@@ -16,5 +16,6 @@
   return cut+(words.length>6||chars.length>limit?'…':'');
  }
  function dockModel(items=[],id){const repo=items.find(r=>r?.id===id)||items[0]||null;return{repo,title:repo?.full_name||'No discovery yet',summary:repo?brief(repo.description):'Open the panel to discover projects'};}
- return{brief,dockModel,visible,rowPlan,motion,textScale,nextScale,search,history,accept};
+ function externalMode(message){if(typeof message==='object'&&message?.requestId!=null)return null;const mode=typeof message==='string'?message:message?.mode;return ['panel','collapsed','workspace'].includes(mode)?mode:null;}
+ return{externalMode,brief,dockModel,visible,rowPlan,motion,textScale,nextScale,search,history,accept};
 });

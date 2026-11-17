@@ -6,6 +6,8 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await new Promise(resolve=>window.webContents.isLoading()?window.webContents.once('did-finish-load',resolve):resolve());
  const evaluate=async script=>{try{return await window.webContents.executeJavaScript(script);}catch(error){console.error('FAILED_NATIVE_SCRIPT:',script,'Renderer errors:',JSON.stringify(errors));throw error;}};
  async function until(check,attempts=50){for(let i=0;i<attempts;i++){if(await check())return;await new Promise(resolve=>setTimeout(resolve,100));}throw new Error('Native UI did not reach the expected state: '+JSON.stringify(await evaluate(`({rows:[...document.querySelectorAll('.repo-row')].map(r=>r.dataset.repoId),selected:document.getElementById('selectedLabel').textContent,toast:document.getElementById('toast').textContent,expanded:!document.getElementById('expanded').hidden,drawer:!document.getElementById('drawer').hidden,live:document.getElementById('liveToggle')?.textContent})`)));}
+ async function movePointer(x,y){window.webContents.sendInputEvent({type:'mouseMove',x:Math.round(x),y:Math.round(y)});await new Promise(r=>setTimeout(r,40));}
+ async function moveScreen(x,y){const b=window.getBounds();await movePointer(x-b.x,y-b.y);}
  await until(()=>evaluate(`!!document.querySelector('.repo-row')`));
  await new Promise(r=>setTimeout(r,500));let dimensions=await evaluate(`({rows:document.querySelectorAll('.repo-row').length,width:innerWidth,height:innerHeight,footer:document.querySelector('footer').getBoundingClientRect().bottom})`);
  assert.equal(dimensions.rows,2);assert.ok(dimensions.width>=900&&dimensions.width<=960);assert.ok(dimensions.height<500,JSON.stringify(dimensions));assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
@@ -90,12 +92,12 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await evaluate("document.getElementById('closeDrawer').click()");
  await until(()=>evaluate("document.getElementById('drawer').hidden"));
  await evaluate("document.activeElement.blur();window.pulse.settings({autoHide:true,collapseOnLeave:true,idleCollapse:false,keepOnFocus:false,hideDelay:600,hoverDelay:80,hoverExpand:true,hoverScale:102,hoverLift:true,motion:'full',motionPreset:'fluid'})");
- await evaluate("document.getElementById('island').dispatchEvent(new MouseEvent('mouseleave'))");
+ await movePointer(-20,-20);
  await until(()=>evaluate("document.body.classList.contains('collapsed')&&document.getElementById('expanded').hidden"));
  await capture('collapsed-preview.png');
  const dock=await evaluate(`(()=>{const b=document.getElementById('dockOpen'),r=b.getBoundingClientRect(),t=document.querySelector('.toolbar').getBoundingClientRect();return{id:Number(b.dataset.repoId),summary:document.getElementById('dockSummary').textContent,clickable:getComputedStyle(b).pointerEvents,overlap:r.right>t.left+1,x:r.x+r.width/2,y:r.y+r.height/2};})()`);
  assert.ok(dock.id>0&&dock.summary.length>0);assert.equal(dock.clickable,'auto');assert.equal(dock.overlap,false);
- await evaluate(`document.getElementById('island').dispatchEvent(new MouseEvent('mouseenter',{clientX:${dock.x},clientY:${dock.y}}))`);
+ await movePointer(dock.x,dock.y);
  await new Promise(r=>setTimeout(r,120));assert.equal(await evaluate("document.body.classList.contains('collapsed')"),true,'Hover over the compact link must keep its click target stable');
  const compactBefore=store.state.history.length,compactRepo=store.state.daily.repos.find(r=>r.id===dock.id);
  await evaluate("document.getElementById('dockOpen').click()");
@@ -110,14 +112,41 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await until(()=>evaluate("document.getElementById('expanded').hidden"));
  console.log('Compact action checks passed: short explanation, non-overlapping hit area, stable hover, direct GitHub click, no duplicate open and blank-header expansion.');
 
- await evaluate("document.getElementById('island').dispatchEvent(new MouseEvent('mouseenter'))");
+ await movePointer(30,30);
  await until(()=>evaluate("!document.getElementById('expanded').hidden"));
  await new Promise(r=>setTimeout(r,500));
  const growth=await evaluate("getComputedStyle(document.getElementById('island')).transform");
  assert.ok(growth.includes('1.02'), 'Hover should grow the island: '+growth);
  await capture('hover-preview.png');
+ // Use actual Chromium mouse input at a fixed screen coordinate near a clamped edge.
+ await evaluate("window.pulse.settings({autoHide:false,keepOnFocus:false})");
+ await evaluate("document.getElementById('collapse').click()");
+ await until(()=>evaluate("document.getElementById('expanded').hidden"));
+ await new Promise(r=>setTimeout(r,160));
+ const work=require('electron').screen.getDisplayMatching(window.getBounds()).workArea;
+ window.setBounds({x:work.x+12,y:work.y+work.height-window.getBounds().height});
+ await new Promise(r=>setTimeout(r,450));
+ const dockAnchor=window.getBounds(),point={x:dockAnchor.x+30,y:dockAnchor.y+30};
+ await moveScreen(work.x-20,work.y-20);
+ await evaluate("window.hoverModes=[];window.stopHoverTrace=window.pulse.onMode(m=>window.hoverModes.push(m));window.pulse.settings({autoHide:true,collapseOnLeave:true,hideDelay:0,hoverDelay:0,keepOnFocus:false})");
+ await moveScreen(point.x,point.y);
+ await until(()=>evaluate("!document.getElementById('expanded').hidden"));
+ for(let i=0;i<8;i++)await moveScreen(point.x,point.y);
+ assert.equal(await evaluate("document.getElementById('expanded').hidden"),false,'A stationary pointer must not cause resize/hover oscillation');
+ await moveScreen(work.x-20,work.y-20);
+ await until(()=>evaluate("document.getElementById('expanded').hidden"));
+ await new Promise(r=>setTimeout(r,160));
+ const restored=window.getBounds();assert.ok(Math.abs(restored.x-dockAnchor.x)<=1&&Math.abs(restored.y-dockAnchor.y)<=1,'Dock anchor must survive clamped expansion: '+JSON.stringify({dockAnchor,restored}));
+ const trace=await evaluate("window.hoverModes.map(m=>m.mode||m);");assert.equal(trace.filter(m=>m==='panel').length,1,'One physical entry must produce one panel request: '+JSON.stringify(trace));
+ // Interrupt closing with re-entry several times and finish in the latest requested mode.
+ for(let i=0;i<3;i++){await moveScreen(point.x,point.y);await new Promise(r=>setTimeout(r,20));await moveScreen(work.x-20,work.y-20);}
+ await moveScreen(point.x,point.y);await until(()=>evaluate("!document.getElementById('expanded').hidden"));
+ await new Promise(r=>setTimeout(r,250));assert.equal(await evaluate("document.body.classList.contains('collapsed')"),false,'A delayed close acknowledgement must not override re-entry');
+ await evaluate("window.stopHoverTrace()");
+ console.log('Real pointer/resize regression passed: stable edge hover, exact dock-anchor restoration and interrupted close/re-entry.');
+
  await evaluate("window.pulse.settings({autoHide:false,motion:'none',hoverLift:false})");
- await evaluate("document.getElementById('island').dispatchEvent(new MouseEvent('mouseleave'))");
+ await movePointer(-20,-20);
  window.setBounds({width:600});
  await new Promise(r=>setTimeout(r,250));
  assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"),true,'Narrow native window must not overflow');
