@@ -13,12 +13,13 @@ function normalize(input={}){
  for(const c of (Array.isArray(input?.collections)?input.collections:[]).slice(0,50)){const id=safeText(c?.id,64),name=safeText(c?.name,80);if(!/^[a-zA-Z0-9_-]+$/.test(id)||!name||seen.has(id))continue;seen.add(id);out.collections.push({id,name,color:COLORS.includes(c.color)?c.color:'sand',repos:[...new Set((Array.isArray(c.repos)?c.repos:[]).filter(id=>idValid(id)).map(Number))].slice(0,2000)});}
  return out;
 }
+function ensureCapacity(records,ids){if(new Set([...Object.keys(records||{}),...ids.filter(idValid).map(String)]).size>2000)throw new Error('Maximum 2,000 annotated repositories. Changes were cancelled.');}
 function patch(input,repo,changes,now=Date.now()){
  const out=normalize(input);repo=normalizeRepo(repo);if(!repo)throw new Error('Repository unavailable.');
  if(!changes||typeof changes!=='object'||Array.isArray(changes))throw new Error('Invalid annotation.');
  const current=out.records[repo.id]||metadata();const update={};
  for(const key of ['notes','tags','rating','pinned','read','queued','priority'])if(own(changes,key))update[key]=changes[key];
- if(!out.records[repo.id]&&Object.keys(out.records).length>=2000)throw new Error('Maximum 2,000 annotated repositories. Export or remove annotations first.');out.records[repo.id]={...metadata({...current,...update}),repo,updatedAt:new Date(now).toISOString()};return out;
+ ensureCapacity(out.records,[repo.id]);out.records[repo.id]={...metadata({...current,...update}),repo,updatedAt:new Date(now).toISOString()};return out;
 }
 function collection(input,action,payload={},known=[]){
  if(!payload||typeof payload!=='object'||Array.isArray(payload))throw new Error('Invalid collection input.');const out=normalize(input),id=safeText(payload.id,64),current=out.collections.find(c=>c.id===id),allowed=new Set(known.filter(idValid).map(Number));
@@ -62,4 +63,4 @@ function analytics(history=[],workspace={},now=Date.now()){
  const w=normalize(workspace),records=Object.values(w.records),unique=new Set(valid.map(h=>h.repo.id)).size;
  return{opens:valid.length,unique,revisits:valid.length-unique,today:days[6].count,week:days.reduce((a,b)=>a+b.count,0),days,languages:Object.entries(languages).sort((a,b)=>b[1]-a[1]),topics:Object.entries(topics).sort((a,b)=>b[1]-a[1]).slice(0,12),notes:records.filter(r=>r.notes).length,queued:records.filter(r=>r.queued).length,pinned:records.filter(r=>r.pinned).length,read:records.filter(r=>r.read).length,rated:records.filter(r=>r.rating).length,collections:w.collections.length};
 }
-module.exports={COLORS,metadata,normalize,patch,collection,merge,query,csv,analytics};
+module.exports={COLORS,metadata,normalize,ensureCapacity,patch,collection,merge,query,csv,analytics};

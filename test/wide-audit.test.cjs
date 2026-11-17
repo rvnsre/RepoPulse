@@ -52,3 +52,5 @@ test('One failed global hotkey registration cannot hide another successful one',
 test('Second global hotkey is attempted even when the first one throws',()=>{let calls=0;const available=require('../src/window-policy.cjs').registerShortcuts({register:()=>{if(++calls===1)throw Error('unavailable');return true;}},()=>{});assert.equal(available,true);assert.equal(calls,2);});
 
 test('Startup normalization retains a saved daily recommendation explanation',()=>{const s=D.initialize({...E.defaults(),daily:{day:E.localDay(),repos:[{...repo(),reason:'Matches your developer tools interest.'}]}});assert.equal(s.daily.repos[0].reason,'Matches your developer tools interest.');});
+
+test('Bulk and collection capacity guard rejects overflow while allowing existing IDs',()=>{const records=Object.fromEntries(Array.from({length:2000},(_,i)=>[i+1,{}]));assert.doesNotThrow(()=>W.ensureCapacity(records,[1,2,2000]));assert.throws(()=>W.ensureCapacity(records,[2001]),/Maximum/);assert.equal(Object.keys(records).length,2000);});
