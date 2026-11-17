@@ -31,3 +31,7 @@ test('Clash Verge uses the verified exact WinGet identifier on Windows',()=>asse
 
 test('Hourly observations yield daily velocity throughout the day, not just near midnight',()=>{let samples={};for(let h=0;h<=50;h++)samples=observe(samples,[{...repo(),stargazers_count:100000+h*10}],now+h*3600000);for(const h of [26,36,50]){const history=samples[1].filter(s=>s.at<=now+h*3600000);assert.equal(velocity(history).delta,240);assert.equal(velocity(history).hours,24);}assert.ok(samples[1].length<=73);});
 test('Malformed persisted star samples do not break feed metadata',()=>{assert.equal(velocity(null),null);assert.equal(velocity({bad:true}),null);assert.equal(velocity([null,{at:NaN,stars:-1}]),null);assert.equal(observe(null,[repo()],now)[1].length,1);assert.equal(observe({1:[null]},[repo()],now)[1].length,1);});
+
+test('Corrupted out-of-range observation timestamps cannot crash activity IPC',()=>assert.equal(velocity([{at:1e300,stars:1},{at:1e300-86400000,stars:2}]),null));
+
+test('Hover scaling stays inside the native surface inset at every panel size',()=>{const {safeScale}=require('../app/morph.js');for(const [w,h]of [[344,56],[944,464],[1400,1000]]){const s=safeScale(1.03,w,h,8);assert.ok((w*s-w)/2<=6.01);assert.ok(h*s-h<=6.01);}assert.equal(safeScale(1.03,900,500,0),1);assert.equal(safeScale(NaN,900,500,8),1);});

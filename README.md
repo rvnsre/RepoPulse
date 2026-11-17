@@ -1,4 +1,4 @@
-# RepoPulse 11.0.0
+# RepoPulse 11.1.0
 
 A personalized GitHub discovery island for Windows, macOS and Linux, focused on **50,000+ star** public projects.
 
@@ -9,6 +9,16 @@ Choose Fluid, Snappy, Calm or Soft Spring motion, hover growth, timing, card app
 ![Native application preview](docs/preview-v11.png)
 
 Native Electron screenshot using sample metadata. The native test temporarily disables automatic hiding and Live rotation to capture a stable desktop view; autonomous operation is exercised separately in the same test.
+
+## Cross-platform audit / 11.1
+
+[Exact changed files, findings, platform limitations and validation](docs/AUDIT-v11.1.md).
+
+The island now docks to the top-center of the active display work area. Summon with Ctrl/Cmd+Shift+P or the tray. Native macOS vibrancy and Windows corner/shadow options coexist with an opaque Linux fallback; X11 uses a native shape mask. Native Wayland placement and stacking remain compositor-controlled, with XWayland preferred when available.
+
+Cards show one owner/repository identity, real release/commit or labelled push timestamps, official Atom links and measured star trends once sufficient history exists. All three picks are reachable in a scrollable feed. Bookmark/Skip and Open Repo belong to cards; global controls belong to the footer. Install/Downloads and Git Clone use verified package mappings or explicit OS-specific release choices; command copying never executes a shell.
+
+Sync freshness and local rotation are separate. “Live” requires a successful catalog sync within five minutes; stale data is labelled Cached / Last synced. The old whole-window opacity slider is retired to prevent browser text bleeding through the widget.
 
 ## What changed in 11.0
 
