@@ -1,7 +1,7 @@
 'use strict';
 const UI=window.RepoPulseUI,raw=window.pulse,$=id=>document.getElementById(id);
 let state,section='details',expanded=true,drawer=false,selectedId=null,pair=0,draft={},toastTimer,busy=false,search='',sort='recent',savedLanguage='',renderQueued=false,transition=0,rootAnimation=null,drawerStamp='',releaseTimer;
-const pending=new Set(),slots=[],releaseStates=new Map();
+const pending=new Set(),slots=[],releaseStates=new Map(),releaseRequests=new Map();
 const api=raw?{...raw}:null;
 function adopt(next){state=UI.accept(state,next);return state;}
 if(api)for(const name of ['state','open','react','undo','settings','profile','importProfile','importData','clear','clearHistory','resetControls','removeHistory','removeExclusion','workspacePatch','workspaceBulk','workspaceCollection'])if(raw[name])api[name]=async(...args)=>{const value=await raw[name](...args);return value?.settings&&value?.profile?adopt(value):value;};
@@ -18,7 +18,7 @@ async function windowMode(){
  const serial=++transition;rootAnimation?.cancel();const mode=expanded?(drawer?'workspace':'panel'):'collapsed';
  islandController?.configure(state?.settings||{},mode);
  if(!expanded&&canAnimate()){const spec=IslandMotion.frames('exit',state.settings);rootAnimation=$('expanded').animate(spec.keyframes,{...spec.options,duration:Math.min(180,spec.options.duration)});try{await rootAnimation.finished;}catch{}if(serial!==transition)return;}
- $('expanded').hidden=!expanded;$('drawer').hidden=!drawer;document.body.classList.toggle('collapsed',!expanded);$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));
+ $('expanded').hidden=!expanded;$('drawer').hidden=!drawer;document.body.classList.toggle('collapsed',!expanded);document.body.classList.toggle('workspace-open',expanded&&drawer);$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));
  await api?.expand(mode);if(serial!==transition)return;if(drawer)renderDrawer(false);requestFit();
  if(canAnimate()){const spec=IslandMotion.frames(expanded?'enter':'dock',state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches);rootAnimation=(expanded?$('expanded'):$('island')).animate(spec.keyframes,spec.options);try{await rootAnimation.finished;}catch{}}
  ultimateStatus();
@@ -29,13 +29,19 @@ function compact(number){return state?.settings.exactStars?Intl.NumberFormat('en
 function commands(repo){const name=repo.full_name.split('/')[1];return{clone:'git clone https://github.com/'+repo.full_name+'.git',inspect:'git -C "'+name+'" status\ngit -C "'+name+'" log -1 --oneline'};}
 function choose(id){selectedId=id;document.querySelectorAll('.repo-row').forEach(row=>row.classList.toggle('selected',Number(row.dataset.repoId)===id));updateActions();if(drawer&&section==='details')renderDrawer(false);}
 async function checkRelease(repo,force=false){
- const previous=releaseStates.get(repo.id);if(!force&&previous&&previous.status!=='unknown'&&(previous.status==='checking'||Date.now()-Date.parse(previous.checkedAt)<900000))return previous;
- releaseStates.set(repo.id,{status:'checking',available:null});updateActions();
- let value;try{value=await api.releaseCheck(repo.id,force);}catch(error){value={status:'unknown',available:null,error:error.message||'Release check failed. Try again.'};}releaseStates.set(repo.id,value);updateActions();if(drawer&&section==='details'&&selectedId===repo.id)renderDrawer(false);return value;
+ if(releaseRequests.has(repo.id))return releaseRequests.get(repo.id);
+ const previous=releaseStates.get(repo.id);
+ if(!force&&previous&&previous.status!=='unknown'&&Date.now()-Date.parse(previous.checkedAt)<900000)return previous;
+ const request=(async()=>{
+  releaseStates.set(repo.id,{status:'checking',available:null});updateActions();
+  let value;try{value=await api.releaseCheck(repo.id,force);}catch(error){value={status:'unknown',available:null,error:error.message||'Release check failed. Try again.'};}
+  releaseStates.set(repo.id,value);updateActions();if(drawer&&section==='details'&&selectedId===repo.id)renderDrawer(false);return value;
+ })();
+ releaseRequests.set(repo.id,request);try{return await request;}finally{releaseRequests.delete(repo.id);}
 }
 function updateActions(){
  const repo=selected();$('install').disabled=!repo;$('learn').disabled=!repo;$('learn').title=repo?'Open '+repo.full_name+' in your browser':'Choose a repository';$('install').title=repo?'Open '+repo.full_name+' releases, when available':'Choose a repository';
- $('selectedLabel').textContent=repo?repo.full_name:'No repository selected';
+ $('selectedLabel').textContent=repo?repo.full_name:'No repository selected';if($('workspaceContext'))$('workspaceContext').textContent=repo?repo.full_name:'Your discovery workspace';
  const release=repo&&releaseStates.get(repo.id);$('install').textContent=release?.status==='checking'?'Checking...':release?.available===false?'No release':'Install';$('install').disabled=!repo||release?.status==='checking'||release?.available===false;
  for(const row of document.querySelectorAll('.repo-row')){const id=Number(row.dataset.repoId),saved=state.saved.some(r=>r.id===id),save=row.querySelector('[data-action="save"]');if(save){save.textContent=saved?'Saved':'Save';save.setAttribute('aria-pressed',String(saved));}
   const status=releaseStates.get(id),install=row.querySelector('.row-install');if(install){install.textContent=status?.status==='checking'?'Checking...':status?.available===false?'No release':'Install';install.disabled=status?.status==='checking'||status?.available===false;install.title=status?.available===false?'No public release. Use Guide in Details.':'Open verified public releases';}
@@ -92,7 +98,7 @@ function reconcile(){
  while(slots.length>desired.length){const removed=slots.pop();removed.version++;removed.effect?.cancel();removed.element.remove();}
 }
 let fitFrame=0;
-function requestFit(){if(fitFrame||!api)return;fitFrame=requestAnimationFrame(()=>{fitFrame=0;const height=Math.ceil($('island').offsetHeight+(innerWidth<=640?28:40));api.fit({height,mode:expanded?(drawer?'workspace':'panel'):'collapsed'}).catch(()=>{});});}
+function requestFit(){if(fitFrame||!api||expanded&&drawer)return;fitFrame=requestAnimationFrame(()=>{fitFrame=0;const height=Math.ceil($('island').offsetHeight+(innerWidth<=640?28:48));api.fit({height,mode:expanded?(drawer?'workspace':'panel'):'collapsed'}).catch(()=>{});});}
 function render(){if(renderQueued)return;renderQueued=true;requestAnimationFrame(()=>{renderQueued=false;renderNow();});}
 function renderNow(){
  if(!state)return;const prefs=state.settings;ultimateRender();
@@ -165,12 +171,13 @@ function renderDrawer(force=true){
  document.querySelectorAll('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===section);b.setAttribute('aria-current',b.dataset.tab===section?'page':'false');});
  const stamp=JSON.stringify([section,section==='history'?[state.settings.uniqueHistory,state.settings.exactStars]:section==='saved'?state.settings.exactStars:null,section==='details'?[selected(),releaseStates.get(selected()?.id)]:null,section==='saved'?state.saved:null,section==='history'?state.history:null,section==='tune'?state.profile:null,section==='settings'?[state.settings,state.saved.length,state.history.length,state.catalogSize]:null,section==='exclusions'?state.exclusions:null,['library','collections','compare','insights'].includes(section)?[state.workspace,state.saved,state.history,state.analytics]:null,section==='details'?state.workspace?.records?.[selected()?.id]:null]);
  if(!force&&stamp===drawerStamp)return;drawerStamp=stamp;
- const root=$('drawerContent'),active=document.activeElement,within=root.contains(active),key=within?(active.dataset.focusKey||active.id):null,scroll=root.scrollTop;
+ $('drawer').dataset.view=section;const root=$('drawerContent'),active=document.activeElement,within=root.contains(active),key=within?(active.dataset.focusKey||active.id):null,scroll=root.scrollTop;
  let cursor=null;try{if(within&&typeof active.selectionStart==='number')cursor=[active.selectionStart,active.selectionEnd];}catch{}
  root.replaceChildren();({details:overview,saved:r=>collectionView(r,false),history:r=>collectionView(r,true),tune,settings:settingsView,exclusions:exclusionsView,library:ultimateLibrary,collections:ultimateCollections,compare:ultimateCompare,insights:ultimateInsights,commands:ultimateCommands})[section](root);
  if(key){const replacement=Array.from(root.querySelectorAll('[data-focus-key],input[id]')).find(n=>(n.dataset.focusKey||n.id)===key);if(replacement){replacement.focus({preventScroll:true});if(cursor)try{replacement.setSelectionRange(...cursor);}catch{}}}root.scrollTop=scroll;
 }
 async function refresh(force=false){if(busy)return;islandController?.hold('refresh',true);busy=true;$('refresh').disabled=true;try{const result=await api.refresh(force);adopt(result.state);render();if(result.error)toast(result.error);else if(force)toast('Catalog refreshed. Unseen projects remain ready for your next click.');}finally{busy=false;islandController?.hold('refresh',false);$('refresh').disabled=false;}}
+$('browseLibrary').addEventListener('click',()=>run(()=>openDrawer('library')));
 $('toggle').addEventListener('click',()=>run(async()=>{expanded=!expanded;if(!expanded)drawer=false;await windowMode();}));
 $('collapse').addEventListener('click',()=>run(async()=>{expanded=false;drawer=false;await windowMode();}));
 $('menu').addEventListener('click',()=>run(()=>drawer?closeDrawer():openDrawer('settings')));
@@ -207,6 +214,7 @@ window.addEventListener('keydown',e=>{
  if(!api){$('feed').append(empty('RepoPulse desktop','Open this interface in the desktop app.'));return;}
  adopt(await api.state());draft={...state.profile.weights};selectedId=repos()[0]?.id??null;
  api.onState(next=>{adopt(next);render();});
- api.onMode?.(next=>{const nextExpanded=next!=='collapsed',nextDrawer=next==='workspace';if(nextExpanded===expanded&&nextDrawer===drawer)return;transition++;rootAnimation?.cancel();expanded=nextExpanded;drawer=nextDrawer;document.body.classList.toggle('collapsed',!expanded);$('expanded').hidden=!expanded;$('drawer').hidden=!drawer;$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));islandController?.configure(state.settings,next);ultimateStatus();requestFit();if(drawer)renderDrawer(false);});
+ api.onMode?.(next=>{const nextExpanded=next!=='collapsed',nextDrawer=next==='workspace';if(nextExpanded===expanded&&nextDrawer===drawer)return;transition++;rootAnimation?.cancel();expanded=nextExpanded;drawer=nextDrawer;document.body.classList.toggle('collapsed',!expanded);document.body.classList.toggle('workspace-open',expanded&&drawer);$('expanded').hidden=!expanded;$('drawer').hidden=!drawer;$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));islandController?.configure(state.settings,next);ultimateStatus();requestFit();if(drawer)renderDrawer(false);});
  new ResizeObserver(requestFit).observe($('island'));if(state.windowMode==='collapsed'){expanded=false;drawer=false;$('expanded').hidden=true;document.body.classList.add('collapsed');}ultimateInit();render();if(state.recoveryNotice)toast(state.recoveryNotice);await refresh();
 })().catch(e=>toast(e.message));
+

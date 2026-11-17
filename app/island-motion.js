@@ -12,7 +12,12 @@ class Controller{
  }
  clear(name){if(this.timers[name]!==undefined){this.clearTimer(this.timers[name]);delete this.timers[name];}}
  schedule(name,delay,fn){this.clear(name);if(this.destroyed)return;this.timers[name]=this.setTimer(()=>{delete this.timers[name];if(!this.destroyed)fn();},Math.max(0,delay));}
- configure(prefs,mode=this.mode){this.prefs={...prefs};this.mode=mode;this.rearm();}
+ configure(prefs,mode=this.mode){
+  const keys=['autoHide','collapseOnLeave','idleCollapse','hideDelay','idleSeconds','hoverDelay','hoverExpand','keepOnFocus','keepOnHover'];
+  const changed=mode!==this.mode||keys.some(key=>prefs[key]!==this.prefs[key]);
+  this.prefs={...prefs};this.mode=mode;
+  if(changed){this.clear('hover');this.rearm();}
+ }
  blocked(){return this.holds.size>0||this.mode==='workspace'||this.now()<this.pausedUntil||(this.focused&&this.prefs.keepOnFocus!==false);}
  rearm(){this.clear('idle');this.clear('leave');if(!this.prefs.autoHide||this.mode!=='panel'||this.blocked())return;
   if(!this.pointer&&this.prefs.collapseOnLeave)this.schedule('leave',this.prefs.hideDelay||1200,()=>this.collapse('leave'));

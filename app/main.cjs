@@ -1,5 +1,5 @@
 'use strict';
-const {app,BrowserWindow,ipcMain,shell,Tray,Menu,globalShortcut,nativeImage,screen,dialog,Notification,clipboard}=require('electron');
+const {app,BrowserWindow,ipcMain,shell,Tray,Menu,globalShortcut,nativeImage,screen,dialog,Notification,clipboard,powerMonitor}=require('electron');
 const path=require('node:path'),fs=require('node:fs');
 const {Store}=require('../src/store.cjs');
 const {TOPICS,localDay,validateProfile,validWeights,repoTopics,defaults,normalizeRepo}=require('../src/engine.cjs');
@@ -56,7 +56,7 @@ async function openRepo(id,kind='repository'){
  opening.set(key,task);try{return await task;}finally{opening.delete(key);}
 }
 function createWindow(){
- const area=screen.getPrimaryDisplay().workArea,geometry=store.state.geometry,rect=layoutBounds(area,store.state.settings,'panel',geometry);
+ const geometry=store.state.geometry,display=Number.isFinite(geometry?.cx)&&Number.isFinite(geometry?.y)?screen.getDisplayNearestPoint({x:Math.round(geometry.cx),y:Math.round(geometry.y)}):screen.getPrimaryDisplay(),area=display.workArea,rect=layoutBounds(area,store.state.settings,'panel',geometry);
  window=new BrowserWindow({...rect,transparent:!smokeMode,frame:false,resizable:false,hasShadow:false,alwaysOnTop:store.state.settings.pinned,skipTaskbar:true,backgroundColor:smokeMode?'#253d43':'#00000000',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
  window.setOpacity(store.state.settings.opacity/100);resize('panel',!geometry);
  window.loadFile(path.join(__dirname,'index.html'));
@@ -129,7 +129,8 @@ if(singleton)app.whenReady().then(()=>{
  releaseClient=new ReleaseClient(smokeMode?{fetchImpl:async()=>({ok:true,json:async()=>[{tag_name:'v1.0.0',draft:false}]})}:{});
  createWindow();attachIpc();if(store.state.settings.startCollapsed&&!smokeMode)window.webContents.once('did-finish-load',()=>resize('collapsed'));tray=new Tray(nativeImage.createFromDataURL(require('./tray-icon.cjs')));tray.setToolTip('RepoPulse - GitHub rss');tray.setContextMenu(Menu.buildFromTemplate([{label:'Open RepoPulse',click:()=>{show();resize('panel');}},{label:'Refresh catalog',click:()=>refresh(true)},{type:'separator'},{label:'Quit',click:()=>{quitting=true;app.quit();}}]));tray.on('click',()=>{show();resize(mode==='collapsed'?'panel':'collapsed');});
  globalShortcut.register('CommandOrControl+Shift+Space',()=>{show();resize(mode==='collapsed'?'panel':'collapsed');});
- timer=setInterval(()=>{if(store.state.daily?.day!==localDay())refresh();},60000);app.on('second-instance',show);app.on('activate',show);
+ powerMonitor.on('resume',()=>{if(!quitting)refresh().catch(error=>{lastError=error.message;emit();});});timer=setInterval(()=>{if(store.state.daily?.day!==localDay())refresh();},60000);app.on('second-instance',show);app.on('activate',show);
  if(smokeMode)require('../scripts/smoke.cjs').smoke({app,window,store,resize,TOPICS,snapshot}).catch(error=>{console.error(error);app.exit(1);});
 }).catch(error=>{dialog.showErrorBox('RepoPulse could not start',error.message);app.quit();});
 app.on('before-quit',()=>{quitting=true;clearInterval(timer);clearTimeout(moveTimer);});app.on('will-quit',()=>globalShortcut.unregisterAll());app.on('window-all-closed',()=>{});
+

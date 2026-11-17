@@ -13,12 +13,12 @@ function ultimateStatus(){
  if(!state)return;const status=islandController?.status(),remaining=Math.max(0,Math.ceil((uFocusUntil-Date.now())/1000)),f=$('focusButton');
  f.textContent=remaining?Math.floor(remaining/60)+':'+String(remaining%60).padStart(2,'0'):'◷';f.title=remaining?'Stop focus session':'Start '+state.settings.focusMinutes+' minute focus session';f.setAttribute('aria-label',f.title);f.setAttribute('aria-pressed',String(remaining>0));
  $('autoHideButton').textContent=!state.settings.autoHide?'Auto hide off':status?.paused?'Hiding paused':'Auto hide on';$('autoHideButton').title=status?.paused?'Resume automatic hiding':'Pause automatic hiding for 5 minutes';$('autoHideButton').setAttribute('aria-pressed',String(!!status?.paused));
- $('queueCount').textContent=String(state.analytics?.queued||0);$('queueButton').hidden=!state.settings.showQueueCount;
- $('dockHint').hidden=expanded;$('dockText').textContent=remaining?'Focus / '+Math.ceil(remaining/60)+' min':selected()?.full_name||'Your next discovery';document.body.classList.toggle('focus-session',remaining>0);
+ $('queueCount').textContent=String(state.analytics?.queued||0);if($('editionLabel'))$('editionLabel').textContent=new Date().toLocaleDateString('en',{weekday:'long',month:'short',day:'numeric'});if($('libraryStat'))$('libraryStat').textContent=(state.catalogSize||0)+' established projects';$('queueButton').hidden=!state.settings.showQueueCount;
+ document.body.classList.toggle('workspace-open',expanded&&drawer);$('dockHint').hidden=expanded;$('dockText').textContent=remaining?'Focus / '+Math.ceil(remaining/60)+' min':selected()?.full_name||'Your next discovery';document.body.classList.toggle('focus-session',remaining>0);
  $('island').setAttribute('aria-label',expanded?'RepoPulse discovery panel':'RepoPulse collapsed island. Hover or activate the header to expand.');
 }
 function ultimateRender(){
- const p=state.settings;document.body.dataset.accent=p.accent;document.body.dataset.card=p.cardStyle;document.body.dataset.roundness=String(p.roundness);document.body.classList.toggle('no-glow',!p.glow);document.body.classList.toggle('hide-hints',!p.showHints);$('status').hidden=!p.showStatus;
+ const p=state.settings;document.body.classList.toggle('workspace-open',expanded&&drawer);document.body.classList.toggle('offline',!!state.lastError);document.body.dataset.accent=p.accent;document.body.dataset.card=p.cardStyle;document.body.dataset.roundness=String(p.roundness);document.body.classList.toggle('no-glow',!p.glow);document.body.classList.toggle('hide-hints',!p.showHints);$('status').hidden=!p.showStatus;
  islandController?.configure(p,expanded?(drawer?'workspace':'panel'):'collapsed');const signature=JSON.stringify([p.hoverLift,p.hoverScale,p.motionPreset,p.motion,p.reducedMotion,p.motionDuration]);if(signature!==uMotionSignature){uMotionSignature=signature;if(hoverAnimation||islandController?.pointer)ultimateMagnify(!!islandController?.pointer);}ultimateStatus();
 }
 function ultimateMagnify(active){
@@ -52,15 +52,15 @@ function ultimateInit(){
 function ultimateSelect(label,values,value,onChange){const select=el('select',{'aria-label':label});for(const [v,text]of values)select.append(el('option',{value:v},text));select.value=String(value??'');select.addEventListener('change',()=>run(()=>onChange(select.value)));return select;}
 function ultimateToggleCompare(repo){if(uCompare.has(repo.id))uCompare.delete(repo.id);else{if(uCompare.size>=3){toast('Compare up to three repositories. Remove one first.');return;}uCompare.add(repo.id);}drawerStamp='';if(drawer)renderDrawer();toast(uCompare.size+' repositories selected for comparison.');}
 function ultimateDetails(root,repo){
- const meta=ultimateMeta(repo),draft=uDrafts.get(repo.id)||{notes:meta.notes,tags:meta.tags.join(', ')};uDrafts.set(repo.id,draft);
+ const meta=ultimateMeta(repo),draft=uDrafts.get(repo.id)||{notes:meta.notes,tags:meta.tags.join(', ')};
  root.append(el('h3',{class:'subheading'},'Personal workspace'));
  const tools=el('div',{class:'stack'});tools.append(btn(meta.queued?'Remove from queue':'Read later',()=>ultimatePatch(repo,{queued:!meta.queued}),'secondary','Toggle queue for '+repo.full_name),btn(meta.pinned?'Unpin':'Pin',()=>ultimatePatch(repo,{pinned:!meta.pinned}),'secondary','Toggle pin for '+repo.full_name),btn(meta.read?'Mark unread':'Mark read',()=>ultimatePatch(repo,{read:!meta.read}),'secondary','Toggle read state for '+repo.full_name),btn(uCompare.has(repo.id)?'Remove comparison':'Compare',()=>ultimateToggleCompare(repo),'secondary'));
  const ratings=ultimateSelect('Personal rating',[[0,'No rating'],[1,'1 / 5'],[2,'2 / 5'],[3,'3 / 5'],[4,'4 / 5'],[5,'5 / 5']],meta.rating,value=>ultimatePatch(repo,{rating:Number(value)}));
  const priority=ultimateSelect('Reading priority',[['low','Low priority'],['normal','Normal priority'],['high','High priority']],meta.priority,value=>ultimatePatch(repo,{priority:value}));tools.append(ratings,priority);root.append(tools);
  const notes=el('textarea',{class:'personal-notes',maxlength:'20000','aria-label':'Private repository notes',placeholder:'Your notes stay on this device.'});notes.value=draft.notes;
  const count=el('span',{class:'field-hint'},draft.notes.length+' / 20000 characters');
- notes.addEventListener('input',()=>{draft.notes=notes.value;count.textContent=notes.value.length+' / 20000 characters / unsaved';islandController.activity();});
- const labels=el('input',{class:'search',maxlength:'400','aria-label':'Personal repository tags',placeholder:'Personal tags, separated by commas'});labels.value=draft.tags;labels.addEventListener('input',()=>{draft.tags=labels.value;});
+ notes.addEventListener('input',()=>{draft.notes=notes.value;uDrafts.set(repo.id,draft);count.textContent=notes.value.length+' / 20000 characters / unsaved';islandController.activity();});
+ const labels=el('input',{class:'search',maxlength:'400','aria-label':'Personal repository tags',placeholder:'Personal tags, separated by commas'});labels.value=draft.tags;labels.addEventListener('input',()=>{draft.tags=labels.value;uDrafts.set(repo.id,draft);});
  const noteActions=el('div',{class:'stack'});noteActions.append(btn('Save notes and tags',async()=>{await ultimatePatch(repo,{notes:draft.notes,tags:draft.tags.split(',')});uDrafts.delete(repo.id);drawerStamp='';renderDrawer();toast('Notes and tags saved locally.');},'primary'),btn('Discard unsaved edits',()=>{uDrafts.delete(repo.id);drawerStamp='';renderDrawer();},'secondary'));
  root.append(notes,count,labels,noteActions);
  const collections=state.workspace.collections;
@@ -145,3 +145,4 @@ function ultimateCommands(root){
  function draw(){const terms=input.value.toLowerCase().trim().split(/\s+/).filter(Boolean);list.replaceChildren();buttons=actions.filter(([name])=>terms.every(t=>name.toLowerCase().includes(t))).map(([name,fn])=>btn(name,fn,'command-item'));list.append(...buttons);active=-1;if(!buttons.length)list.append(el('p',{class:'intro'},'No commands match.'));}
  input.addEventListener('input',draw);input.addEventListener('keydown',e=>{if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();if(!buttons.length)return;active=(active+(e.key==='ArrowDown'?1:buttons.length-1)+buttons.length)%buttons.length;buttons.forEach((b,i)=>b.classList.toggle('command-active',i===active));buttons[active].scrollIntoView({block:'nearest'});}if(e.key==='Enter'){e.preventDefault();buttons[Math.max(0,active)]?.click();}});root.append(input,list);draw();requestAnimationFrame(()=>input.focus({preventScroll:true}));
 }
+

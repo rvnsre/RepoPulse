@@ -34,6 +34,8 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await until(()=>evaluate(`!document.getElementById('undo').disabled`));await evaluate(`document.getElementById('undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
  await until(()=>evaluate(`document.querySelector('.repo-row').dataset.repoId==='${first.id}'`));
  await evaluate(`document.querySelector('.row-extra button:last-child').click()`);await until(()=>evaluate(`!document.getElementById('drawer').hidden`));await capture('workspace-preview.png');
+ const workspaceBounds=await evaluate(`({open:document.body.classList.contains('workspace-open'),drawer:document.getElementById('drawer').getBoundingClientRect().toJSON(),content:document.getElementById('drawerContent').getBoundingClientRect().toJSON(),feed:getComputedStyle(document.getElementById('feed')).display,height:innerHeight})`);assert.equal(workspaceBounds.open,true);assert.equal(workspaceBounds.feed,'none');assert.ok(workspaceBounds.content.height>250,JSON.stringify(workspaceBounds));assert.ok(workspaceBounds.drawer.bottom<=workspaceBounds.height,JSON.stringify(workspaceBounds));
+
  await evaluate(`document.querySelector('[data-tab="tune"]').click()`);await until(()=>evaluate(`document.querySelectorAll('.topic').length===8`));
  await evaluate(`document.querySelector('[data-tab="settings"]').click()`);await until(()=>evaluate(`document.querySelectorAll('.setting').length>=12`));
  await evaluate(`document.querySelector('[data-tab="saved"]').click()`);await until(()=>evaluate(`document.querySelectorAll('.list-row').length===1`));
@@ -45,6 +47,15 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  
  await evaluate("window.pulse.workspacePatch("+first.id+",{notes:'Native workspace note',tags:['native','testing'],rating:4,pinned:true,queued:true})");
  await until(()=>store.state.workspace.records[first.id]?.queued===true);
+ await evaluate("document.querySelector('[data-tab=\"details\"]').click()");
+ await until(()=>evaluate("!!document.querySelector('[aria-label=\"Private repository notes\"]')"));
+ await evaluate("window.pulse.workspacePatch("+first.id+",{notes:'Fresh imported note'})");
+ await until(()=>evaluate("document.querySelector('[aria-label=\"Private repository notes\"]').value==='Fresh imported note'"));
+ await evaluate("document.querySelector('[aria-label=\"Private repository notes\"]').value='Unfinished draft';document.querySelector('[aria-label=\"Private repository notes\"]').dispatchEvent(new Event('input',{bubbles:true}))");
+ await evaluate("window.pulse.workspacePatch("+first.id+",{rating:3})");
+ await new Promise(r=>setTimeout(r,100));
+ assert.equal(await evaluate("document.querySelector('[aria-label=\"Private repository notes\"]').value"),'Unfinished draft','Dirty notes must survive unrelated updates');
+
  await evaluate("document.querySelector('[data-tab=\"library\"]').click()");
  await until(()=>evaluate("document.querySelectorAll('.library-row').length>0"));
  await evaluate("document.querySelector('[aria-label=\"Search project library\"]').value='tag:native';document.querySelector('[aria-label=\"Search project library\"]').dispatchEvent(new Event('input',{bubbles:true}));");
@@ -93,8 +104,9 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  window.setBounds({width:600});
  await new Promise(r=>setTimeout(r,250));
  assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"),true,'Narrow native window must not overflow');
- console.log('Ultimate native checks passed: notes, tags, ratings, pinned queue, search operators, cursor retention, bulk read, collections, comparison, insights, palette, focus session, auto-hide, animated hover reveal, 2% hover growth and narrow layout.');
+ console.log('Version 10 workspace/draft regressions passed.');console.log('Ultimate native checks passed: notes, tags, ratings, pinned queue, search operators, cursor retention, bulk read, collections, comparison, insights, palette, focus session, auto-hide, animated hover reveal, 2% hover growth and narrow layout.');
 
  assert.deepEqual(errors,[]);console.log('Native UI passed: readable fonts, stable row DOM, direct Learn URL, verified Releases URL, independent replacement, undo, native screenshots, settings, 150% text, three rows, rapid toggle and collection.');app.exit(0);
 }
 module.exports={smoke};
+

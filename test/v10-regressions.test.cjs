@@ -1,0 +1,7 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const {bounds}=require('../src/layout.cjs'),{ReleaseClient}=require('../src/navigation.cjs');const repo=require('./fixtures.cjs')[0];
+test('Invalid stored window geometry cannot produce invalid native bounds',()=>{for(const center of [{cx:NaN,y:NaN},{cx:'invalid',y:Infinity},null]){const rect=bounds({x:-1280,y:0,width:1280,height:720},{},'panel',center);for(const n of Object.values(rect))assert.ok(Number.isFinite(n));}});
+test('All modes stay inside unusually small displays',()=>{for(const mode of ['panel','collapsed','workspace']){const area={x:-100,y:20,width:200,height:80},r=bounds(area,{},mode);assert.ok(r.width<=area.width);assert.ok(r.height<=area.height);assert.ok(r.x>=area.x&&r.y>=area.y);assert.ok(r.x+r.width<=area.x+area.width);assert.ok(r.y+r.height<=area.y+area.height);}});
+test('Workspace uses a fixed display-bounded native height independent of text scale',()=>{const area={x:0,y:0,width:1920,height:1080};assert.equal(bounds(area,{textScale:100},'workspace').height,bounds(area,{textScale:150},'workspace').height);});
+test('Missing release responses have a timestamp and obey cache expiry',async()=>{let calls=0,time=0;const c=new ReleaseClient({fetchImpl:async()=>{calls++;return{ok:false,status:404};},now:()=>time,ttl:100});const first=await c.get(repo);assert.equal(first.available,false);assert.ok(first.checkedAt);await c.get(repo);assert.equal(calls,1);time=101;await c.get(repo);assert.equal(calls,2);});

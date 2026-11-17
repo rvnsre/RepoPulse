@@ -26,3 +26,9 @@ test('All motion presets produce finite bounded frames and durations',()=>{for(c
 test('Hover scale is bounded and subtle motion reduces travel',()=>{assert.equal(config({hoverScale:200}).scale,1.03);assert.equal(config({hoverScale:10}).scale,1);assert.ok(config({subtleMotion:true}).distance<config({}).distance);});
 
 test('Default browser timer functions retain their host-call semantics',()=>{const fs=require('node:fs'),vm=require('node:vm');let scheduled=0,cleared=0;const module={exports:{}};vm.runInNewContext(fs.readFileSync(require.resolve('../app/island-motion.js'),'utf8'),{module,Date,setTimeout:function(){assert.equal(this,undefined,'setTimeout must not receive the controller as this');scheduled++;return 1;},clearTimeout:function(){assert.equal(this,undefined,'clearTimeout must not receive the controller as this');cleared++;}});const c=new module.exports.Controller();c.configure({autoHide:true,collapseOnLeave:true,hideDelay:600});assert.equal(scheduled,1);c.destroy();assert.equal(cleared,1);});
+
+
+test('Unrelated state refreshes do not postpone the leave deadline',()=>{const x=clock();x.c.leave();x.advance(400);x.c.configure({...x.c.prefs,accent:'mint'});x.advance(200);assert.equal(x.events[0],'collapse:leave');});
+test('Unrelated render configuration does not postpone idle collapse',()=>{const x=clock({collapseOnLeave:false,idleCollapse:true,idleSeconds:15});x.advance(10000);x.c.configure({...x.c.prefs,showBadges:false});x.advance(5000);assert.equal(x.events[0],'collapse:idle');});
+test('Disabling hover reveal cancels an already scheduled reveal',()=>{const x=clock({},'collapsed');x.c.enter();x.advance(80);x.c.configure({...x.c.prefs,hoverExpand:false},'collapsed');x.advance(200);assert.deepEqual(x.events,[]);});
+test('Switching to workspace cancels pending compact hover callbacks',()=>{const x=clock({},'collapsed');x.c.enter();x.advance(80);x.c.configure(x.c.prefs,'workspace');x.advance(200);assert.deepEqual(x.events,[]);});

@@ -9,7 +9,7 @@ class ReleaseClient{
   const task=(async()=>{
    try{
     const response=await this.fetch('https://api.github.com/repos/'+key+'/releases?per_page=1',{headers:{Accept:'application/vnd.github+json','User-Agent':'RepoPulse/0.3'},signal:AbortSignal.timeout(this.timeout)});
-    if(!response.ok){if(response.status===404)return{status:'missing',available:false,tag:null};if([403,429].includes(response.status))return{status:'unknown',available:null,error:'GitHub rate limit reached. Retry releases later.'};throw new Error('GitHub releases returned '+response.status);}
+    if(!response.ok){if(response.status===404){const value={status:'missing',available:false,tag:null,checkedAt:new Date(this.now()).toISOString()};this.cache.set(key,{value,expires:this.now()+this.ttl});return value;}if([403,429].includes(response.status))return{status:'unknown',available:null,error:'GitHub rate limit reached. Retry releases later.'};throw new Error('GitHub releases returned '+response.status);}
     const data=await response.json();if(!Array.isArray(data))throw new Error('Unexpected release response.');
     const release=data.find(r=>r&&!r.draft&&typeof r.tag_name==='string');
     const value={status:release?'available':'missing',available:!!release,tag:release?release.tag_name.slice(0,120):null,checkedAt:new Date(this.now()).toISOString()};
@@ -19,3 +19,4 @@ class ReleaseClient{
  }
 }
 module.exports={repositoryUrl,destination,ReleaseClient};
+
