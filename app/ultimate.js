@@ -165,7 +165,7 @@ function dynamicBlocked(){
  if(state.settings.cyclePauseHover&&document.querySelector('.repo-row:hover'))return 'hover';
  const active=document.activeElement;
  if(['INPUT','TEXTAREA','SELECT'].includes(active?.tagName))return 'editing';
- if(state.settings.cyclePauseFocus&&uKeyboardFocus&&active?.closest?.('.repo-row'))return 'keyboard';
+ if(state.settings.cyclePauseFocus&&uKeyboardFocus&&document.hasFocus()&&active?.closest?.('.repo-row'))return 'keyboard';
  return '';
 }
 function dynamicStatus(status){
