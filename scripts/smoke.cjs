@@ -21,6 +21,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
    if(!image.isEmpty()){const bytes=image.toPNG();if(bytes.length>5000){png=bytes;break;}}
   }
   assert.ok(png,'The compositor must produce a visible native preview within five seconds.');fs.writeFileSync(path.join(root,name),png);
+  if(name==='idle-insight-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_INSIGHT:'+encoded.slice(n,n+4096));}
   if(name==='desktop-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_PREVIEW:'+encoded.slice(n,n+4096));}
  }
 
@@ -178,7 +179,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await until(()=>store.state.daily.repos.every(r=>!nextBefore.includes(r.id)));
  assert.equal(store.state.history.length,nextHistory);
  await evaluate("window.pulse.previewInsight()");
- await until(()=>evaluate("!document.getElementById('idleInsight').hidden"));
+ await until(()=>evaluate("!document.getElementById('idleInsight').hidden&&document.getElementById('insightName').textContent.includes('/')"));
  assert.ok(window.getBounds().width<=480&&window.getBounds().height<=250);
  assert.equal(await evaluate("document.getElementById('expanded').hidden"),true);
  assert.equal(await evaluate("document.getElementById('insightName').textContent.includes('/')"),true);

@@ -25,7 +25,7 @@ function resize(next='panel',anchor=false,requestId=null){
  if(anchor||!windowAnchor)windowAnchor=defaultAnchor(area,store.state.settings);
  const rect=layoutBounds(area,store.state.settings,mode,windowAnchor);
  if(['x','y','width','height'].some(k=>rect[k]!==current[k])){clearTimeout(moveTimer);lastProgrammaticPosition={x:rect.x,y:rect.y};window.setBounds(rect,false);}
- window.webContents.send('window:mode',{mode,requestId,bounds:window.getBounds()});
+ window.webContents.send('window:mode',{mode,requestId,bounds:window.getBounds(),...(mode==='insight'?{insight}:{})});
 }
 function samplePointer(){
  if(!window||window.isDestroyed()||!window.isVisible())return null;
