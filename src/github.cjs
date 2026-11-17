@@ -2,7 +2,7 @@
 const {normalizeRepo,eligible}=require('./engine.cjs');
 const {MIN_STARS,MAX_CATALOG,TARGET_CATALOG}=require('./catalog-policy.cjs');const pages=new Map();
 async function fetchCatalog(previous=[],fetchImpl=fetch,{delayMs=fetchImpl===fetch?6500:0,wait=ms=>new Promise(resolve=>setTimeout(resolve,ms))}={}){
- const found=new Map();let requests=0,available=0;
+ const found=new Map();let requests=0,available=0,expected=null;
  async function read(low,high,page=1){
   if(requests++&&delayMs)await wait(delayMs);
   const stars=high==null?'>='+low:low+'..'+high,query='stars:'+stars+' archived:false fork:false';
@@ -17,7 +17,7 @@ async function fetchCatalog(previous=[],fetchImpl=fetch,{delayMs=fetchImpl===fet
  function add(items){for(const raw of items){const repo=normalizeRepo(raw);if(repo&&eligible(repo)&&repo.stargazers_count>=MIN_STARS)found.set(repo.id,repo);}if(found.size>MAX_CATALOG)throw Error('Catalog exceeds the '+MAX_CATALOG+'-project capacity. Cached projects remain available.');}
  async function range(low,high=null,depth=0){
   if(depth>32)throw Error('GitHub search partition limit reached.');
-  const first=await read(low,high),count=Number.isSafeInteger(first.total_count)?first.total_count:null;if(depth===0)available=count||first.items.length;
+  const first=await read(low,high),count=Number.isSafeInteger(first.total_count)?first.total_count:null;if(depth===0){expected=count;available=count??first.items.length;}
   if(depth===0&&count>MAX_CATALOG)throw Error('Catalog exceeds the '+MAX_CATALOG+'-project capacity. Cached projects remain available.');if(count>1000){const peak=high??Math.max(low,...first.items.map(r=>Number(r.stargazers_count)||0));if(peak<=low)throw Error('GitHub caps identical-star search cohorts at 1000; cached projects remain available.');const mid=Math.floor((low+peak)/2);await range(low,mid,depth+1);await range(mid+1,high,depth+1);return;}
   const ids=new Set();const collect=items=>{add(items);for(const r of items){const repo=normalizeRepo(r);if(repo&&eligible(repo)&&repo.stargazers_count>=MIN_STARS)ids.add(repo.id);}};collect(first.items);let loaded=first.items.length,last=first.items;
   for(let page=2;page<=10&&last.length===100&&(count==null||loaded<count);page++){const data=await read(low,high,page);last=data.items;loaded+=last.length;collect(last);}
@@ -25,9 +25,9 @@ async function fetchCatalog(previous=[],fetchImpl=fetch,{delayMs=fetchImpl===fet
  }
  await range(MIN_STARS);
  if((available>0||previous.length)&&!found.size)throw Error('GitHub returned no valid 50K+ projects. Cached projects remain available.');
- if(available>0&&found.size<available)throw Error('GitHub returned fewer unique results across search partitions. Cached projects remain available.');
+ if(expected!=null&&found.size<expected)throw Error('GitHub returned fewer unique results across search partitions. Cached projects remain available.');
  const repos=[...found.values()].sort((a,b)=>b.stargazers_count-a.stargazers_count||a.id-b.id);
- fetchCatalog.info={loaded:repos.length,available,target:TARGET_CATALOG,capacity:MAX_CATALOG,minStars:MIN_STARS,complete:true,checkedAt:new Date().toISOString()};
+ fetchCatalog.info={loaded:repos.length,available:expected??repos.length,target:TARGET_CATALOG,capacity:MAX_CATALOG,minStars:MIN_STARS,complete:true,checkedAt:new Date().toISOString()};
  return repos;
 }
 module.exports={fetchCatalog,MIN_STARS,MAX_CATALOG};
