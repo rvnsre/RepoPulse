@@ -10,7 +10,7 @@ const {ReleaseClient,destination,repositoryUrl}=require('../src/navigation.cjs')
 const {bounds:layoutBounds,fittedHeight,defaultAnchor}=require('../src/layout.cjs');
 const {PointerTracker}=require('../src/pointer.cjs');
 const advisor=require('../src/advisor.cjs');const idleGate=new advisor.IdleGate();let insight=null,context={topic:null,status:'off'},advisorTimer,contextTimer,screenLocked=false,contextBusy=false;
-const {policy,activeDisplay,topAnchor,dockShape}=require('../src/window-policy.cjs');const windowPolicy=policy(process.platform,process.env,smokeFlag());function smokeFlag(){return !app.isPackaged&&process.argv.includes('--smoke-test');}
+const {policy,activeDisplay,topAnchor,dockShape,registerShortcuts}=require('../src/window-policy.cjs');const windowPolicy=policy(process.platform,process.env,smokeFlag());function smokeFlag(){return !app.isPackaged&&process.argv.includes('--smoke-test');}
 const {ActivityClient,observe,velocity}=require('../src/activity.cjs');const install=require('../src/install.cjs');let activityClient,lastSyncAttempt=0,shortcutAvailable=false,trayAvailable=false;
 if(process.platform==='linux'&&process.env.WAYLAND_DISPLAY){if(process.env.DISPLAY)app.commandLine.appendSwitch('ozone-platform','x11');else app.commandLine.appendSwitch('enable-features','GlobalShortcutsPortal');}
 const pointerTracker=new PointerTracker();let pointerTimer;
@@ -106,7 +106,7 @@ async function importData(kind){
 }
 async function collectContext(){
  if(contextBusy||!store.state.settings.screenContext||screenLocked)return;contextBusy=true;
- try{const value=await advisor.foreground();if(store.state.settings.screenContext&&value.status!=='self')context=value;}finally{contextBusy=false;}
+ try{const value=await advisor.foreground();if(store.state.settings.screenContext&&!screenLocked&&value.status!=='self')context=value;}finally{contextBusy=false;}
 }
 function showInsight(){
  const value=advisor.recommend(store.state,store.state.settings.screenContext?context:{});
@@ -143,7 +143,7 @@ function attachIpc(){
  });
  handle('feed:cycle',payload=>{
   const prefs=store.state.settings;
-  if(!prefs.dynamicRefresh||['workspace','insight'].includes(mode)||!window.isVisible())return{changed:false,reason:'paused',state:snapshot()};
+  if(!prefs.dynamicRefresh||screenLocked||['workspace','insight'].includes(mode)||!window.isVisible())return{changed:false,reason:'paused',state:snapshot()};
   if(Date.now()-lastAutomaticAt<3000)return{changed:false,reason:'cooldown',state:snapshot()};
   if(!payload||!Number.isSafeInteger(payload.id)||typeof payload.day!=='string')throw new Error('Invalid automatic replacement');
   if(payload.day!==localDay())return{changed:false,reason:'stale',state:snapshot()};
@@ -173,7 +173,7 @@ if(singleton)app.whenReady().then(()=>{
  activityClient=new ActivityClient(smokeMode?{fetchImpl:async url=>({ok:true,status:200,json:async()=>url.includes('commits?')?[{sha:'a'.repeat(40),commit:{committer:{date:new Date().toISOString()}}}]:{tag_name:'v1.0.0',published_at:new Date().toISOString()}})}:{});
  releaseClient=new ReleaseClient(smokeMode?{fetchImpl:async()=>({ok:true,json:async()=>[{tag_name:'v1.0.0',draft:false}]})}:{});
  createWindow();attachIpc();pointerTimer=setInterval(samplePointer,40);try{tray=new Tray(nativeImage.createFromDataURL(require('./tray-icon.cjs')));trayAvailable=true;tray.setToolTip('RepoPulse — GitHub feed');tray.setContextMenu(Menu.buildFromTemplate([{label:'Summon on active display',click:show},{label:'Collapse / expand',click:summon},{label:'Force GitHub sync',click:()=>void refresh(true)},{type:'separator'},{label:'Quit',click:()=>{quitting=true;app.quit();}}]));tray.on('click',summon);}catch{trayAvailable=false;}
- try{shortcutAvailable=globalShortcut.register('CommandOrControl+Shift+P',summon);shortcutAvailable=globalShortcut.register('CommandOrControl+Shift+Space',summon)||shortcutAvailable;}catch{shortcutAvailable=false;}
+ shortcutAvailable=registerShortcuts(globalShortcut,summon);
  powerMonitor.on('lock-screen',()=>{screenLocked=true;context={topic:null,status:'locked'};if(mode==='insight'){insight=null;resize('collapsed');}});
  powerMonitor.on('unlock-screen',()=>{screenLocked=false;});
  if(!smokeMode){contextTimer=setInterval(()=>{if(powerMonitor.getSystemIdleTime()<480)void collectContext();},60000);advisorTimer=setInterval(()=>{const busy=mode==='workspace'||opening.size>0||!window.isVisible();if(idleGate.tick(powerMonitor.getSystemIdleTime(),{enabled:store.state.settings.idleAdvisor,locked:screenLocked,busy}))showInsight();},15000);if(store.state.settings.screenContext)void collectContext();}

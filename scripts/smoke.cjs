@@ -241,6 +241,28 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await new Promise(r=>setTimeout(r,300));
  await capture('geometry-preview.png');
  console.log('11.3 measured geometry passed: 440/600/960 widths, 100/150 percent text, commands on/off, no horizontal card overflow and visible first-card actions.');
+
+ // Saving a draft must not discard keystrokes that arrive while IPC is pending.
+ await evaluate("window.pulse.settings({autoHide:false,dynamicRefresh:false,motion:'none'})");
+ const draftRace=await evaluate(`(async()=>{
+  await openDrawer('details');const real=api.workspacePatch;let finish;
+  api.workspacePatch=(...args)=>new Promise(resolve=>{finish=async()=>resolve(await real(...args));});
+  try{
+   const id=selected().id,notes=document.querySelector('.personal-notes');
+   notes.value='Before pending save';notes.dispatchEvent(new Event('input',{bubbles:true}));
+   [...document.querySelectorAll('#drawerContent button')].find(b=>b.textContent==='Save notes and tags').click();
+   notes.value='Newer unsaved edit';notes.dispatchEvent(new Event('input',{bubbles:true}));
+   await finish();await new Promise(r=>setTimeout(r,100));
+   return {draft:uDrafts.get(id)?.notes,persisted:state.workspace.records[id].notes};
+  }finally{api.workspacePatch=real;}
+ })()`);
+ assert.equal(draftRace.persisted,'Before pending save');assert.equal(draftRace.draft,'Newer unsaved edit');
+ await evaluate("uDrafts.clear();closeDrawer()");
+ await evaluate("window.pulse.settings({showOwners:false,opacity:85})");await new Promise(r=>setTimeout(r,150));
+ assert.equal(await evaluate("document.querySelector('.repo-name').textContent.includes('/')"),false);
+ assert.equal(await evaluate("document.querySelector('.owner-avatar').hidden"),true);
+ await evaluate("window.pulse.settings({showOwners:true,opacity:100})");
+ console.log('11.4 native regressions passed: pending-save draft preservation and working owner/opacity preferences.');
  assert.deepEqual(errors,[]);console.log('Native UI passed: readable fonts, stable row DOM, direct Learn URL, verified Releases URL, independent replacement, undo, native screenshots, settings, 150% text, three rows, rapid toggle and collection.');app.exit(0);
 }
 module.exports={smoke};

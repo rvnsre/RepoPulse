@@ -72,7 +72,7 @@ function cycle(state,id,day=localDay(),now=Date.now()) {
 }
 function undo(state) {
  if(!state.lastRotation||state.lastRotation.day!==localDay())return false;
- const latest=new Map(state.cache.map(r=>[r.id,r]));state.daily={...state.lastRotation,repos:state.lastRotation.repos.map(r=>latest.get(r.id)).filter(r=>r&&allowed(r,state))};present(state);
+ const latest=new Map(state.cache.map(r=>[r.id,r]));state.daily={...state.lastRotation,repos:state.lastRotation.repos.map(r=>latest.has(r.id)?{...r,...latest.get(r.id)}:null).filter(r=>r&&allowed(r,state))};present(state);
  state.lastRotation=null;return true;
 }
 function collection(input) {
