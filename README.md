@@ -6,7 +6,7 @@ The island gently grows when the pointer enters, reveals from a compact dock on 
 
 Choose Fluid, Snappy, Calm or Soft Spring motion, hover growth, timing, card appearance, accent and text scaling. The native window reserves room around transforms so hover growth stays inside its bounds. System reduced-motion preferences remain respected.
 
-![Native application preview](docs/preview-v10.1.png)
+![Native application preview](docs/preview-v11.png)
 
 Native Electron screenshot using sample metadata. The native test temporarily disables automatic hiding and Live rotation to capture a stable desktop view; autonomous operation is exercised separately in the same test.
 
@@ -20,6 +20,10 @@ Native Electron screenshot using sample metadata. The native test temporarily di
 - **Optional Windows context** derives topic weights from the foreground window title locally. Enable it under Settings → After 8 minutes away. Raw titles are discarded, not stored. No screenshots, OCR, cookies or cloud analysis are used. Without context, including on macOS/Linux, the chosen work topic is used.
 
 [220-idea roadmap with phases and acceptance criteria](docs/ROADMAP-220.md). These are planned items, separately tracked from the changes above. [11.0 validation and packages](docs/CHANGES-v11.md).
+
+![Compact eight-minute work suggestion](docs/insight-v11.png)
+
+The compact suggestion uses deterministic fixture metadata in this native preview.
 
 ## Hover stability / 10.1.2 (inherited)
 
