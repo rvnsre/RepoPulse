@@ -1,4 +1,4 @@
-# RepoPulse 10.0.1
+# RepoPulse 10.1.0
 
 A personalized GitHub discovery island for Windows, macOS and Linux, focused on **50,000+ star** public projects.
 
@@ -6,9 +6,15 @@ The island gently grows when the pointer enters, reveals from a compact dock on 
 
 Choose Fluid, Snappy, Calm or Soft Spring motion, hover growth, timing, card appearance, accent and text scaling. The native window reserves room around transforms so hover growth stays inside its bounds. System reduced-motion preferences remain respected.
 
-![Native application preview](docs/preview-v10.0.1.png)
+![Native application preview](docs/preview-v10.1.png)
 
-Native Electron screenshot using sample metadata. The native test temporarily disables automatic hiding to capture a stable desktop view.
+Native Electron screenshot using sample metadata. The native test temporarily disables automatic hiding and Live rotation to capture a stable desktop view; autonomous operation is exercised separately in the same test.
+
+## Live discovery / 10.1.0
+
+Unseen repositories now replace one visible row automatically every 3–10 seconds of active time. Use Live to pause/resume, or tune the interval and choose from 22 transition styles in Settings. Hovered cards, editing, keyboard navigation, workspaces and focus sessions are protected. Automatic display does not count as a visit or train your interests. When the unseen catalog is exhausted, current cards stay visible.
+
+Rotation uses the cached eligible catalog. Install checks releases on demand, so every new card does not generate a background release request. See [the full change list and installers](docs/CHANGES-v10.1.md).
 
 ## Compact update 10.0.1
 
