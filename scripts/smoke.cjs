@@ -194,6 +194,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await evaluate("window.pulse.settings({autoHide:false,dynamicRefresh:false})");
  const axios=require('../src/engine.cjs').normalizeRepo({id:9001,full_name:'axios/axios',stargazers_count:150000,language:'JavaScript',description:'Promise based HTTP client for browser and Node.js. Includes a clean package manager installation.'});
  store.state.cache.push(axios);store.state.daily.repos[0]=axios;
+ console.log('AXIOS_IPC_METADATA',JSON.stringify(await evaluate("window.pulse.activity(9001)")));
  await evaluate("window.pulse.settings({})");await evaluate("document.getElementById('toggle').click()");
  await until(()=>evaluate("!!document.querySelector('[data-repo-id=\"9001\"] .smart-code')&&document.querySelector('[data-repo-id=\"9001\"] pre').textContent==='npm install axios'"));
  await evaluate("document.querySelector('[data-repo-id=\"9001\"] .copy-command').click()");
