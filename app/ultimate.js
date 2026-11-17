@@ -32,7 +32,7 @@ function ultimateFocus(){
  clearInterval(uFocusTimer);uFocusTimer=setInterval(()=>{if(Date.now()>=uFocusUntil){clearInterval(uFocusTimer);uFocusUntil=0;islandController.hold('focus session',false);$('announcer').textContent='Focus session complete.';toast('Focus session complete.');}ultimateStatus();},1000);ultimateStatus();
 }
 function ultimateInit(){
- uFilters.pinnedFirst=state.settings.pinnedFirst;
+ uFilters.pinnedFirst=state.settings.pinnedFirst;dynamicInit();
  islandController=new IslandMotion.Controller({onExpand:()=>run(async()=>{expanded=true;await windowMode();}),onCollapse:()=>run(async()=>{expanded=false;drawer=false;await windowMode();}),onChange:ultimateStatus});
  islandController.configure(state.settings,expanded?'panel':'collapsed');
  $('island').addEventListener('mouseenter',()=>{islandController.enter();ultimateMagnify(true);});
@@ -120,6 +120,13 @@ function ultimateInsights(root){
  root.append(chart('Last seven days',a.days.map(d=>[d.day,d.count])),chart('Languages',a.languages),chart('Most visited topics',a.topics));
 }
 function ultimateSettings(root){
+ root.append(el('h3',{class:'subheading'},'Live discovery / 3–10 seconds'));
+ const live=el('div',{class:'settings-grid'});
+ for(const [key,title,detail]of [['dynamicRefresh','Autonomous repository rotation','Replace one visible row without opening its page. No visit or preference is recorded.'],['cyclePauseHover','Pause over a repository','Keep the card steady while reading or clicking.'],['cyclePauseFocus','Pause during keyboard navigation','Keep a focused repository stable.'],['cycleCountdown','Show live countdown','A compact remaining-time indicator.'],['cycleAccent','Highlight arriving cards','A subtle outline pulse on replacement.']])setting(live,key,title,detail);
+ setting(live,'cycleMin','Minimum interval','','select',Array.from({length:8},(_,i)=>[i+3,(i+3)+' seconds']));
+ setting(live,'cycleMax','Maximum interval','','select',Array.from({length:8},(_,i)=>[i+3,(i+3)+' seconds']));
+ setting(live,'transitionStyle','Repository transition','','select',[['auto','Automatic subtle mix'],...DynamicFeed.styles.map(([id,label])=>[id,label])]);root.append(live);
+ root.append(el('p',{class:'intro'},'Uses unseen, eligible cached projects. Pauses while editing, in a workspace or focus session, when hidden, and during an operation. When all unseen projects are exhausted, the last cards stay visible.'));
  root.append(el('h3',{class:'subheading'},'Dynamic Island / Ultimate'));
  const grid=el('div',{class:'settings-grid'});
  for(const [key,title,detail]of [['autoHide','Automatic hiding','Collapse to the compact island while inactive.'],['collapseOnLeave','Collapse after pointer leaves','Uses the leave delay below.'],['idleCollapse','Collapse after idle time','Uses the inactivity timer below.'],['keepOnHover','Stay open while hovered','Prevents idle collapse under the pointer.'],['keepOnFocus','Stay open while focused','Protect keyboard navigation.'],['protectEditing','Protect editing controls','Hold open while editing notes and filters.'],['hoverLift','Grow gently on hover','Magnify the island within its safe margin.'],['subtleMotion','Subtle motion distances','Reduce travel while retaining transitions.'],['stagger','Stagger replacement entry','Separate simultaneous row entries slightly.'],['glow','Soft island rim glow','Emphasize the active island.'],['showBadges','Personal project badges','Show pin, queue, notes, rating and read state.'],['showQuickActions','Show row quick actions','Save, Like and Details controls.'],['showStatus','Show synchronization status','Keep or hide top-bar connection details.'],['showQueueCount','Show reading queue count','A quick shortcut to queued projects.'],['pinnedFirst','Pinned projects first by default','Used when opening the project library.'],['markReadOnOpen','Mark read when opened','Opening a repository marks it read locally.'],['quietMode','Quiet notifications','Suppress new-day system notifications.'],['startCollapsed','Start collapsed','Open as the compact island on the next launch.'],['showHints','Show secondary hints','Descriptions under settings and fields.']])setting(grid,key,title,detail);
@@ -146,3 +153,47 @@ function ultimateCommands(root){
  input.addEventListener('input',draw);input.addEventListener('keydown',e=>{if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();if(!buttons.length)return;active=(active+(e.key==='ArrowDown'?1:buttons.length-1)+buttons.length)%buttons.length;buttons.forEach((b,i)=>b.classList.toggle('command-active',i===active));buttons[active].scrollIntoView({block:'nearest'});}if(e.key==='Enter'){e.preventDefault();buttons[Math.max(0,active)]?.click();}});root.append(input,list);draw();requestAnimationFrame(()=>input.focus({preventScroll:true}));
 }
 
+
+/* Autonomous discovery owns a single cancellable timer and never records a view. */
+let dynamicScheduler=null,dynamicCursor=0,dynamicHoldUntil=0;
+function dynamicBlocked(){
+ if(document.hidden)return 'hidden';
+ if(drawer)return 'workspace';
+ if(Date.now()<dynamicHoldUntil)return 'interaction';
+ if(busy||pending.size||slots.some(slot=>slot.desired))return 'busy';
+ if(uFocusUntil>Date.now())return 'focus session';
+ if(state.settings.cyclePauseHover&&document.querySelector('.repo-row:hover'))return 'hover';
+ const active=document.activeElement;
+ if(['INPUT','TEXTAREA','SELECT'].includes(active?.tagName))return 'editing';
+ if(state.settings.cyclePauseFocus&&active?.closest?.('.repo-row'))return 'keyboard';
+ return '';
+}
+function dynamicStatus(status){
+ const control=$('liveToggle');if(!control||!state)return;
+ control.setAttribute('aria-pressed',String(status.enabled));
+ control.setAttribute('aria-label',status.enabled?'Pause automatic repository rotation':'Resume automatic repository rotation');
+ const label=!status.enabled?'Live off':status.reason==='exhausted'?'Live · caught up':status.busy?'Live · updating':status.error?'Live · retrying':status.reason?'Live · paused':'Live '+Math.ceil(status.remaining/1000)+'s';
+ control.textContent=label;
+ control.title=status.reason==='exhausted'?'No unseen eligible projects remain. Refresh the catalog later.':status.error||status.reason?'Rotation: '+(status.error||status.reason):'Automatic unseen repository replacement every '+state.settings.cycleMin+'–'+state.settings.cycleMax+' seconds. Click to pause.';
+ const progress=$('liveProgress');progress.hidden=!state.settings.cycleCountdown||!status.enabled;progress.classList.toggle('paused',!!status.reason);progress.firstElementChild.style.transform='scaleX('+Math.max(0,Math.min(1,status.remaining/(state.settings.cycleMax*1000)))+')';
+}
+function dynamicSync(){
+ if(!dynamicScheduler)return;
+ const s=state;
+ const key=JSON.stringify([s.cacheAt,s.catalogSize,s.daily?.day,s.settings.minStars,s.settings.languages,s.exclusions]);
+ dynamicScheduler.configure(s.settings,key);
+}
+function dynamicInit(){
+ dynamicScheduler=new DynamicFeed.Scheduler({blocked:dynamicBlocked,onStatus:dynamicStatus,rotate:async()=>{
+  const rows=visible();if(!rows.length)return{exhausted:true};
+  const repo=rows[dynamicCursor++%rows.length];
+  const result=await api.cycle({id:repo.id,day:state.daily.day});
+  if(result.state)adopt(result.state);
+  if(result.changed){if(selectedId===repo.id)selectedId=result.id;render();}
+  return result;
+ }});
+ $('liveToggle').addEventListener('click',()=>run(()=>changeSettings({dynamicRefresh:!state.settings.dynamicRefresh})));
+ document.addEventListener('pointerdown',()=>{dynamicHoldUntil=Date.now()+800;},true);
+ window.addEventListener('beforeunload',()=>dynamicScheduler.destroy());
+ dynamicSync();
+}

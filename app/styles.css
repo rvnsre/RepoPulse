@@ -60,3 +60,13 @@ footer{padding:8px 14px;min-height:54px;gap:9px}
 .repo-name{font-size:calc(19px * var(--s))}
 .feed-heading p .muted-separator,#libraryStat{display:none}
 }
+
+/* Live controls stay in the existing compact header; no extra panel height. */
+.feed-heading>.live-controls{margin-left:auto;gap:7px;flex:none}
+#liveToggle{font-variant-numeric:tabular-nums;min-width:76px;color:var(--accent)}
+#liveToggle[aria-pressed=false]{color:var(--muted)}
+.live-progress{display:block;overflow:hidden;width:34px;height:3px;background:#ffffff14;border-radius:3px}
+.live-progress>span{display:block;height:100%;width:100%;transform-origin:left;background:var(--accent);transition:transform 200ms linear}
+.live-progress.paused>span{opacity:.4;transition:none}
+.reduced .live-progress>span{transition:none}
+@media(max-width:720px){.feed-heading>div:first-child{display:none}.feed-heading>.live-controls{margin-left:0}.live-progress{width:24px}}

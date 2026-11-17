@@ -9,7 +9,7 @@ const {fetchCatalog}=require('../src/github.cjs');
 const {ReleaseClient,destination,repositoryUrl}=require('../src/navigation.cjs');
 const {bounds:layoutBounds}=require('../src/layout.cjs');
 let lastExternal=null,revision=0;
-let releaseClient;
+let releaseClient,lastAutomaticAt=0;
 let window,store,tray,timer,refreshPromise,quitting=false,mode='panel',lastError=null,moveTimer,adjusting=false;
 const opening=new Map(),smokeMode=!app.isPackaged&&process.argv.includes('--smoke-test');
 const singleton=app.requestSingleInstanceLock();if(!singleton)app.quit();
@@ -108,6 +108,16 @@ function attachIpc(){
    if(['hide','snooze','block'].includes(action)){s.lastRotation=null;discovery.present(s);}
   });emit();return snapshot();
  });
+ handle('feed:cycle',payload=>{
+  const prefs=store.state.settings;
+  if(!prefs.dynamicRefresh||mode==='workspace'||!window.isVisible())return{changed:false,reason:'paused',state:snapshot()};
+  if(Date.now()-lastAutomaticAt<3000)return{changed:false,reason:'cooldown',state:snapshot()};
+  if(!payload||!Number.isSafeInteger(payload.id)||typeof payload.day!=='string')throw new Error('Invalid automatic replacement');
+  if(payload.day!==localDay())return{changed:false,reason:'stale',state:snapshot()};
+  let result;store.update(s=>{result=discovery.cycle(s,payload.id,payload.day);});
+  if(result.changed){lastAutomaticAt=Date.now();emit();}
+  return{...result,state:snapshot()};
+ });
  handle('feed:undo',()=>{store.update(s=>discovery.undo(s));emit();return snapshot();});
  handle('feed:export',()=>exportData('rss'));handle('data:export',exportData);handle('data:import',importData);
  handle('profile:import',()=>importData('profile'));
@@ -125,7 +135,7 @@ function attachIpc(){
 }
 if(singleton)app.whenReady().then(()=>{
  store=new Store(path.join(app.getPath('userData'),smokeMode?'smoke-state.json':'state.json'));discovery.initialize(store.state);
- if(smokeMode){store.state=discovery.initialize(defaults());store.state.settings.autoHide=false;store.state.cache=require('../test/fixtures.cjs');store.state.cacheAt=new Date().toISOString();store.state.profile.weights={ai:10,tools:8,systems:6};discovery.present(store.state);}
+ if(smokeMode){store.state=discovery.initialize(defaults());store.state.settings.autoHide=false;store.state.settings.dynamicRefresh=false;store.state.cache=require('../test/fixtures.cjs');store.state.cacheAt=new Date().toISOString();store.state.profile.weights={ai:10,tools:8,systems:6};discovery.present(store.state);}
  releaseClient=new ReleaseClient(smokeMode?{fetchImpl:async()=>({ok:true,json:async()=>[{tag_name:'v1.0.0',draft:false}]})}:{});
  createWindow();attachIpc();if(store.state.settings.startCollapsed&&!smokeMode)window.webContents.once('did-finish-load',()=>resize('collapsed'));tray=new Tray(nativeImage.createFromDataURL(require('./tray-icon.cjs')));tray.setToolTip('RepoPulse - GitHub rss');tray.setContextMenu(Menu.buildFromTemplate([{label:'Open RepoPulse',click:()=>{show();resize('panel');}},{label:'Refresh catalog',click:()=>refresh(true)},{type:'separator'},{label:'Quit',click:()=>{quitting=true;app.quit();}}]));tray.on('click',()=>{show();resize(mode==='collapsed'?'panel':'collapsed');});
  globalShortcut.register('CommandOrControl+Shift+Space',()=>{show();resize(mode==='collapsed'?'panel':'collapsed');});

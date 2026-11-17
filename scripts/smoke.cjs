@@ -104,6 +104,23 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  window.setBounds({width:600});
  await new Promise(r=>setTimeout(r,250));
  assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"),true,'Narrow native window must not overflow');
+
+ // Verify real IPC and renderer timing, not a manual replacement helper.
+ const historyBefore=store.state.history.length,weightsBefore=JSON.stringify(store.state.profile.weights);
+ await evaluate("document.activeElement.blur();window.pulse.settings({panelWidth:960,textScale:100,visibleRows:2,autoHide:false,dynamicRefresh:true,cycleMin:3,cycleMax:3,cyclePauseHover:false,cyclePauseFocus:false,motion:'full',motionPreset:'snappy',motionDuration:80})");
+ const cycleBefore=store.state.daily.repos.map(r=>r.id).join(',');
+ await until(()=>store.state.daily.repos.map(r=>r.id).join(',')!==cycleBefore);
+ assert.equal(store.state.history.length,historyBefore,'Autonomous display must not become a recorded visit');
+ assert.equal(JSON.stringify(store.state.profile.weights),weightsBefore,'Autonomous display must not train interests');
+ await evaluate("document.getElementById('liveToggle').click()");
+ await until(()=>store.state.settings.dynamicRefresh===false);
+ const pausedIds=store.state.daily.repos.map(r=>r.id).join(',');
+ await new Promise(r=>setTimeout(r,3300));
+ assert.equal(store.state.daily.repos.map(r=>r.id).join(','),pausedIds,'Pause must stop the live feed');
+ const scenes=await evaluate(`(async()=>{const node=document.querySelector('.repo-row');for(const [id]of DynamicFeed.styles){const spec=DynamicFeed.transition(id,0,{duration:1});await node.animate(spec.enter,spec.options).finished;}return DynamicFeed.styles.length;})()`);
+ assert.equal(scenes,22,'Every scene must be accepted by the native animation engine');
+ await capture('dynamic-preview.png');
+ console.log('Dynamic native checks passed: automatic 3-second replacement without a click, unchanged history/interests, live pause and all 22 animation scenes.');
  console.log('Version 10 workspace/draft regressions passed.');console.log('Ultimate native checks passed: notes, tags, ratings, pinned queue, search operators, cursor retention, bulk read, collections, comparison, insights, palette, focus session, auto-hide, animated hover reveal, 2% hover growth and narrow layout.');
 
  assert.deepEqual(errors,[]);console.log('Native UI passed: readable fonts, stable row DOM, direct Learn URL, verified Releases URL, independent replacement, undo, native screenshots, settings, 150% text, three rows, rapid toggle and collection.');app.exit(0);

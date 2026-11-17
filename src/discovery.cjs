@@ -1,13 +1,15 @@
 'use strict';
 const {selectDaily, ranked, eligible, localDay, normalizeRepo, defaults}=require('./engine.cjs');
-const SETTINGS={...{"autoHide":true,"hoverExpand":true,"collapseOnLeave":true,"idleCollapse":true,"hideDelay":0,"idleSeconds":30,"hoverDelay":0,"keepOnFocus":true,"keepOnHover":true,"hoverScale":102,"motionPreset":"snappy","subtleMotion":false,"hoverLift":true,"glow":true,"showBadges":true,"showQuickActions":true,"showStatus":true,"showQueueCount":true,"pinnedFirst":true,"markReadOnOpen":false,"quietMode":false,"focusMinutes":25,"accent":"sand","cardStyle":"soft","roundness":20,"stagger":true,"startCollapsed":false,"protectEditing":true,"showHints":true},pinned:true,reducedMotion:false,launchAtLogin:false,autoReplace:true,notifications:false,pausedLearning:false,opacity:100,anchor:'center',theme:'reference',density:'compact',minStars:50000,languages:[],textScale:100,motion:'system',motionDuration:80,visibleRows:2,panelWidth:960,compactRevision:1,showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,shortcuts:true,exactStars:false,toastSeconds:5,uniqueHistory:false};
+const SETTINGS={...{"autoHide":true,"hoverExpand":true,"collapseOnLeave":true,"idleCollapse":true,"hideDelay":0,"idleSeconds":30,"hoverDelay":0,"keepOnFocus":true,"keepOnHover":true,"hoverScale":102,"motionPreset":"snappy","subtleMotion":false,"hoverLift":true,"glow":true,"showBadges":true,"showQuickActions":true,"showStatus":true,"showQueueCount":true,"pinnedFirst":true,"markReadOnOpen":false,"quietMode":false,"focusMinutes":25,"accent":"sand","cardStyle":"soft","roundness":20,"stagger":true,"startCollapsed":false,"protectEditing":true,"showHints":true},pinned:true,reducedMotion:false,launchAtLogin:false,autoReplace:true,notifications:false,pausedLearning:false,opacity:100,anchor:'center',theme:'reference',density:'compact',minStars:50000,languages:[],textScale:100,motion:'system',motionDuration:80,visibleRows:2,panelWidth:960,compactRevision:1,dynamicRefresh:true,cycleMin:3,cycleMax:10,transitionStyle:'auto',cyclePauseHover:true,cyclePauseFocus:true,cycleCountdown:true,cycleAccent:true,showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,shortcuts:true,exactStars:false,toastSeconds:5,uniqueHistory:false};
 function settings(input={}) {
  const out={...SETTINGS};
- for(const key of ['pinned','reducedMotion','launchAtLogin','autoReplace','hoverExpand','notifications','pausedLearning','showCommands','showDescriptions','showOwners','showReasons','wrapNames','codeWrap','shortcuts','exactStars','uniqueHistory','autoHide','hoverExpand','collapseOnLeave','idleCollapse','keepOnFocus','keepOnHover','subtleMotion','hoverLift','glow','showBadges','showQuickActions','showStatus','showQueueCount','pinnedFirst','markReadOnOpen','quietMode','stagger','startCollapsed','protectEditing','showHints'])if(typeof input[key]==='boolean')out[key]=input[key];
+ for(const key of ['dynamicRefresh','cyclePauseHover','cyclePauseFocus','cycleCountdown','cycleAccent','pinned','reducedMotion','launchAtLogin','autoReplace','hoverExpand','notifications','pausedLearning','showCommands','showDescriptions','showOwners','showReasons','wrapNames','codeWrap','shortcuts','exactStars','uniqueHistory','autoHide','hoverExpand','collapseOnLeave','idleCollapse','keepOnFocus','keepOnHover','subtleMotion','hoverLift','glow','showBadges','showQuickActions','showStatus','showQueueCount','pinnedFirst','markReadOnOpen','quietMode','stagger','startCollapsed','protectEditing','showHints'])if(typeof input[key]==='boolean')out[key]=input[key];
  if(Number.isFinite(input.opacity))out.opacity=Math.max(65,Math.min(100,Math.round(input.opacity)));
  if(Number.isFinite(input.minStars))out.minStars=Math.max(50000,Math.min(1000000,Math.round(input.minStars)));
  for(const [key,values]of Object.entries({motionPreset:['fluid','snappy','calm','spring'],accent:['sand','ocean','violet','mint','rose'],cardStyle:['soft','outlined','flat'],anchor:['left','center','right'],motion:['system','full','none'],theme:['reference','graphite','contrast'],density:['comfortable','compact']}))if(values.includes(input[key]))out[key]=input[key];
  for(const [key,values]of Object.entries({hideDelay:[0,80,160,600,1200,1600,2400,4000],idleSeconds:[15,30,60,120,300],hoverDelay:[0,80,160,280,400],hoverScale:[100,101,102,103],focusMinutes:[5,15,25,45,60],roundness:[12,20,28],textScale:[100,115,130,150],motionDuration:[80,140,220,320],visibleRows:[1,2,3],panelWidth:[960,1080,1280,1440],toastSeconds:[3,5,8]}))if(values.includes(Number(input[key])))out[key]=Number(input[key]);
+ const timing=require('../app/dynamic-feed.js').interval({cycleMin:input.cycleMin,cycleMax:input.cycleMax});out.cycleMin=timing.min/1000;out.cycleMax=timing.max/1000;
+ if(['auto',...require('../app/dynamic-feed.js').styles.map(s=>s[0])].includes(input.transitionStyle))out.transitionStyle=input.transitionStyle;
  if(Array.isArray(input.languages))out.languages=[...new Set(input.languages.filter(s=>typeof s==='string'&&s.length<40))].slice(0,20);
  return out;
 }
@@ -37,6 +39,17 @@ function rotate(state,id,now=Date.now()) {
  state.seen=[...new Set([...(state.seen||[]),id,...next.map(r=>r.id)])];
  return true;
 }
+function cycle(state,id,day=localDay(),now=Date.now()) {
+ if(!Number.isSafeInteger(id)||state.daily?.day!==day||!state.daily.repos.some(r=>r.id===id))return{changed:false,reason:'stale'};
+ const used=new Set(state.daily.repos.map(r=>r.id)),seen=new Set(state.seen||[]);
+ const candidate=ranked(state.cache,state.profile?.weights||{},day).find(r=>allowed(r,state,now)&&!used.has(r.id)&&!seen.has(r.id));
+ if(!candidate)return{changed:false,exhausted:true,reason:'exhausted'};
+ const index=state.daily.repos.findIndex(r=>r.id===id);
+ state.lastRotation={day:state.daily.day,repos:state.daily.repos.map(r=>({...r}))};
+ state.daily={...state.daily,repos:state.daily.repos.map((r,i)=>i===index?candidate:r)};
+ state.seen=[...new Set([...(state.seen||[]),id,candidate.id])];
+ return{changed:true,id:candidate.id,index};
+}
 function undo(state) {
  if(!state.lastRotation||state.lastRotation.day!==localDay())return false;
  state.daily={...state.lastRotation,repos:state.lastRotation.repos.filter(r=>allowed(r,state))};
@@ -58,4 +71,4 @@ function initialize(state) {
  state.snoozed=state.snoozed&&typeof state.snoozed==='object'&&!Array.isArray(state.snoozed)?state.snoozed:{};
  return state;
 }
-module.exports={SETTINGS,settings,allowed,selectFeed,present,rotate,undo,collection,sources,initialize};
+module.exports={SETTINGS,settings,allowed,selectFeed,present,rotate,cycle,undo,collection,sources,initialize};
