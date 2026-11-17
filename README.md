@@ -1,4 +1,4 @@
-# RepoPulse 10.1.0
+# RepoPulse 10.1.1
 
 A personalized GitHub discovery island for Windows, macOS and Linux, focused on **50,000+ star** public projects.
 
@@ -9,6 +9,10 @@ Choose Fluid, Snappy, Calm or Soft Spring motion, hover growth, timing, card app
 ![Native application preview](docs/preview-v10.1.png)
 
 Native Electron screenshot using sample metadata. The native test temporarily disables automatic hiding and Live rotation to capture a stable desktop view; autonomous operation is exercised separately in the same test.
+
+## Compact actions / 10.1.1
+
+Click the repository name in the small island to open its GitHub page. A short one-line explanation appears below it. The link stays stable on hover, supports keyboard activation and does not also expand the panel. Click empty header space to expand. See [the tested corrections and current installers](docs/CHANGES-v10.1.1.md).
 
 ## Live discovery / 10.1.0
 
