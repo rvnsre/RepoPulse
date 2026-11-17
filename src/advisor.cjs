@@ -2,6 +2,7 @@
 const {classify,TOPICS,ranked}=require('./engine.cjs');
 function infer(title=''){
  if(typeof title!=='string'||/password|banking|wallet|sign.in|inprivate|incognito/i.test(title))return{weights:{},topic:null,status:'omitted'};
+ if(/RepoPulse/i.test(title))return{weights:{},topic:null,status:'self'};
  const weights=classify(title.slice(0,500));
  const aliases=[[/Visual Studio Code|VS Code|IntelliJ|PyCharm|Cursor/i,'tools'],[/Photoshop|Figma|Illustrator|Canva|DaVinci|Blender/i,'design'],[/Excel|Power BI|Jupyter|Notebook/i,'data'],[/Docker|Terminal|PowerShell|Ubuntu|Linux/i,'systems'],[/Ollama|ChatGPT|LM Studio|llama|pytorch/i,'ai'],[/React|Next.js|JavaScript|TypeScript|HTML/i,'web']];
  for(const [pattern,topic]of aliases)if(pattern.test(title))weights[topic]=(weights[topic]||0)+4;

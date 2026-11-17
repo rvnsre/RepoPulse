@@ -10,7 +10,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  async function moveScreen(x,y){const point={x:Math.max(0,Math.round(x)),y:Math.max(0,Math.round(y))};require('node:child_process').execFileSync('xdotool',['mousemove',String(point.x),String(point.y)],{timeout:2000});await new Promise(r=>setTimeout(r,50));const location=require('node:child_process').execFileSync('xdotool',['getmouselocation','--shell'],{encoding:'utf8',timeout:2000});const actual=Object.fromEntries(location.trim().split(/\r?\n/).map(line=>line.split('=')));assert.equal(Number(actual.X),point.x,'X server pointer x');assert.equal(Number(actual.Y),point.y,'X server pointer y');}
  async function movePointer(x,y){const b=window.getBounds();await moveScreen(b.x+x,b.y+y);}
  await until(()=>evaluate(`!!document.querySelector('.repo-row')`));
- await new Promise(r=>setTimeout(r,500));let dimensions=await evaluate(`({rows:document.querySelectorAll('.repo-row').length,width:innerWidth,height:innerHeight,footer:document.querySelector('footer').getBoundingClientRect().bottom})`);
+ await new Promise(r=>setTimeout(r,500));let dimensions=await evaluate(`({rows:document.querySelectorAll('.repo-row').length,width:innerWidth,height:innerHeight,natural:document.getElementById('expanded').scrollHeight,island:document.getElementById('island').offsetHeight,footer:document.querySelector('footer').getBoundingClientRect().bottom})`);
  assert.equal(dimensions.rows,2);assert.ok(dimensions.width>=900&&dimensions.width<=960);assert.ok(dimensions.height<500,JSON.stringify(dimensions));assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
 
  async function capture(name){

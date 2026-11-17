@@ -24,3 +24,5 @@ test('Context failures use a truthful unavailable status',async()=>{const value=
 test('Advisor defaults to manually selected topic without enabling collection',()=>{const s=start();assert.equal(s.settings.screenContext,false);s.settings.workTopic='design';const result=A.recommend(s);assert.equal(result.topic,'design');assert.equal(result.source,'manual');});
 test('Advice obeys exclusions and has no browser or history side effects',()=>{const s=start();s.hidden=s.cache.map(r=>r.id);const before=JSON.stringify(s);assert.equal(A.recommend(s),null);assert.equal(JSON.stringify(s),before);});
 test('New settings only accept valid enums, topic keys and booleans',()=>{const p=D.settings({cycleMotion:'evil',windowMotionDuration:9000,screenContext:'true',workTopic:'passwords'});assert.equal(p.cycleMotion,'adaptive');assert.equal(p.windowMotionDuration,200);assert.equal(p.screenContext,false);assert.equal(p.workTopic,'tools');});
+
+test('RepoPulse itself is omitted from work classification',()=>assert.equal(A.infer('RepoPulse 11.0.0').status,'self'));

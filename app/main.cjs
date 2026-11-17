@@ -98,7 +98,7 @@ async function importData(kind){
 }
 async function collectContext(){
  if(contextBusy||!store.state.settings.screenContext||screenLocked)return;contextBusy=true;
- try{const value=await advisor.foreground();if(store.state.settings.screenContext)context=value;}finally{contextBusy=false;}
+ try{const value=await advisor.foreground();if(store.state.settings.screenContext&&value.status!=='self')context=value;}finally{contextBusy=false;}
 }
 function showInsight(){
  const value=advisor.recommend(store.state,store.state.settings.screenContext?context:{});
