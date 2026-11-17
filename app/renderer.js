@@ -116,7 +116,8 @@ function renderNow(){
  $('system').textContent=(({win32:'Windows',darwin:'macOS',linux:'Linux'})[state.platform]||'Desktop')+' / 50K+ stars / '+new Date().toLocaleDateString('en',{month:'short',day:'numeric'});
  $('undo').disabled=!state.canUndo;$('next').disabled=repos().length<=state.settings.visibleRows;
  dynamicSync();if(!canAnimate())for(const slot of slots)slot.effect?.cancel();reconcile();updateActions();if(drawer)renderDrawer(false);requestFit();
- clearTimeout(releaseTimer);const target=selected();if(target&&!releaseStates.has(target.id))releaseTimer=setTimeout(()=>run(()=>checkRelease(target)),350);
+ // Release checks are demand-driven: live rotation must not poll GitHub for every card.
+ clearTimeout(releaseTimer);
 }
 function heading(root,title,actions=[]){const h=el('div',{class:'drawer-heading'});h.append(el('h2',{},title));const stack=el('div',{class:'stack'});stack.append(...actions);h.append(stack);root.append(h);}
 function overview(root){const repo=selected();if(!repo){root.append(empty('Nothing selected yet.','Choose a repository when your feed is ready.'));return;}
