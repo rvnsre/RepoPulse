@@ -171,6 +171,21 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  console.log('Dynamic native checks passed: automatic 3-second replacement without a click, unchanged history/interests, live pause and all 22 animation scenes.');
  console.log('Version 10 workspace/draft regressions passed.');console.log('Ultimate native checks passed: notes, tags, ratings, pinned queue, search operators, cursor retention, bulk read, collections, comparison, insights, palette, focus session, auto-hide, animated hover reveal, 2% hover growth and narrow layout.');
 
+ 
+ await evaluate("document.activeElement.blur();window.pulse.settings({autoHide:false,dynamicRefresh:false})");
+ const nextBefore=store.state.daily.repos.map(r=>r.id),nextHistory=store.state.history.length;
+ await evaluate("document.getElementById('next').click()");
+ await until(()=>store.state.daily.repos.every(r=>!nextBefore.includes(r.id)));
+ assert.equal(store.state.history.length,nextHistory);
+ await evaluate("window.pulse.previewInsight()");
+ await until(()=>evaluate("!document.getElementById('idleInsight').hidden"));
+ assert.ok(window.getBounds().width<=480&&window.getBounds().height<=250);
+ assert.equal(await evaluate("document.getElementById('expanded').hidden"),true);
+ assert.equal(await evaluate("document.getElementById('insightName').textContent.includes('/')"),true);
+ await capture('idle-insight-preview.png');
+ await evaluate("document.getElementById('insightDismiss').click()");
+ await until(()=>evaluate("document.getElementById('idleInsight').hidden&&document.body.classList.contains('collapsed')"));
+ console.log('11.0 native regression passed: new Next batch through real IPC, no phantom visits, compact idle advice and dismissal.');
  assert.deepEqual(errors,[]);console.log('Native UI passed: readable fonts, stable row DOM, direct Learn URL, verified Releases URL, independent replacement, undo, native screenshots, settings, 150% text, three rows, rapid toggle and collection.');app.exit(0);
 }
 module.exports={smoke};

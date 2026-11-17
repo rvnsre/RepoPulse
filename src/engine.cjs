@@ -43,6 +43,7 @@ function repoTopics(r) {
   for (const [key,topic] of Object.entries(TOPICS)) if (topic.github.some(t=>r.topics.includes(t))) detected[key] = (detected[key]||0)+2;
   return detected;
 }
+function tierWeight(stars){return stars>=200000?6:stars>=100000?2.5:1;}
 function ranked(repos, profile, day) {
   const weights = validWeights(profile), maximum = Math.max(1,...Object.values(weights));
   return repos.filter(eligible).map(repo=>{
@@ -50,7 +51,7 @@ function ranked(repos, profile, day) {
     const matches = Object.keys(tags).filter(k=>weights[k]).sort((a,b)=>weights[b]*tags[b]-weights[a]*tags[a]);
     const affinity = matches.reduce((sum,k)=>sum+(weights[k]/maximum)*Math.min(tags[k],4),0);
     const jitter = crypto.createHash('sha256').update(`${day}:${repo.id}`).digest().readUInt32BE(0)/0xffffffff;
-    return {...repo, score:affinity*10+Math.log10(repo.stargazers_count)+jitter*2, reason:matches.length?`Matches your interest in ${TOPICS[matches[0]].label.toLowerCase()}.`:'A widely adopted project to broaden your open-source radar.', matchedTopics:matches};
+    return {...repo, score:affinity*4+tierWeight(repo.stargazers_count)*7+Math.log10(repo.stargazers_count)+jitter*2, reason:matches.length?`Matches your interest in ${TOPICS[matches[0]].label.toLowerCase()}.`:'A widely adopted project to broaden your open-source radar.', matchedTopics:matches};
   }).sort((a,b)=>b.score-a.score || a.id-b.id);
 }
 function selectDaily(repos, state, day=localDay()) {
@@ -67,4 +68,4 @@ function selectDaily(repos, state, day=localDay()) {
   return {day,repos:chosen};
 }
 function defaults() { return {version:1,profile:{weights:{}},saved:[],hidden:[],seen:[],daily:null,cache:[],cacheAt:null,settings:{pinned:true,reducedMotion:false,launchAtLogin:false}}; }
-module.exports={TOPICS,localDay,classify,validWeights,validateProfile,normalizeRepo,eligible,repoTopics,ranked,selectDaily,defaults};
+module.exports={TOPICS,localDay,classify,validWeights,validateProfile,normalizeRepo,eligible,repoTopics,ranked,tierWeight,selectDaily,defaults};

@@ -1,5 +1,6 @@
 'use strict';
 const UI=window.RepoPulseUI,raw=window.pulse,$=id=>document.getElementById(id);
+let insightOpen=false,morphing=false,sceneSequence=0;
 let state,section='details',expanded=true,drawer=false,selectedId=null,pair=0,draft={},toastTimer,busy=false,search='',sort='recent',savedLanguage='',renderQueued=false,transition=0,rootAnimation=null,drawerStamp='',releaseTimer;
 const pending=new Set(),slots=[],releaseStates=new Map(),releaseRequests=new Map();
 const api=raw?{...raw}:null;
@@ -14,17 +15,32 @@ function selected(){return [...repos(),...(state?.saved||[]),...(state?.history|
 function visible(){return UI.visible(repos(),pair,state?.settings.visibleRows||2);}
 function canAnimate(){return UI.motion(state?.settings,matchMedia('(prefers-reduced-motion: reduce)').matches,document.hidden);}
 async function effect(node,frames,duration){if(!node||!canAnimate())return;const a=node.animate(frames,{duration:duration||state.settings.motionDuration||220,easing:'cubic-bezier(.2,.8,.2,1)'});try{await a.finished;}catch{}}
-async function windowMode(){
- const serial=++transition;rootAnimation?.cancel();const mode=expanded?(drawer?'workspace':'panel'):'collapsed';
- islandController?.configure(state?.settings||{},mode);
- if(!expanded&&canAnimate()){const spec=IslandMotion.frames('exit',state.settings);rootAnimation=$('expanded').animate(spec.keyframes,{...spec.options,duration:Math.min(80,spec.options.duration)});try{await rootAnimation.finished;}catch{}if(serial!==transition)return;}
- $('expanded').hidden=!expanded;$('drawer').hidden=!drawer;document.body.classList.toggle('collapsed',!expanded);document.body.classList.toggle('workspace-open',expanded&&drawer);$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));
- ultimateStatus();if(!expanded)compactProtectedEntry=false;
- const reply=await api?.expand({mode,requestId:serial});if(serial!==transition)return;updatePointerBounds(reply?.bounds);if(drawer)renderDrawer(false);requestFit();
- if(canAnimate()){const spec=IslandMotion.frames(expanded?'enter':'dock',state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches);rootAnimation=(expanded?$('expanded'):$('island')).animate(spec.keyframes,spec.options);try{await rootAnimation.finished;}catch{}}
- ultimateStatus();
+function applyMode(){
+ $('expanded').hidden=!expanded||insightOpen;$('idleInsight').hidden=!insightOpen;$('drawer').hidden=!drawer;
+ document.body.classList.toggle('collapsed',!expanded&&!insightOpen);document.body.classList.toggle('insight-open',insightOpen);document.body.classList.toggle('workspace-open',expanded&&drawer&&!insightOpen);
+ $('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));
 }
-async function openDrawer(tab){if(tab==='library'&&section!=='library')uFilters.pinnedFirst=state.settings.pinnedFirst;section=tab;drawer=true;expanded=true;if(tab==='tune')draft={...state.profile.weights};search='';drawerStamp='';await windowMode();renderDrawer();}
+async function windowMode(){
+ const serial=++transition;rootAnimation?.cancel();hoverAnimation?.cancel();morphing=true;
+ const mode=insightOpen?'insight':expanded?(drawer?'workspace':'panel'):'collapsed',before=pointerBounds||state.windowBounds;
+ const duration=IslandMorph.duration(state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches);
+ islandController?.configure(state.settings,mode);
+ try{
+  if(mode==='collapsed'&&before&&canAnimate()&&api.previewBounds){
+   const target=await api.previewBounds(mode);if(serial!==transition)return;
+   rootAnimation=$('island').animate([{clipPath:getComputedStyle($('island')).clipPath},{clipPath:IslandMorph.shape(before,target)}],{duration:Math.min(160,duration),easing:'cubic-bezier(.4,0,.6,1)'});
+   try{await rootAnimation.finished;}catch{}if(serial!==transition)return;
+  }
+  applyMode();ultimateStatus();if(!expanded)compactProtectedEntry=false;
+  const reply=await api?.expand({mode,requestId:serial});if(serial!==transition)return;
+  updatePointerBounds(reply?.bounds);rootAnimation?.cancel();if(drawer)renderDrawer(false);
+  if(mode!=='collapsed'&&before&&reply?.bounds&&canAnimate()){
+   rootAnimation=$('island').animate([{clipPath:IslandMorph.shape(reply.bounds,before),opacity:.94},{clipPath:'inset(0px 0px 0px 0px round 18px)',opacity:1}],{duration,easing:'cubic-bezier(.16,1,.3,1)'});
+   try{await rootAnimation.finished;}catch{}if(serial!==transition)return;rootAnimation.cancel();
+  }
+ }finally{if(serial===transition){morphing=false;ultimateStatus();ultimateMagnify(!!islandController?.pointer);requestFit();}}
+}
+async function openDrawer(tab){insightOpen=false;if(tab==='library'&&section!=='library')uFilters.pinnedFirst=state.settings.pinnedFirst;section=tab;drawer=true;expanded=true;if(tab==='tune')draft={...state.profile.weights};search='';drawerStamp='';await windowMode();renderDrawer();}
 async function closeDrawer(){drawer=false;await windowMode();$('menu').focus({preventScroll:true});}
 function compact(number){return state?.settings.exactStars?Intl.NumberFormat('en').format(number):Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1}).format(number);}
 function commands(repo){const name=repo.full_name.split('/')[1];return{clone:'git clone https://github.com/'+repo.full_name+'.git',inspect:'git -C "'+name+'" status\ngit -C "'+name+'" log -1 --oneline'};}
@@ -88,9 +104,9 @@ function reconcile(){
   if(slot.id===repo.id&&slot.key===key){if(slot.desired&&slot.desired!==key){slot.version++;slot.effect?.cancel();slot.desired=null;}slot.element.querySelector('.repo-row')?.classList.toggle('selected',repo.id===selectedId);continue;}
   if(slot.desired===key)continue;slot.desired=key;const serial=++slot.version;slot.effect?.cancel();const old=slot.element.firstElementChild,hadFocus=old?.contains(document.activeElement),changed=slot.id!==null&&slot.id!==repo.id;
   const rowMotion=canAnimate()&&expanded&&!drawer;
-  const scene=DynamicFeed.transition(state.settings.transitionStyle,repo.id+i,IslandMotion.config(state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches));
+  const scene=DynamicFeed.transition(state.settings.transitionStyle,repo.id+i,{...IslandMotion.config(state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches),duration:canAnimate()?IslandMorph.tempo(state.settings.cycleMotion,sceneSequence++):0});
   (async()=>{
-   if(changed&&rowMotion&&old){slot.effect=old.animate(scene.exit,{...scene.options,duration:Math.min(80,scene.options.duration)});try{await slot.effect.finished;}catch{}}
+   if(changed&&rowMotion&&old){slot.effect=old.animate(scene.exit,{...scene.options,duration:Math.round(scene.options.duration*.4)});try{await slot.effect.finished;}catch{}}
    if(serial!==slot.version)return;
    const node=row(repo,i);slot.element.replaceChildren(node);slot.id=repo.id;slot.key=key;slot.desired=null;
    if(hadFocus)node.querySelector('.repo-name').focus({preventScroll:true});
@@ -103,10 +119,10 @@ function reconcile(){
  while(slots.length>desired.length){const removed=slots.pop();removed.version++;removed.effect?.cancel();removed.element.remove();}
 }
 let fitFrame=0;
-function requestFit(){if(fitFrame||!api||expanded&&drawer)return;fitFrame=requestAnimationFrame(()=>{fitFrame=0;const height=Math.ceil($('island').offsetHeight+(24));api.fit({height,mode:expanded?(drawer?'workspace':'panel'):'collapsed'}).then(reply=>{if(reply?.mode===(expanded?(drawer?'workspace':'panel'):'collapsed'))updatePointerBounds(reply.bounds);}).catch(()=>{});});}
+function requestFit(){if(fitFrame||!api||morphing||insightOpen||expanded&&drawer)return;fitFrame=requestAnimationFrame(()=>{fitFrame=0;const height=Math.ceil($('island').offsetHeight+(24));api.fit({height,mode:expanded?(drawer?'workspace':'panel'):'collapsed'}).then(reply=>{if(reply?.mode===(expanded?(drawer?'workspace':'panel'):'collapsed'))updatePointerBounds(reply.bounds);}).catch(()=>{});});}
 function render(){if(renderQueued)return;renderQueued=true;requestAnimationFrame(()=>{renderQueued=false;renderNow();});}
 function renderNow(){
- if(!state)return;const prefs=state.settings;ultimateRender();
+ if(!state)return;const prefs=state.settings;renderInsight();ultimateRender();
  for(const theme of ['graphite','contrast'])document.body.classList.toggle(theme,prefs.theme===theme);
  for(const [name,value]of Object.entries({compact:prefs.density==='compact',reduced:!canAnimate(),'no-commands':!prefs.showCommands,'wrap-names':prefs.wrapNames,'wrap-code':prefs.codeWrap}))document.body.classList.toggle(name,value);
  document.body.dataset.scale=String(UI.textScale(prefs.textScale));
@@ -115,7 +131,7 @@ function renderNow(){
  $('status').textContent=state.lastError?'Offline / cached discoveries':repos().length+' picks / '+state.catalogSize+' projects / '+(age===null?'loading':age<1?'just synced':age+'m since sync');
  $('status').title=state.lastError||'Interests remain on this device.';
  $('system').textContent=(({win32:'Windows',darwin:'macOS',linux:'Linux'})[state.platform]||'Desktop')+' / 50K+ stars / '+new Date().toLocaleDateString('en',{month:'short',day:'numeric'});
- $('undo').disabled=!state.canUndo;$('next').disabled=repos().length<=state.settings.visibleRows;
+ $('undo').disabled=!state.canUndo;$('next').disabled=!state.catalogSize;
  dynamicSync();if(!canAnimate()){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}reconcile();updateActions();if(drawer)renderDrawer(false);requestFit();
  // Release checks are demand-driven: live rotation must not poll GitHub for every card.
  clearTimeout(releaseTimer);
@@ -184,13 +200,13 @@ function renderDrawer(force=true){
 }
 async function refresh(force=false){if(busy)return;islandController?.hold('refresh',true);busy=true;$('refresh').disabled=true;try{const result=await api.refresh(force);adopt(result.state);render();if(result.error)toast(result.error);else if(force)toast('Catalog refreshed. Unseen projects remain ready for your next click.');}finally{busy=false;islandController?.hold('refresh',false);$('refresh').disabled=false;}}
 $('browseLibrary').addEventListener('click',()=>run(()=>openDrawer('library')));
-$('toggle').addEventListener('click',()=>run(async()=>{expanded=!expanded;if(!expanded)drawer=false;await windowMode();}));
-$('collapse').addEventListener('click',()=>run(async()=>{expanded=false;drawer=false;await windowMode();}));
+$('toggle').addEventListener('click',()=>run(async()=>{insightOpen=false;expanded=!expanded;if(!expanded)drawer=false;await windowMode();}));
+$('collapse').addEventListener('click',()=>run(async()=>{insightOpen=false;expanded=false;drawer=false;await windowMode();}));
 $('menu').addEventListener('click',()=>run(()=>drawer?closeDrawer():openDrawer('settings')));
 $('closeDrawer').addEventListener('click',()=>run(closeDrawer));
 $('refresh').addEventListener('click',()=>run(()=>refresh(true)));
 $('undo').addEventListener('click',()=>run(async()=>{dynamicHoldUntil=Date.now()+10000;adopt(await api.undo());selectedId=repos()[0]?.id??null;render();toast('Last replacement restored.');}));
-$('next').addEventListener('click',()=>{pair=(pair+(state.settings.visibleRows||2))%Math.max(1,repos().length);selectedId=visible()[0]?.id??null;render();});
+$('next').addEventListener('click',()=>run(async()=>{if(pending.has('next'))return;pending.add('next');dynamicHoldUntil=Date.now()+1000;islandController?.hold('next picks',true);try{const result=await api.next();if(result.state)adopt(result.state);pair=0;selectedId=repos()[0]?.id??null;render();toast(result.changed?(result.revisited?'Revisiting earlier picks.':'New picks are ready.'):'No other eligible projects. Broaden your filters.');}finally{pending.delete('next');islandController?.hold('next picks',false);}}));
 $('install').addEventListener('click',()=>run(()=>{const r=selected();return r&&openRepo(r,'releases');}));
 $('learn').addEventListener('click',()=>run(()=>{const r=selected();return r&&openRepo(r,'learn');}));
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>run(()=>openDrawer(b.dataset.tab))));
@@ -199,7 +215,7 @@ matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',()=>ren
 window.addEventListener('keydown',e=>{
  if(!state)return;
  const key=e.key.toLowerCase(),typing=e.target.isContentEditable||['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName);
- if(key==='escape'){islandController?.pause(600);e.preventDefault();run(async()=>{if(drawer)await closeDrawer();else{expanded=false;await windowMode();}});return;}
+ if(key==='escape'){islandController?.pause(600);e.preventDefault();run(async()=>{if(drawer)await closeDrawer();else{insightOpen=false;expanded=false;await windowMode();}});return;}
  if((e.ctrlKey||e.metaKey)&&key==='k'){e.preventDefault();run(()=>openDrawer('commands'));return;}
  if((e.ctrlKey||e.metaKey)&&['+','=','-','0'].includes(key)){e.preventDefault();run(()=>changeSettings({textScale:key==='0'?100:UI.nextScale(state.settings.textScale,key==='-'?-1:1)}));return;}
  if(typing||!state?.settings.shortcuts||e.ctrlKey||e.metaKey||e.altKey)return;
@@ -221,7 +237,7 @@ window.addEventListener('keydown',e=>{
  if(!api){$('feed').append(empty('RepoPulse desktop','Open this interface in the desktop app.'));return;}
  adopt(await api.state());draft={...state.profile.weights};selectedId=repos()[0]?.id??null;
  api.onState(next=>{adopt(next);render();});
- api.onMode?.(message=>{const next=UI.externalMode(message);if(!next)return;if(message?.bounds)pointerBounds=message.bounds;const nextExpanded=next!=='collapsed',nextDrawer=next==='workspace';if(nextExpanded===expanded&&nextDrawer===drawer)return;transition++;rootAnimation?.cancel();expanded=nextExpanded;drawer=nextDrawer;document.body.classList.toggle('collapsed',!expanded);document.body.classList.toggle('workspace-open',expanded&&drawer);$('expanded').hidden=!expanded;$('drawer').hidden=!drawer;$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));islandController?.configure(state.settings,next);ultimateStatus();updatePointerBounds(pointerBounds);requestFit();if(drawer)renderDrawer(false);});
+ api.onMode?.(message=>{const next=UI.externalMode(message);if(!next)return;if(message?.bounds)pointerBounds=message.bounds;const nextExpanded=next!=='collapsed',nextDrawer=next==='workspace',nextInsight=next==='insight';if(nextExpanded===expanded&&nextDrawer===drawer&&nextInsight===insightOpen)return;transition++;rootAnimation?.cancel();expanded=nextExpanded;drawer=nextDrawer;insightOpen=nextInsight;applyMode();document.body.classList.toggle('collapsed',!expanded);document.body.classList.toggle('workspace-open',expanded&&drawer);$('expanded').hidden=!expanded||insightOpen;$('drawer').hidden=!drawer;$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));islandController?.configure(state.settings,next);ultimateStatus();updatePointerBounds(pointerBounds);requestFit();if(drawer)renderDrawer(false);});
  new ResizeObserver(requestFit).observe($('island'));if(state.windowMode==='collapsed'){expanded=false;drawer=false;$('expanded').hidden=true;document.body.classList.add('collapsed');}ultimateInit();render();if(state.recoveryNotice)toast(state.recoveryNotice);await refresh();
 })().catch(e=>toast(e.message));
 
