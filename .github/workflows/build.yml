@@ -40,7 +40,7 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Install Linux packaging tools
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y rpm xvfb libgtk-3-0 libnss3 libasound2t64 libgbm1
+        run: sudo apt-get update && sudo apt-get install -y rpm xvfb xdotool libgtk-3-0 libnss3 libasound2t64 libgbm1
       - name: Native UI smoke test
         if: runner.os == 'Linux'
         run: xvfb-run -a npm run smoke -- --no-sandbox
