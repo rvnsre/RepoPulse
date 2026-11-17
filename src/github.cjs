@@ -25,6 +25,7 @@ async function fetchCatalog(previous=[],fetchImpl=fetch,{delayMs=fetchImpl===fet
  }
  await range(MIN_STARS);
  if((available>0||previous.length)&&!found.size)throw Error('GitHub returned no valid 50K+ projects. Cached projects remain available.');
+ if(available>0&&found.size<available)throw Error('GitHub returned fewer unique results across search partitions. Cached projects remain available.');
  const repos=[...found.values()].sort((a,b)=>b.stargazers_count-a.stargazers_count||a.id-b.id);
  fetchCatalog.info={loaded:repos.length,available,target:TARGET_CATALOG,capacity:MAX_CATALOG,minStars:MIN_STARS,complete:true,checkedAt:new Date().toISOString()};
  return repos;

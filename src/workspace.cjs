@@ -13,7 +13,7 @@ function normalize(input={}){
  for(const c of (Array.isArray(input?.collections)?input.collections:[]).slice(0,50)){const id=safeText(c?.id,64),name=safeText(c?.name,80);if(!/^[a-zA-Z0-9_-]+$/.test(id)||!name||seen.has(id))continue;seen.add(id);out.collections.push({id,name,color:COLORS.includes(c.color)?c.color:'sand',repos:[...new Set((Array.isArray(c.repos)?c.repos:[]).filter(id=>idValid(id)).map(Number))].slice(0,2000)});}
  return out;
 }
-function ensureCapacity(records,ids){if(new Set([...Object.keys(records||{}),...ids.filter(idValid).map(String)]).size>2000)throw new Error('Maximum 2,000 annotated repositories. Changes were cancelled.');}
+function ensureCapacity(records,ids){if(new Set([...Object.keys(records||{}),...ids.filter(idValid).map(id=>String(Number(id)))]).size>2000)throw new Error('Maximum 2,000 annotated repositories. Changes were cancelled.');}
 function patch(input,repo,changes,now=Date.now()){
  const out=normalize(input);repo=normalizeRepo(repo);if(!repo)throw new Error('Repository unavailable.');
  if(!changes||typeof changes!=='object'||Array.isArray(changes))throw new Error('Invalid annotation.');
