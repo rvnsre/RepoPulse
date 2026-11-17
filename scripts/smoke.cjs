@@ -22,6 +22,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
   }
   assert.ok(png,'The compositor must produce a visible native preview within five seconds.');fs.writeFileSync(path.join(root,name),png);
   if(name==='idle-insight-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_INSIGHT:'+encoded.slice(n,n+4096));}
+  if(name==='audit-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_AUDIT:'+encoded.slice(n,n+4096));}
   if(name==='desktop-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_PREVIEW:'+encoded.slice(n,n+4096));}
  }
 
@@ -190,6 +191,23 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await evaluate("document.getElementById('insightDismiss').click()");
  await until(()=>evaluate("document.getElementById('idleInsight').hidden&&document.body.classList.contains('collapsed')"));
  console.log('11.0 native regression passed: new Next batch through real IPC, no phantom visits, compact idle advice and dismissal.');
+ await evaluate("window.pulse.settings({autoHide:false,dynamicRefresh:false})");
+ const axios=require('../src/engine.cjs').normalizeRepo({id:9001,full_name:'axios/axios',stargazers_count:150000,language:'JavaScript',description:'Promise based HTTP client for browser and Node.js. Includes a clean package manager installation.'});
+ store.state.cache.push(axios);store.state.daily.repos[0]=axios;
+ await evaluate("window.pulse.settings({})");await evaluate("document.getElementById('toggle').click()");
+ await until(()=>evaluate("!!document.querySelector('[data-repo-id=\"9001\"] .smart-code')&&document.querySelector('[data-repo-id=\"9001\"] pre').textContent==='npm install axios'"));
+ await evaluate("document.querySelector('[data-repo-id=\"9001\"] .copy-command').click()");
+ await until(()=>require('electron').clipboard.readText()==='npm install axios');
+ const baseline=await evaluate("(()=>{const row=document.querySelector('[data-repo-id=\"9001\"]');return{left:row.querySelector('.row-extra').getBoundingClientRect().bottom,right:row.querySelector('.row-actions').getBoundingClientRect().bottom,wrap:getComputedStyle(row.querySelector('pre')).whiteSpace};})()");
+ assert.ok(Math.abs(baseline.left-baseline.right)<=1,JSON.stringify(baseline));assert.equal(baseline.wrap,'pre');
+ await evaluate("document.querySelector('[data-repo-id=\"9001\"] .command-tab:last-child').click();document.querySelector('[data-repo-id=\"9001\"] .copy-command').click()");
+ await until(()=>require('electron').clipboard.readText()==='git clone https://github.com/axios/axios.git');
+ await evaluate("state.cacheAt=new Date(Date.now()-78*60000).toISOString();state.lastError=null;renderSync();dynamicStatus({enabled:true,remaining:3000,period:3000,reason:'exhausted'})");
+ assert.match(await evaluate("document.getElementById('status').textContent"),/Last synced 78m ago/);
+ assert.ok(!(await evaluate("document.getElementById('liveToggle').textContent")).includes('Live'));
+ assert.equal(await evaluate("document.getElementById('connectionDot').dataset.status"),'stale');
+ await evaluate("window.pulse.settings({})");await capture('audit-preview.png');
+ console.log('11.1 audit native checks passed: all three picks reachable, no duplicated footer actions, exact button baselines, npm/clone copy, nowrap code and stale sync consistency.');
  assert.deepEqual(errors,[]);console.log('Native UI passed: readable fonts, stable row DOM, direct Learn URL, verified Releases URL, independent replacement, undo, native screenshots, settings, 150% text, three rows, rapid toggle and collection.');app.exit(0);
 }
 module.exports={smoke};
