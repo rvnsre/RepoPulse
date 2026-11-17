@@ -17,7 +17,7 @@ async function effect(node,frames,duration){if(!node||!canAnimate())return;const
 async function windowMode(){
  const serial=++transition;rootAnimation?.cancel();const mode=expanded?(drawer?'workspace':'panel'):'collapsed';
  islandController?.configure(state?.settings||{},mode);
- if(!expanded&&canAnimate()){const spec=IslandMotion.frames('exit',state.settings);rootAnimation=$('expanded').animate(spec.keyframes,{...spec.options,duration:Math.min(180,spec.options.duration)});try{await rootAnimation.finished;}catch{}if(serial!==transition)return;}
+ if(!expanded&&canAnimate()){const spec=IslandMotion.frames('exit',state.settings);rootAnimation=$('expanded').animate(spec.keyframes,{...spec.options,duration:Math.min(80,spec.options.duration)});try{await rootAnimation.finished;}catch{}if(serial!==transition)return;}
  $('expanded').hidden=!expanded;$('drawer').hidden=!drawer;document.body.classList.toggle('collapsed',!expanded);document.body.classList.toggle('workspace-open',expanded&&drawer);$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));
  await api?.expand(mode);if(serial!==transition)return;if(drawer)renderDrawer(false);requestFit();
  if(canAnimate()){const spec=IslandMotion.frames(expanded?'enter':'dock',state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches);rootAnimation=(expanded?$('expanded'):$('island')).animate(spec.keyframes,spec.options);try{await rootAnimation.finished;}catch{}}
@@ -98,7 +98,7 @@ function reconcile(){
  while(slots.length>desired.length){const removed=slots.pop();removed.version++;removed.effect?.cancel();removed.element.remove();}
 }
 let fitFrame=0;
-function requestFit(){if(fitFrame||!api||expanded&&drawer)return;fitFrame=requestAnimationFrame(()=>{fitFrame=0;const height=Math.ceil($('island').offsetHeight+(innerWidth<=640?28:48));api.fit({height,mode:expanded?(drawer?'workspace':'panel'):'collapsed'}).catch(()=>{});});}
+function requestFit(){if(fitFrame||!api||expanded&&drawer)return;fitFrame=requestAnimationFrame(()=>{fitFrame=0;const height=Math.ceil($('island').offsetHeight+(24));api.fit({height,mode:expanded?(drawer?'workspace':'panel'):'collapsed'}).catch(()=>{});});}
 function render(){if(renderQueued)return;renderQueued=true;requestAnimationFrame(()=>{renderQueued=false;renderNow();});}
 function renderNow(){
  if(!state)return;const prefs=state.settings;ultimateRender();
@@ -149,13 +149,13 @@ function settingsView(root){heading(root,`Your workspace / v${state.version}`,[b
  const display=el('div',{class:'settings-grid'});
  setting(display,'textScale','Text size','Readable sizes across the entire interface.','select',[[100,'100%'],[115,'115%'],[130,'130%'],[150,'150%']]);
  setting(display,'motion','Animation preference','System mode respects reduced motion.','select',[['system','Follow system'],['full','Animate'],['none','No animation']]);
- setting(display,'motionDuration','Animation speed','','select',[[140,'Quick'],[220,'Balanced'],[320,'Relaxed']]);
+ setting(display,'motionDuration','Animation speed','','select',[[80,'Instant'],[140,'Quick'],[220,'Balanced'],[320,'Relaxed']]);
  setting(display,'visibleRows','Visible repositories','','select',[[1,'One row'],[2,'Two rows'],[3,'Three rows']]);
- setting(display,'panelWidth','Preferred panel width','Clamped to your monitor.','select',[[1080,'1080 px'],[1280,'1280 px'],[1440,'1440 px']]);
+ setting(display,'panelWidth','Preferred panel width','Clamped to your monitor.','select',[[960,'960 px'],[1080,'1080 px'],[1280,'1280 px'],[1440,'1440 px']]);
  setting(display,'toastSeconds','Message duration','','select',[[3,'3 seconds'],[5,'5 seconds'],[8,'8 seconds']]);
  for(const [key,title,description]of [['showCommands','Show source commands','Hide code blocks for a calmer feed.'],['showDescriptions','Show descriptions','Keep or hide project summaries.'],['showOwners','Show repository owners','Distinguish similarly named projects.'],['showReasons','Show relevance explanations','Explain why a project is recommended.'],['wrapNames','Wrap long names','Avoid losing long repository names.'],['codeWrap','Wrap command lines','Read long commands without horizontal scrolling.'],['shortcuts','Keyboard shortcuts','Disable letter shortcuts if preferred.'],['exactStars','Exact star counts','Display full cached counts instead of compact notation.'],['uniqueHistory','Unique history view','Show only the newest visit per project.']])setting(display,key,title,description);
  root.append(el('h3',{class:'subheading'},'Readability and interaction'),display);
- const resets=el('div',{class:'stack'});resets.append(btn('Reset appearance',()=>changeSettings({textScale:100,motion:'system',motionDuration:220,visibleRows:2,panelWidth:1280,showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,theme:'reference',density:'comfortable',opacity:100,reducedMotion:false}),'secondary'),btn('Reset feed filters',()=>changeSettings({minStars:50000,languages:[]}),'secondary'));root.append(resets);
+ const resets=el('div',{class:'stack'});resets.append(btn('Reset appearance',()=>changeSettings({textScale:100,motion:'system',motionDuration:80,visibleRows:2,panelWidth:960,showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,theme:'reference',density:'compact',opacity:100,reducedMotion:false}),'secondary'),btn('Reset feed filters',()=>changeSettings({minStars:50000,languages:[]}),'secondary'));root.append(resets);
  ultimateSettings(root);
  root.append(el('p',{class:'intro'},'Language filters - leave all unchecked for every language. Changes refill only projects that no longer match.'));
  const languages=el('div',{class:'stack'});(state.languages||[]).forEach(language=>{const selected=state.settings.languages.includes(language),b=btn(language,()=>changeSettings({languages:selected?state.settings.languages.filter(l=>l!==language):[...state.settings.languages,language]}),`secondary ${selected?'primary':''}`);b.setAttribute('aria-pressed',String(selected));languages.append(b);});root.append(languages);

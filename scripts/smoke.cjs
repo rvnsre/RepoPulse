@@ -8,7 +8,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  async function until(check){for(let i=0;i<50;i++){if(await check())return;await new Promise(resolve=>setTimeout(resolve,100));}throw new Error('Native UI did not reach the expected state: '+JSON.stringify(await evaluate(`({rows:[...document.querySelectorAll('.repo-row')].map(r=>r.dataset.repoId),selected:document.getElementById('selectedLabel').textContent,toast:document.getElementById('toast').textContent,expanded:!document.getElementById('expanded').hidden,drawer:!document.getElementById('drawer').hidden})`)));}
  await until(()=>evaluate(`!!document.querySelector('.repo-row')`));
  await new Promise(r=>setTimeout(r,500));let dimensions=await evaluate(`({rows:document.querySelectorAll('.repo-row').length,width:innerWidth,height:innerHeight,footer:document.querySelector('footer').getBoundingClientRect().bottom})`);
- assert.equal(dimensions.rows,2);assert.ok(dimensions.width>=900);assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
+ assert.equal(dimensions.rows,2);assert.ok(dimensions.width>=900&&dimensions.width<=960);assert.ok(dimensions.height<500,JSON.stringify(dimensions));assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
 
  async function capture(name){
   window.show();window.focus();window.webContents.focus();let png=null;
