@@ -196,12 +196,12 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  store.state.cache.push(axios);store.state.daily.repos[0]=axios;
  console.log('AXIOS_IPC_METADATA',JSON.stringify(await evaluate("window.pulse.activity(9001)")));
  await evaluate("window.pulse.settings({})");await evaluate("document.getElementById('toggle').click()");
- await until(()=>evaluate("!!document.querySelector('[data-repo-id=\"9001\"] .smart-code')&&document.querySelector('[data-repo-id=\"9001\"] pre').textContent==='npm install axios'"));
- await evaluate("document.querySelector('[data-repo-id=\"9001\"] .copy-command').click()");
+ await until(()=>evaluate("!!document.querySelector('.repo-row[data-repo-id=\"9001\"] .smart-code')&&document.querySelector('.repo-row[data-repo-id=\"9001\"] pre').textContent==='npm install axios'"));
+ await evaluate("document.querySelector('.repo-row[data-repo-id=\"9001\"] .copy-command').click()");
  await until(()=>require('electron').clipboard.readText()==='npm install axios');
- const baseline=await evaluate("(()=>{const row=document.querySelector('[data-repo-id=\"9001\"]');return{left:row.querySelector('.row-extra').getBoundingClientRect().bottom,right:row.querySelector('.row-actions').getBoundingClientRect().bottom,wrap:getComputedStyle(row.querySelector('pre')).whiteSpace};})()");
+ const baseline=await evaluate("(()=>{const row=document.querySelector('.repo-row[data-repo-id=\"9001\"]');return{left:row.querySelector('.row-extra').getBoundingClientRect().bottom,right:row.querySelector('.row-actions').getBoundingClientRect().bottom,wrap:getComputedStyle(row.querySelector('pre')).whiteSpace};})()");
  assert.ok(Math.abs(baseline.left-baseline.right)<=1,JSON.stringify(baseline));assert.equal(baseline.wrap,'pre');
- await evaluate("document.querySelector('[data-repo-id=\"9001\"] .command-tab[aria-selected=true]').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));document.querySelector('[data-repo-id=\"9001\"] .copy-command').click()");
+ await evaluate("document.querySelector('.repo-row[data-repo-id=\"9001\"] .command-tab[aria-selected=true]').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));document.querySelector('.repo-row[data-repo-id=\"9001\"] .copy-command').click()");
  await until(()=>require('electron').clipboard.readText()==='git clone https://github.com/axios/axios.git');
  await evaluate("state.cacheAt=new Date(Date.now()-78*60000).toISOString();state.lastError=null;renderSync();dynamicStatus({enabled:true,remaining:3000,period:3000,reason:'exhausted'})");
  assert.match(await evaluate("document.getElementById('status').textContent"),/Last synced 78m ago/);
