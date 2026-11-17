@@ -1,4 +1,4 @@
-# RepoPulse 10.1.2
+# RepoPulse 11.0.0
 
 A personalized GitHub discovery island for Windows, macOS and Linux, focused on **50,000+ star** public projects.
 
@@ -10,11 +10,22 @@ Choose Fluid, Snappy, Calm or Soft Spring motion, hover growth, timing, card app
 
 Native Electron screenshot using sample metadata. The native test temporarily disables automatic hiding and Live rotation to capture a stable desktop view; autonomous operation is exercised separately in the same test.
 
-## Hover stability / 10.1.2
+## What changed in 11.0
+
+- **Next picks** requests a genuinely new batch, rather than paging the same three repositories. Undo restores the preceding batch. No visit or interest update is recorded.
+- **Live** runs while the pointer is over a card by default, keeps explicit pause reasons, and mixes fast and slow 140–360ms card transitions. Editing, interaction, workspaces and focus sessions remain protected.
+- **Recommendation ranking** gives 200K+ stars the highest tier weight, 100K–200K a medium weight and 50K–100K a lower weight. Strong personal relevance can still win; no fixed exposure percentage is claimed.
+- **Island motion and layout** use a capsule-to-panel clip morph, independent window timing, consistent line icons, aligned card content and shared spacing.
+- **Idle advice** displays one small, non-focused 480×250px recommendation after at least eight minutes without mouse/keyboard activity. A 15-second poll means actual delivery can occur up to 15 seconds later. It waits while locked, hidden, opening a repository or in a workspace. Dismiss snoozes another eight minutes; Turn off disables automatic advice.
+- **Optional Windows context** derives topic weights from the foreground window title locally. Enable it under Settings → After 8 minutes away. Raw titles are discarded, not stored. No screenshots, OCR, cookies or cloud analysis are used. Without context, including on macOS/Linux, the chosen work topic is used.
+
+[220-idea roadmap with phases and acceptance criteria](docs/ROADMAP-220.md). These are planned items, separately tracked from the changes above. [11.0 validation and packages](docs/CHANGES-v11.md).
+
+## Hover stability / 10.1.2 (inherited)
 
 Native pointer/window membership now controls hover so resizing or scaling the island cannot repeatedly expand and collapse it. A fixed anchor preserves dock position near display edges, and stale window acknowledgements cannot override the latest intent. The regression uses an actual desktop pointer and checks stationary hover plus rapid exit/re-entry. See [verified downloads and upgrade instructions](docs/CHANGES-v10.1.2.md).
 
-Quit the old process from the tray before starting the update; closing its window only hides it. Settings must show **10.1.2**.
+Quit the old process from the tray before starting the update; closing its window only hides it. Settings must show **11.0.0**.
 
 ## Compact actions / 10.1.1
 
@@ -22,7 +33,7 @@ Click the repository name in the small island to open its GitHub page. A short o
 
 ## Live discovery / 10.1.0
 
-Unseen repositories now replace one visible row automatically every 3–10 seconds of active time. Use Live to pause/resume, or tune the interval and choose from 22 transition styles in Settings. Hovered cards, editing, keyboard navigation, workspaces and focus sessions are protected. Automatic display does not count as a visit or train your interests. When the unseen catalog is exhausted, current cards stay visible.
+Unseen repositories now replace one visible row automatically every 3–10 seconds of active time. Use Live to pause/resume, or tune the interval and choose from 22 transition styles in Settings. Editing, keyboard navigation, workspaces and focus sessions are protected. Hover pause is optional and defaults off in 11.0. Automatic display does not count as a visit or train your interests. After unseen candidates are exhausted, Live can revisit eligible projects after a 30-minute cooldown. Next picks can revisit sooner, with a clear message.
 
 Rotation uses the cached eligible catalog. Install checks releases on demand, so every new card does not generate a background release request. See [the full change list and installers](docs/CHANGES-v10.1.md).
 
@@ -94,7 +105,7 @@ The optional browser extension processes recent history only after choosing Anal
 | S / Q / P | Save / queue / pin selected project |
 | D / I | Details / public releases |
 | F | Start or stop focus session |
-| N / U / R | Next rows / undo / refresh |
+| N / U / R | New picks / undo / refresh |
 | / | Search saved projects |
 | ? | Command help |
 | Escape | Close workspace or collapse |
