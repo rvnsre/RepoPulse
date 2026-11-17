@@ -8,7 +8,7 @@ function adopt(next){state=UI.accept(state,next);return state;}
 if(api)for(const name of ['state','open','react','undo','settings','profile','importProfile','importData','clear','clearHistory','resetControls','removeHistory','removeExclusion','workspacePatch','workspaceBulk','workspaceCollection'])if(raw[name])api[name]=async(...args)=>{const value=await raw[name](...args);return value?.settings&&value?.profile?adopt(value):value;};
 function el(tag,props={},text){const e=document.createElement(tag);for(const [k,v]of Object.entries(props))e.setAttribute(k,v);if(text!==undefined)e.textContent=text;if(props['aria-label'])e.dataset.focusKey=props['aria-label'];return e;}
 function btn(text,action,cls='',label){const e=el('button',{class:cls},text);e.dataset.focusKey=label||text;if(label){e.setAttribute('aria-label',label);e.title=label;}e.addEventListener('click',()=>run(action));return e;}
-function toast(message){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,(state?.settings.toastSeconds||5)*1000);}
+function toast(message){if(insightOpen){clearTimeout(toastTimer);$('toast').hidden=true;$('insightReason').textContent=message;$('announcer').textContent=message;return;}clearTimeout(toastTimer);$('toast').textContent=message;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,(state?.settings.toastSeconds||5)*1000);}
 async function run(fn){try{await fn();}catch(error){toast(error.message||'Unable to complete this action.');}}
 function repos(){return state?.daily?.repos||[];}
 function selected(){return [...repos(),...(state?.saved||[]),...(state?.history||[]).map(h=>h.repo),...(state?.catalog||[])].find(r=>r.id===selectedId)||repos()[0]||null;}
@@ -16,6 +16,7 @@ function visible(){return UI.visible(repos(),pair,state?.settings.visibleRows||2
 function canAnimate(){return UI.motion(state?.settings,matchMedia('(prefers-reduced-motion: reduce)').matches,document.hidden);}
 async function effect(node,frames,duration){if(!node||!canAnimate())return;const a=node.animate(frames,{duration:duration||state.settings.motionDuration||220,easing:'cubic-bezier(.2,.8,.2,1)'});try{await a.finished;}catch{}}
 function applyMode(){
+ if(insightOpen){clearTimeout(toastTimer);$('toast').hidden=true;}
  $('expanded').hidden=!expanded||insightOpen;$('idleInsight').hidden=!insightOpen;$('drawer').hidden=!drawer;
  document.body.classList.toggle('collapsed',!expanded&&!insightOpen);document.body.classList.toggle('insight-open',insightOpen);document.body.classList.toggle('workspace-open',expanded&&drawer&&!insightOpen);
  $('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));

@@ -183,6 +183,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  assert.ok(window.getBounds().width<=480&&window.getBounds().height<=250);
  assert.equal(await evaluate("document.getElementById('expanded').hidden"),true);
  assert.equal(await evaluate("document.getElementById('insightName').textContent.includes('/')"),true);
+ assert.equal(await evaluate("document.getElementById('toast').hidden"),true,'Previous toasts must not cover insight actions');
  await capture('idle-insight-preview.png');
  await evaluate("document.getElementById('insightDismiss').click()");
  await until(()=>evaluate("document.getElementById('idleInsight').hidden&&document.body.classList.contains('collapsed')"));
