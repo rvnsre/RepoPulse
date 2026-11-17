@@ -28,7 +28,7 @@ async function windowMode(){
  try{
   if(mode==='collapsed'&&before&&canAnimate()&&api.previewBounds){
    const target=await api.previewBounds(mode);if(serial!==transition)return;
-   rootAnimation=$('island').animate([{clipPath:getComputedStyle($('island')).clipPath},{clipPath:IslandMorph.shape(before,target)}],{duration:Math.min(160,duration),easing:'cubic-bezier(.4,0,.6,1)'});
+   rootAnimation=$('island').animate([{clipPath:'inset(0px 0px 0px 0px round 18px)'},{clipPath:IslandMorph.shape(before,target)}],{duration:Math.min(160,duration),easing:'cubic-bezier(.4,0,.6,1)'});
    try{await rootAnimation.finished;}catch{}if(serial!==transition)return;
   }
   applyMode();ultimateStatus();if(!expanded)compactProtectedEntry=false;
@@ -119,7 +119,7 @@ function reconcile(){
  while(slots.length>desired.length){const removed=slots.pop();removed.version++;removed.effect?.cancel();removed.element.remove();}
 }
 let fitFrame=0;
-function requestFit(){if(fitFrame||!api||morphing||insightOpen||expanded&&drawer)return;fitFrame=requestAnimationFrame(()=>{fitFrame=0;const height=Math.ceil($('island').offsetHeight+(24));api.fit({height,mode:expanded?(drawer?'workspace':'panel'):'collapsed'}).then(reply=>{if(reply?.mode===(expanded?(drawer?'workspace':'panel'):'collapsed'))updatePointerBounds(reply.bounds);}).catch(()=>{});});}
+function requestFit(){if(fitFrame||!api||morphing||insightOpen||expanded&&drawer)return;fitFrame=requestAnimationFrame(()=>{fitFrame=0;const height=Math.ceil($('island').scrollHeight+(24));api.fit({height,mode:expanded?(drawer?'workspace':'panel'):'collapsed'}).then(reply=>{if(reply?.mode===(expanded?(drawer?'workspace':'panel'):'collapsed'))updatePointerBounds(reply.bounds);}).catch(()=>{});});}
 function render(){if(renderQueued)return;renderQueued=true;requestAnimationFrame(()=>{renderQueued=false;renderNow();});}
 function renderNow(){
  if(!state)return;const prefs=state.settings;renderInsight();ultimateRender();

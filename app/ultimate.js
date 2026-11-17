@@ -239,12 +239,15 @@ function iconSVG(name){
  const paths={clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',command:'<rect x="8" y="8" width="8" height="8" rx="1"/><path d="M8 8H5.5A2.5 2.5 0 1 1 8 5.5V8Zm8 0h2.5A2.5 2.5 0 1 0 16 5.5V8ZM8 16H5.5A2.5 2.5 0 1 0 8 18.5V16Zm8 0h2.5a2.5 2.5 0 1 1-2.5 2.5V16Z"/>',undo:'<path d="m8 5-5 5 5 5M3 10h11a6 6 0 0 1 6 6v3"/>',refresh:'<path d="M20 8a8.5 8.5 0 0 0-15-2L3 9m0-6v6h6m-5 7a8.5 8.5 0 0 0 15 2l2-3m0 6v-6h-6"/>',menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',minus:'<path d="M5 12h14"/>'};
  return '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(paths[name]||paths.clock)+'</svg>';
 }
-function installIcons(){for(const[id,name]of [['commandButton','command'],['focusButton','clock'],['undo','undo'],['refresh','refresh'],['menu','menu'],['collapse','minus']])$(id).innerHTML=iconSVG(name);}
+function installIcons(){initInsightButtons();for(const[id,name]of [['commandButton','command'],['focusButton','clock'],['undo','undo'],['refresh','refresh'],['menu','menu'],['collapse','minus']])$(id).innerHTML=iconSVG(name);}
 function renderInsight(){
  const value=state.insight;if(!value)return;
  $('insightName').textContent=value.repo.full_name;$('insightDescription').textContent=UI.brief(value.repo.description,100);
  $('insightReason').textContent=value.reason+' '+compact(value.repo.stargazers_count)+' stars.';
 }
+function initInsightButtons(){
 $('insightDismiss').addEventListener('click',()=>run(async()=>{adopt(await api.dismissInsight());insightOpen=false;expanded=false;applyMode();render();}));
 $('insightDisable').addEventListener('click',()=>run(async()=>{await changeSettings({idleAdvisor:false});adopt(await api.dismissInsight());insightOpen=false;expanded=false;applyMode();render();}));
 for(const id of ['insightOpen','insightName'])$(id).addEventListener('click',e=>{e.preventDefault();run(async()=>{const repo=state.insight?.repo;if(repo)await openRepo(repo,'learn');adopt(await api.dismissInsight());insightOpen=false;expanded=false;applyMode();render();});});
+
+}
