@@ -5,7 +5,8 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  window.webContents.on('console-message',(event,...legacy)=>{const level=event.level??legacy[0],message=event.message??legacy[1];if(level==='error'||typeof level==='number'&&level>=3){errors.push(message);console.error('RENDERER_ERROR:',message);}});
  await new Promise(resolve=>window.webContents.isLoading()?window.webContents.once('did-finish-load',resolve):resolve());
  const evaluate=async script=>{try{return await window.webContents.executeJavaScript(script);}catch(error){console.error('FAILED_NATIVE_SCRIPT:',script,'Renderer errors:',JSON.stringify(errors));throw error;}};
- async function until(check,attempts=50){for(let i=0;i<attempts;i++){if(await check())return;await new Promise(resolve=>setTimeout(resolve,100));}throw new Error('Native UI did not reach the expected state: '+JSON.stringify(await evaluate(`({rows:[...document.querySelectorAll('.repo-row')].map(r=>r.dataset.repoId),selected:document.getElementById('selectedLabel').textContent,toast:document.getElementById('toast').textContent,expanded:!document.getElementById('expanded').hidden,drawer:!document.getElementById('drawer').hidden,live:document.getElementById('liveToggle')?.textContent})`)));}
+ async function until(check,attempts=50){for(let i=0;i<attempts;i++){if(await check())return;await new Promise(resolve=>setTimeout(resolve,100));}throw new Error('Native UI did not reach the expected state: '+JSON.stringify(await evaluate(`({rows:[...document.querySelectorAll('.repo-row')].map(r=>r.dataset.repoId),selected:document.getElementById('selectedLabel').textContent,toast:document.getElementById('toast').textContent,expanded:!document.getElementById('expanded').hidden,drawer:!document.getElementById('drawer').hidden,live:document.getElementById('liveToggle')?.textContent,pointerTrace:window.pointerTrace?.slice(-8)})`)));}
+ await evaluate("window.pointerTrace=[];for(const type of ['pointerenter','pointerleave'])document.addEventListener(type,e=>{if(e.target===document.documentElement){window.pointerTrace.push({type,x:e.clientX,y:e.clientY});if(window.pointerTrace.length>50)window.pointerTrace.shift();}},true)");
  async function movePointer(x,y){window.webContents.sendInputEvent({type:'mouseMove',x:Math.round(x),y:Math.round(y)});await new Promise(r=>setTimeout(r,40));}
  async function moveScreen(x,y){const b=window.getBounds();await movePointer(x-b.x,y-b.y);}
  await until(()=>evaluate(`!!document.querySelector('.repo-row')`));
@@ -112,6 +113,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await until(()=>evaluate("document.getElementById('expanded').hidden"));
  console.log('Compact action checks passed: short explanation, non-overlapping hit area, stable hover, direct GitHub click, no duplicate open and blank-header expansion.');
 
+ await movePointer(-20,-20);
  await movePointer(30,30);
  await until(()=>evaluate("!document.getElementById('expanded').hidden"));
  await new Promise(r=>setTimeout(r,500));
