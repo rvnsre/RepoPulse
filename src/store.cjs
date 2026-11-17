@@ -1,25 +1,33 @@
 'use strict';
-const fs = require('node:fs');
-const path = require('node:path');
-const {defaults, validWeights,normalizeRepo} = require('./engine.cjs');
-class Store {
-  constructor(file) { this.file=file; this.state=defaults(); this.load(); }
-  load() {
-    if (!fs.existsSync(this.file)) return;
-    try {
-      const data=JSON.parse(fs.readFileSync(this.file,'utf8').replace(/^\uFEFF/,''));
-      if(data.version!==1) throw new Error('Unsupported state version');
-      this.state={...defaults(),...data,profile:{...data.profile,weights:validWeights(data.profile?.weights)},settings:{...defaults().settings,...data.settings}};
-      for(const key of ['saved','cache']) this.state[key]=Array.isArray(data[key])?data[key].map(normalizeRepo).filter(Boolean):[];
-      for(const key of ['seen','hidden']) this.state[key]=Array.isArray(data[key])?data[key].filter(Number.isSafeInteger):[];
-      if(this.state.daily) this.state.daily={day:String(data.daily.day),repos:Array.isArray(data.daily.repos)?data.daily.repos.map(r=>{const normalized=normalizeRepo(r);return normalized?{...normalized,reason:String(r.reason||'Selected for your daily discovery.').slice(0,200)}:null;}).filter(Boolean):[]};
-    } catch (error) {
-      // Preserve the original before replacing unreadable data.
-      fs.copyFileSync(this.file,`${this.file}.recovery-${Date.now()}`);
-      this.state=defaults(); this.state.recoveryNotice='Settings could not be read. A recovery copy was preserved on this device.';
-    }
+const fs=require('node:fs'),path=require('node:path');
+const {defaults}=require('./engine.cjs');
+const MAX_STATE_BYTES=32*1024*1024;
+class Store{
+ constructor(file){this.file=file;this.state=defaults();this.load();}
+ load(){
+  if(!fs.existsSync(this.file))return;
+  try{
+   if(fs.statSync(this.file).size>MAX_STATE_BYTES)throw Error('State file exceeds 32 MB');
+   const data=JSON.parse(fs.readFileSync(this.file,'utf8').replace(/^\uFEFF/,''));
+   if(!data||Array.isArray(data)||data.version!==1)throw Error('Unsupported state version');
+   this.state=require('./discovery.cjs').initialize({...defaults(),...data});
+  }catch(error){
+   fs.copyFileSync(this.file,this.file+'.recovery-'+Date.now());
+   this.state=defaults();this.state.recoveryNotice='Settings could not be read. A recovery copy was preserved on this device.';
   }
-  save() { fs.mkdirSync(path.dirname(this.file),{recursive:true}); const temp=`${this.file}.tmp`; fs.writeFileSync(temp,JSON.stringify(this.state,null,2),{mode:0o600}); fs.renameSync(temp,this.file); }
-  update(fn) { const previous=this.state,next=structuredClone(previous);fn(next);this.state=next;try{this.save();}catch(error){this.state=previous;throw error;}return this.state; }
+ }
+ save(){
+  const content=JSON.stringify(this.state,null,2);
+  if(Buffer.byteLength(content)>MAX_STATE_BYTES)throw Error('State exceeds 32 MB; changes were not saved.');
+  fs.mkdirSync(path.dirname(this.file),{recursive:true});const temp=this.file+'.tmp';
+  try{fs.writeFileSync(temp,content,{mode:0o600});fs.renameSync(temp,this.file);}
+  catch(error){try{fs.unlinkSync(temp);}catch{}throw error;}
+ }
+ update(fn){
+  if(typeof fn!=='function'||fn.constructor?.name==='AsyncFunction')throw Error('State updates must be synchronous.');
+  const previous=this.state,next=structuredClone(previous),result=fn(next);
+  if(result&&typeof result.then==='function')throw Error('State updates must be synchronous.');
+  this.state=next;try{this.save();}catch(error){this.state=previous;throw error;}return this.state;
+ }
 }
-module.exports={Store};
+module.exports={Store,MAX_STATE_BYTES};

@@ -6,7 +6,7 @@ function packageName(manifest,repo){const name=manifest?.name,source=typeof mani
 function known(repo){return !!packages[repo.full_name.toLowerCase()];}
 function plan(repo,platform='linux',verifiedPackage){
  const url=repositoryUrl(repo),known=packages[repo.full_name.toLowerCase()];
- const command=known?.command||known?.[platform]||(typeof verifiedPackage==='string'&&/^(@[a-z0-9._-]+\/)?[a-z0-9][a-z0-9._-]*$/.test(verifiedPackage)?'npm install '+verifiedPackage:null);
+ const command=known?.command||known?.[platform]||(typeof verifiedPackage==='string'&&verifiedPackage.length<=214&&/^(@[a-z0-9._-]+\/)?[a-z0-9][a-z0-9._-]*$/.test(verifiedPackage)?'npm install '+verifiedPackage:null);
  const file=({win32:'.exe / .msi',darwin:'.dmg / .zip',linux:'.rpm / .deb / AppImage'})[platform]||'release assets';
  return{type:known?.type||(verifiedPackage?'library':'repository'),command,source:known?.source||url+'#readme',label:command?'Install':'Downloads',downloadLabel:file,clone:'git clone '+url+'.git',feed:url+'/releases.atom'};
 }

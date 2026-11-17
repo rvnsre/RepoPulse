@@ -1,5 +1,6 @@
 'use strict';
 function bounds(area,prefs={},mode='panel',center){
+ area=area&&typeof area==='object'?area:{};area={x:Number.isFinite(area.x)?area.x:0,y:Number.isFinite(area.y)?area.y:0,width:Number.isFinite(area.width)?Math.max(1,area.width):960,height:Number.isFinite(area.height)?Math.max(1,area.height):720};prefs=prefs&&typeof prefs==='object'?prefs:{};
  const scale=([100,115,130,150].includes(prefs.textScale)?prefs.textScale:100)/100;
  const margin=Math.min(12,Math.max(0,area.width/8));
  const usableWidth=Math.max(1,area.width-margin*2),usableHeight=Math.max(1,area.height-Math.min(24,area.height/8));

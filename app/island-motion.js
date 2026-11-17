@@ -1,7 +1,7 @@
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.IslandMotion=factory();})(typeof window==='object'?window:this,function(){
 'use strict';
 const presets={fluid:{duration:340,easing:'cubic-bezier(.16,1,.3,1)',distance:10},snappy:{duration:190,easing:'cubic-bezier(.2,.9,.3,1)',distance:7},calm:{duration:460,easing:'cubic-bezier(.25,.46,.45,.94)',distance:5},spring:{duration:420,easing:'cubic-bezier(.22,1.22,.36,1)',distance:12}};
-function config(prefs={},reduced=false){const p=presets[prefs.motionPreset]||presets.fluid;return{...p,duration:prefs.motion==='none'||prefs.reducedMotion||(prefs.motion!=='full'&&reduced)?0:Math.round(p.duration*(Number(prefs.motionDuration)||220)/220),scale:Math.max(1,Math.min(1.03,Number(prefs.hoverScale||102)/100)),distance:prefs.subtleMotion?p.distance/2:p.distance};}
+function config(prefs={},reduced=false){prefs=prefs&&typeof prefs==='object'?prefs:{};const p=Object.hasOwn(presets,prefs.motionPreset)?presets[prefs.motionPreset]:presets.fluid;const speed=Number.isFinite(Number(prefs.motionDuration))&&Number(prefs.motionDuration)>0?Math.min(1000,Number(prefs.motionDuration)):220,hover=Number.isFinite(Number(prefs.hoverScale))?Number(prefs.hoverScale):102;return{...p,duration:prefs.motion==='none'||prefs.reducedMotion||(prefs.motion!=='full'&&reduced)?0:Math.round(p.duration*speed/220),scale:Math.max(1,Math.min(1.03,hover/100)),distance:prefs.subtleMotion?p.distance/2:p.distance};}
 function frames(kind,prefs={},reduced=false){const c=config(prefs,reduced),d=c.distance;
  const pairs={enter:[{opacity:0,transform:'translateY('+d+'px) scale(.985)'},{opacity:1,transform:'translateY(0) scale(1)'}],exit:[{opacity:1,transform:'translateY(0) scale(1)'},{opacity:0,transform:'translateY(-'+d/2+'px) scale(.985)'}],replace:[{opacity:0,transform:'translateX('+d+'px)'},{opacity:1,transform:'translateX(0)'}],leave:[{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(-'+d+'px)'}],dock:[{opacity:.65,transform:'scale(.96)'},{opacity:1,transform:'scale(1)'}]};
  return {keyframes:pairs[kind]||pairs.enter,options:{duration:c.duration,easing:c.easing}};
@@ -13,6 +13,7 @@ class Controller{
  clear(name){if(this.timers[name]!==undefined){this.clearTimer(this.timers[name]);delete this.timers[name];}}
  schedule(name,delay,fn){this.clear(name);if(this.destroyed)return;this.timers[name]=this.setTimer(()=>{delete this.timers[name];if(!this.destroyed)fn();},Math.max(0,delay));}
  configure(prefs,mode=this.mode){
+  prefs=prefs&&typeof prefs==='object'?prefs:{};
   const keys=['autoHide','collapseOnLeave','idleCollapse','hideDelay','idleSeconds','hoverDelay','hoverExpand','keepOnFocus','keepOnHover'];
   const changed=mode!==this.mode||keys.some(key=>prefs[key]!==this.prefs[key]);
   this.prefs={...prefs};this.mode=mode;
