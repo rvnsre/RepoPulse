@@ -191,7 +191,7 @@ function dynamicStatus(status){
  control.setAttribute('aria-pressed',String(status.enabled));
  control.setAttribute('aria-label',status.enabled?'Pause automatic repository rotation':'Resume automatic repository rotation');
  const sync=FeedUI.sync(state),prefix=sync.fresh?'Live':'Cached';
- control.textContent=!status.enabled?'Rotation paused':status.reason==='exhausted'?prefix+' · all seen':status.busy?prefix+' · changing':status.reason?prefix+' · paused':prefix+' · '+Math.ceil(status.remaining/1000)+'s';
+ control.textContent=!status.enabled?'Rotation paused':status.reason==='exhausted'?prefix+' · all seen':status.busy?prefix+' · changing':status.reason?prefix+' · paused':prefix+(state.settings.cycleCountdown?' · '+Math.ceil(status.remaining/1000)+'s':' · rotating');
  control.title=(sync.fresh?'Recently synced. ':sync.label+'. ')+(status.error||status.reason||'Automatic rotation')+'. Click to pause or resume.';
 
 }
