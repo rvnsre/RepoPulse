@@ -86,7 +86,7 @@ function sources(repo) {
 }
 function initialize(state) {
  if(!state||typeof state!=='object'||Array.isArray(state))state=defaults();
- const unique=input=>[...new Map((Array.isArray(input)?input:[]).map(normalizeRepo).filter(Boolean).map(r=>[r.id,r])).values()];
+ const unique=input=>[...new Map((Array.isArray(input)?input:[]).map(raw=>{const r=normalizeRepo(raw);return r?{...r,...(typeof raw.reason==='string'?{reason:raw.reason.slice(0,200)}:{})}:null;}).filter(Boolean).map(r=>[r.id,r])).values()];
  state.cache=unique(state.cache);state.saved=unique(state.saved);state.profile={...(state.profile&&typeof state.profile==='object'?state.profile:{}),weights:require('./engine.cjs').validWeights(state.profile?.weights)};
  for(const key of ['seen','hidden','liked'])state[key]=[...new Set((Array.isArray(state[key])?state[key]:[]).filter(id=>Number.isSafeInteger(id)&&id>0))];
  if(state.daily)state.daily={day:typeof state.daily.day==='string'?state.daily.day:'',repos:unique(state.daily.repos)};

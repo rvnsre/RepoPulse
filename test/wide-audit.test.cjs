@@ -50,3 +50,5 @@ test('Partial activity responses retry earlier than complete metadata',async()=>
 
 test('One failed global hotkey registration cannot hide another successful one',()=>{let calls=0;const available=require('../src/window-policy.cjs').registerShortcuts({register:()=>{if(++calls===2)throw Error('unavailable');return true;}},()=>{});assert.equal(available,true);assert.equal(calls,2);});
 test('Second global hotkey is attempted even when the first one throws',()=>{let calls=0;const available=require('../src/window-policy.cjs').registerShortcuts({register:()=>{if(++calls===1)throw Error('unavailable');return true;}},()=>{});assert.equal(available,true);assert.equal(calls,2);});
+
+test('Startup normalization retains a saved daily recommendation explanation',()=>{const s=D.initialize({...E.defaults(),daily:{day:E.localDay(),repos:[{...repo(),reason:'Matches your developer tools interest.'}]}});assert.equal(s.daily.repos[0].reason,'Matches your developer tools interest.');});
