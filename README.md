@@ -1,6 +1,16 @@
-# RepoPulse 11.2.0
+# RepoPulse 11.5.0
 
 A personalized GitHub discovery island for Windows, macOS and Linux, focused on **50,000+ star** public projects.
+
+## Current catalog / 11.5
+
+The minimum is **50K stars**. The bundled catalog now contains **531 individually API-verified active, non-fork repositories**, including **230 additions** to the former 301-entry snapshot. The smallest verified count is **50,033**. A one-time upgrade fills the existing cache offline while retaining bookmarks, notes, history and interests.
+
+A 3,000-entry target is supported by the 5,000-entry capacity and tested with 3,101 synthetic test-only records. Only the 531 real qualifying entries ship. Duplicate/incomplete search pages preserve the previous cache rather than falsely reporting a complete sync. **401 tests pass**. [Catalog findings, source and installer links](docs/CATALOG-v11.5.md).
+
+[11.4 correctness audit](docs/AUDIT-v11.4.md) · [11.3 animation and geometry fixes](docs/FIX-v11.3.md).
+
+The sections labelled with earlier versions below describe their historical behavior.
 
 The island gently grows when the pointer enters, reveals from a compact dock on hover, and collapses after pointer leave or inactivity. Editing, keyboard focus, focus sessions and an open workspace can hold it open. Hiding means collapsing to the reachable dock; the app stays available in the system tray.
 
@@ -49,7 +59,7 @@ The compact suggestion uses deterministic fixture metadata in this native previe
 
 Native pointer/window membership now controls hover so resizing or scaling the island cannot repeatedly expand and collapse it. A fixed anchor preserves dock position near display edges, and stale window acknowledgements cannot override the latest intent. The regression uses an actual desktop pointer and checks stationary hover plus rapid exit/re-entry. See [verified downloads and upgrade instructions](docs/CHANGES-v10.1.2.md).
 
-Quit the old process from the tray before starting the update; closing its window only hides it. Settings must show **11.0.0**.
+Quit the old process from the tray before starting the update; closing its window only hides it. Settings must show **11.5.0**.
 
 ## Compact actions / 10.1.1
 
