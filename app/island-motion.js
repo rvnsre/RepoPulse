@@ -20,7 +20,7 @@ class Controller{
  }
  blocked(){return this.holds.size>0||this.mode==='workspace'||this.now()<this.pausedUntil||(this.focused&&this.prefs.keepOnFocus!==false);}
  rearm(){this.clear('idle');this.clear('leave');if(!this.prefs.autoHide||this.mode!=='panel'||this.blocked())return;
-  if(!this.pointer&&this.prefs.collapseOnLeave)this.schedule('leave',this.prefs.hideDelay??0,()=>this.collapse('leave'));
+  if(!this.pointer&&this.prefs.collapseOnLeave)this.schedule('leave',this.prefs.hideDelay??140,()=>this.collapse('leave'));
   if(this.prefs.idleCollapse)this.schedule('idle',(this.prefs.idleSeconds||30)*1000,()=>this.collapse('idle'));
  }
  collapse(reason){if(this.blocked()||this.mode!=='panel'||(reason==='leave'&&this.pointer)||(reason==='idle'&&this.pointer&&this.prefs.keepOnHover!==false))return;this.mode='collapsed';this.clear('hover');this.clear('idle');this.clear('leave');this.onCollapse(reason);this.onChange(this.status());}

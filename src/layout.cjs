@@ -6,11 +6,11 @@ function bounds(area,prefs={},mode='panel',center){
  const width=Math.min(mode==='insight'?480:mode==='collapsed'?360:([960,1080,1280,1440].includes(prefs.panelWidth)?prefs.panelWidth:960),usableWidth);
  const count=Math.max(1,Math.min(3,prefs.visibleRows||2)),row=(prefs.density==='compact'?150:170)*scale;
  const panel=Math.ceil(145*scale+count*row*(width<720?1.45:1)+(count-1)*12);
- const height=Math.min(usableHeight,mode==='insight'?250:mode==='collapsed'?80:mode==='workspace'?620:panel);
- let cx=Number.isFinite(center?.cx)?center.cx:area.x+area.width/2,y=Number.isFinite(center?.y)?center.y:area.y+6;
+ const height=Math.min(usableHeight,mode==='insight'?250:mode==='collapsed'?64:mode==='workspace'?620:panel);
+ let cx=Number.isFinite(center?.cx)?center.cx:area.x+area.width/2,y=Number.isFinite(center?.y)?center.y:area.y;
  if(!center){if(prefs.anchor==='left')cx=area.x+width/2+margin;if(prefs.anchor==='right')cx=area.x+area.width-width/2-margin;}
  return{x:Math.round(Math.max(area.x+margin,Math.min(cx-width/2,area.x+area.width-width-margin))),y:Math.round(Math.max(area.y,Math.min(y,area.y+area.height-height))),width:Math.max(1,Math.floor(width)),height:Math.max(1,Math.floor(height))};
 }
-function fittedHeight(requested,areaHeight,collapsed=false){const available=Math.max(1,Math.floor(Number.isFinite(areaHeight)?areaHeight:1));const minimum=Math.min(available,collapsed?80:160);return Math.round(Math.max(minimum,Math.min(Number.isFinite(requested)?requested:minimum,available)));}
+function fittedHeight(requested,areaHeight,collapsed=false){const available=Math.max(1,Math.floor(Number.isFinite(areaHeight)?areaHeight:1));const minimum=Math.min(available,collapsed?64:160);return Math.round(Math.max(minimum,Math.min(Number.isFinite(requested)?requested:minimum,available)));}
 function defaultAnchor(area,prefs){const rect=bounds(area,prefs,'collapsed');return{cx:rect.x+rect.width/2,y:rect.y};}
 module.exports={bounds,fittedHeight,defaultAnchor};

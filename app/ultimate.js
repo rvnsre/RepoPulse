@@ -12,8 +12,8 @@ function ultimateBadges(repo){if(!state.settings.showBadges)return null;const m=
 function ultimateStatus(){
  if(!state)return;const status=islandController?.status(),remaining=Math.max(0,Math.ceil((uFocusUntil-Date.now())/1000)),f=$('focusButton');
  f.textContent=remaining?Math.floor(remaining/60)+':'+String(remaining%60).padStart(2,'0'):'';if(!remaining)f.innerHTML=iconSVG('clock');f.title=remaining?'Stop focus session':'Start '+state.settings.focusMinutes+' minute focus session';f.setAttribute('aria-label',f.title);f.setAttribute('aria-pressed',String(remaining>0));
- $('autoHideButton').textContent=!state.settings.autoHide?'Auto hide off':status?.paused?'Hiding paused':'Auto hide on';$('autoHideButton').title=status?.paused?'Resume automatic hiding':'Pause automatic hiding for 5 minutes';$('autoHideButton').setAttribute('aria-pressed',String(!!status?.paused));
- $('queueCount').textContent=String(state.analytics?.queued||0);if($('editionLabel'))$('editionLabel').textContent=new Date().toLocaleDateString('en',{weekday:'long',month:'short',day:'numeric'});if($('libraryStat'))$('libraryStat').textContent=(state.catalogSize||0)+' established projects';$('queueButton').hidden=!state.settings.showQueueCount;
+ $('autoHideLabel').textContent=state.settings.autoHide?'Auto hide on':'Auto hide off';$('autoHideButton').setAttribute('aria-checked',String(state.settings.autoHide));$('autoHideButton').title='Toggle automatic collapse';
+ $('queueCount').textContent=String(state.analytics?.queued||0);if($('editionLabel'))$('editionLabel').textContent=new Date().toLocaleDateString('en',{weekday:'long',month:'short',day:'numeric'});if($('libraryStat'))$('libraryStat').textContent=repos().length+' picks';$('queueButton').hidden=!state.settings.showQueueCount;
  document.body.classList.toggle('workspace-open',expanded&&drawer);$('dockHint').hidden=expanded;const dock=UI.dockModel(repos(),selectedId),open=$('dockOpen');if($('dockText').textContent!==dock.title)$('dockText').textContent=dock.title;if($('dockSummary').textContent!==dock.summary)$('dockSummary').textContent=dock.summary;open.disabled=!dock.repo||pending.has(dock.repo.id);open.dataset.repoId=dock.repo?.id||'';open.title=dock.repo?dock.title+'\n'+dock.repo.description:'Open the panel to find a repository';open.setAttribute('aria-label',dock.repo?'Open '+dock.title+' on GitHub':'No repository available');document.body.classList.toggle('focus-session',remaining>0);
  $('island').setAttribute('aria-label',expanded?'RepoPulse discovery panel':'RepoPulse collapsed island. Hover or activate the header to expand.');
 }
@@ -23,7 +23,7 @@ function ultimateRender(){
 }
 function ultimateMagnify(active){
  const current=getComputedStyle($('island')).transform;hoverAnimation?.cancel();document.body.classList.toggle('pointer-near',active);
- if(morphing||insightOpen||!state?.settings.hoverLift||!canAnimate())return;
+ if(state.windowPolicy?.padding===0||morphing||insightOpen||!state?.settings.hoverLift||!canAnimate())return;
  const c=IslandMotion.config(state.settings);hoverAnimation=$('island').animate([{transform:current==='none'?'scale(1)':current},{transform:'scale('+(active?c.scale:1)+')'}],{duration:active?160:100,easing:c.easing,fill:'forwards'});
 }
 function ultimateFocus(){
@@ -37,7 +37,7 @@ function ultimateInit(){
  islandController.configure(state.settings,expanded?'panel':'collapsed');
  // Native pointer samples are independent of animated DOM hit boundaries.
  pointerBounds=state.windowBounds||null;
- if(api.onPointer&&api.pointerState){
+ if(state.windowPolicy?.pointer!==false&&api.onPointer&&api.pointerState){
   const acceptPointer=value=>{if(!value)return;const before=islandController.pointer;if(value.inside){const x=value.point.x-value.bounds.x,y=value.point.y-value.bounds.y,target=document.elementFromPoint(x,y),protectedTarget=!expanded&&!!target?.closest('#dockOpen,.toolbar');const force=value.moved&&compactProtectedEntry&&!protectedTarget;compactProtectedEntry=protectedTarget;islandController.enter(value.entered&&value.moved&&!protectedTarget,force);if(value.moved)islandController.activity();}else if(before){compactProtectedEntry=false;islandController.leave();}if(before!==value.inside)ultimateMagnify(value.inside);};
   const stopPointer=api.onPointer(acceptPointer);run(async()=>acceptPointer(await api.pointerState()));window.addEventListener('beforeunload',stopPointer);
  }else{
@@ -55,7 +55,7 @@ function ultimateInit(){
  document.addEventListener('visibilitychange',()=>{if(document.hidden)hoverAnimation?.cancel();});
  matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',()=>{if(state.settings.motion!=='full'||state.settings.reducedMotion){hoverAnimation?.cancel();document.body.classList.remove('pointer-near');}});
  $('commandButton').addEventListener('click',()=>run(()=>openDrawer('commands')));$('focusButton').addEventListener('click',()=>run(ultimateFocus));
- $('autoHideButton').addEventListener('click',()=>{islandController.pause(islandController.status().paused?0:300000);ultimateStatus();});
+ $('autoHideButton').addEventListener('click',()=>run(()=>changeSettings({autoHide:!state.settings.autoHide})));$('historyButton').addEventListener('click',()=>run(()=>openDrawer('history')));
  $('queueButton').addEventListener('click',()=>run(async()=>{uFilters.scope='queued';await openDrawer('library');}));
  window.addEventListener('beforeunload',()=>{islandController.destroy();clearInterval(uFocusTimer);clearTimeout(releaseTimer);clearTimeout(toastTimer);hoverAnimation?.cancel();});
 }
@@ -130,6 +130,7 @@ function ultimateInsights(root){
  root.append(chart('Last seven days',a.days.map(d=>[d.day,d.count])),chart('Languages',a.languages),chart('Most visited topics',a.topics));
 }
 function ultimateSettings(root){
+ root.append(el('p',{class:'intro'},state.windowPolicy?.positioning==='compositor'?'Native Wayland: placement, stacking and global shortcuts depend on your compositor. XWayland is selected automatically when DISPLAY is available.':'Docked to the active display in device-independent pixels. Summon: Ctrl/Cmd+Shift+P.'));
  root.append(el('h3',{class:'subheading'},'After 8 minutes away'));
  const advice=el('div',{class:'settings-grid'});
  setting(advice,'idleAdvisor','Quiet work recommendations','One compact suggestion after 8 minutes with no keyboard or mouse activity. No focus stealing.');
@@ -147,7 +148,7 @@ function ultimateSettings(root){
  const grid=el('div',{class:'settings-grid'});
  for(const [key,title,detail]of [['autoHide','Automatic hiding','Collapse to the compact island while inactive.'],['collapseOnLeave','Collapse after pointer leaves','Uses the leave delay below.'],['idleCollapse','Collapse after idle time','Uses the inactivity timer below.'],['keepOnHover','Stay open while hovered','Prevents idle collapse under the pointer.'],['keepOnFocus','Stay open while focused','Protect keyboard navigation.'],['protectEditing','Protect editing controls','Hold open while editing notes and filters.'],['hoverLift','Grow gently on hover','Magnify the island within its safe margin.'],['subtleMotion','Subtle motion distances','Reduce travel while retaining transitions.'],['stagger','Stagger replacement entry','Separate simultaneous row entries slightly.'],['glow','Soft island rim glow','Emphasize the active island.'],['showBadges','Personal project badges','Show pin, queue, notes, rating and read state.'],['showQuickActions','Show row quick actions','Save, Like and Details controls.'],['showStatus','Show synchronization status','Keep or hide top-bar connection details.'],['showQueueCount','Show reading queue count','A quick shortcut to queued projects.'],['pinnedFirst','Pinned projects first by default','Used when opening the project library.'],['markReadOnOpen','Mark read when opened','Opening a repository marks it read locally.'],['quietMode','Quiet notifications','Suppress new-day system notifications.'],['startCollapsed','Start collapsed','Open as the compact island on the next launch.'],['showHints','Show secondary hints','Descriptions under settings and fields.']])setting(grid,key,title,detail);
  setting(grid,'hoverDelay','Hover reveal delay','','select',[[0,'Immediate'],[80,'80 ms'],[160,'160 ms'],[280,'280 ms'],[400,'400 ms']]);
- setting(grid,'hideDelay','Pointer leave delay','','select',[[0,'Immediate'],[80,'80 ms'],[160,'160 ms'],[600,'0.6 seconds'],[1200,'1.2 seconds'],[1600,'1.6 seconds'],[2400,'2.4 seconds'],[4000,'4 seconds']]);
+ setting(grid,'hideDelay','Pointer leave delay','','select',[[0,'Immediate'],[80,'80 ms'],[140,'140 ms'],[160,'160 ms'],[600,'0.6 seconds'],[1200,'1.2 seconds'],[1600,'1.6 seconds'],[2400,'2.4 seconds'],[4000,'4 seconds']]);
  setting(grid,'idleSeconds','Inactivity timeout','','select',[[15,'15 seconds'],[30,'30 seconds'],[60,'1 minute'],[120,'2 minutes'],[300,'5 minutes']]);
  setting(grid,'windowMotionDuration','Island morph duration','','select',[[160,'Fast / 160 ms'],[200,'Balanced / 200 ms'],[280,'Smooth / 280 ms'],[360,'Slow / 360 ms']]);
  setting(grid,'hoverScale','Hover growth','','select',[[100,'No growth'],[101,'1%'],[102,'2%'],[103,'3%']]);
@@ -163,7 +164,7 @@ function ultimateSettings(root){
 }
 function ultimateCommands(root){
  heading(root,'Command palette');const input=el('input',{class:'search',type:'search','aria-label':'Search commands',placeholder:'Type a command...'}),list=el('div',{class:'command-list','aria-label':'Commands'});
- const actions=[['Browse project library',()=>openDrawer('library')],['Open reading queue',()=>{uFilters.scope='queued';return openDrawer('library');}],['Browse pinned projects',()=>{uFilters.scope='pinned';return openDrawer('library');}],['Browse projects with notes',()=>{uFilters.scope='noted';return openDrawer('library');}],['Manage collections',()=>openDrawer('collections')],['Compare projects',()=>openDrawer('compare')],['View discovery insights',()=>openDrawer('insights')],['View saved repositories',()=>openDrawer('saved')],['View history',()=>openDrawer('history')],['Tune interests',()=>openDrawer('tune')],['Open settings',()=>openDrawer('settings')],['Manage exclusions',()=>openDrawer('exclusions')],['Refresh public catalog',()=>refresh(true)],['Undo last replacement',()=>{$('undo').click();}],['Next repository rows',()=>{$('next').click();}],['Collapse island',async()=>{expanded=false;drawer=false;await windowMode();}],['Toggle focus session',ultimateFocus],['Pause hiding for 5 minutes',()=>islandController.pause(300000)],['Resume automatic hiding',()=>islandController.pause(0)],['Export workspace JSON',()=>api.exportData('workspace')],['Export workspace CSV',()=>api.exportData('workspacecsv')],['Export daily RSS',()=>api.exportRss()],['Import workspace JSON',async()=>{const next=await api.importData('workspace');if(next){adopt(next);render();}}],['Increase text size',()=>changeSettings({textScale:UI.nextScale(state.settings.textScale,1)})],['Decrease text size',()=>changeSettings({textScale:UI.nextScale(state.settings.textScale,-1)})],['Reset text size',()=>changeSettings({textScale:100})],['Toggle source commands',()=>changeSettings({showCommands:!state.settings.showCommands})],['Toggle reduced motion',()=>changeSettings({motion:state.settings.motion==='none'?'system':'none'})]];
+ const actions=[['Browse project library',()=>openDrawer('library')],['Open reading queue',()=>{uFilters.scope='queued';return openDrawer('library');}],['Browse pinned projects',()=>{uFilters.scope='pinned';return openDrawer('library');}],['Browse projects with notes',()=>{uFilters.scope='noted';return openDrawer('library');}],['Manage collections',()=>openDrawer('collections')],['Compare projects',()=>openDrawer('compare')],['View discovery insights',()=>openDrawer('insights')],['View saved repositories',()=>openDrawer('saved')],['View history',()=>openDrawer('history')],['Tune interests',()=>openDrawer('tune')],['Open settings',()=>openDrawer('settings')],['Manage exclusions',()=>openDrawer('exclusions')],['Refresh public catalog',()=>refresh(true)],['Undo last replacement',undoLast],['Next repository rows',()=>{$('next').click();}],['Collapse island',async()=>{expanded=false;drawer=false;await windowMode();}],['Toggle focus session',ultimateFocus],['Pause hiding for 5 minutes',()=>islandController.pause(300000)],['Resume automatic hiding',()=>islandController.pause(0)],['Export workspace JSON',()=>api.exportData('workspace')],['Export workspace CSV',()=>api.exportData('workspacecsv')],['Export daily RSS',()=>api.exportRss()],['Import workspace JSON',async()=>{const next=await api.importData('workspace');if(next){adopt(next);render();}}],['Increase text size',()=>changeSettings({textScale:UI.nextScale(state.settings.textScale,1)})],['Decrease text size',()=>changeSettings({textScale:UI.nextScale(state.settings.textScale,-1)})],['Reset text size',()=>changeSettings({textScale:100})],['Toggle source commands',()=>changeSettings({showCommands:!state.settings.showCommands})],['Toggle reduced motion',()=>changeSettings({motion:state.settings.motion==='none'?'system':'none'})]];
  const repo=selected();if(repo)actions.unshift(['Open '+repo.full_name,()=>openRepo(repo,'learn')],['Install release for selected project',()=>openRepo(repo,'releases')],['Show selected project details',()=>openDrawer('details')],['Save selected project',()=>react(repo,'save')],['Queue selected project',()=>ultimatePatch(repo,{queued:!ultimateMeta(repo).queued})],['Pin selected project',()=>ultimatePatch(repo,{pinned:!ultimateMeta(repo).pinned})],['Copy selected project link',()=>copy(repo,'url')]);
  let buttons=[],active=-1;
  function draw(){const terms=input.value.toLowerCase().trim().split(/\s+/).filter(Boolean);list.replaceChildren();buttons=actions.filter(([name])=>terms.every(t=>name.toLowerCase().includes(t))).map(([name,fn])=>btn(name,fn,'command-item'));list.append(...buttons);active=-1;if(!buttons.length)list.append(el('p',{class:'intro'},'No commands match.'));}
@@ -189,10 +190,10 @@ function dynamicStatus(status){
  const control=$('liveToggle');if(!control||!state)return;
  control.setAttribute('aria-pressed',String(status.enabled));
  control.setAttribute('aria-label',status.enabled?'Pause automatic repository rotation':'Resume automatic repository rotation');
- const label=!status.enabled?'Live off':status.reason==='exhausted'?'Live · caught up':status.busy?'Live · updating':status.error?'Live · retrying':status.reason?'Live · paused':'Live '+Math.ceil(status.remaining/1000)+'s';
- control.textContent=label;
- control.title=status.reason==='exhausted'?'Caught up. Earlier eligible projects may return after a 30-minute cooldown; Next picks can revisit sooner.':status.error||status.reason?'Rotation: '+(status.error||status.reason):'Automatic unseen repository replacement every '+state.settings.cycleMin+'–'+state.settings.cycleMax+' seconds. Click to pause.';
- const progress=$('liveProgress');progress.hidden=!state.settings.cycleCountdown||!status.enabled;progress.classList.toggle('paused',!!status.reason);progress.firstElementChild.style.transform='scaleX('+Math.max(0,Math.min(1,status.remaining/Math.max(1,status.period)))+')';
+ const sync=FeedUI.sync(state),prefix=sync.fresh?'Live':'Cached';
+ control.textContent=!status.enabled?'Rotation paused':status.reason==='exhausted'?prefix+' · all seen':status.busy?prefix+' · changing':status.reason?prefix+' · paused':prefix+' · '+Math.ceil(status.remaining/1000)+'s';
+ control.title=(sync.fresh?'Recently synced. ':sync.label+'. ')+(status.error||status.reason||'Automatic rotation')+'. Click to pause or resume.';
+
 }
 function dynamicSync(){
  if(!dynamicScheduler)return;
@@ -236,10 +237,10 @@ document.querySelector('.topbar').addEventListener('click',e=>{
 function updatePointerBounds(bounds){if(bounds&&['x','y','width','height'].every(k=>Number.isFinite(bounds[k])))pointerBounds=bounds;}
 
 function iconSVG(name){
- const paths={clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',command:'<rect x="8" y="8" width="8" height="8" rx="1"/><path d="M8 8H5.5A2.5 2.5 0 1 1 8 5.5V8Zm8 0h2.5A2.5 2.5 0 1 0 16 5.5V8ZM8 16H5.5A2.5 2.5 0 1 0 8 18.5V16Zm8 0h2.5a2.5 2.5 0 1 1-2.5 2.5V16Z"/>',undo:'<path d="m8 5-5 5 5 5M3 10h11a6 6 0 0 1 6 6v3"/>',refresh:'<path d="M20 8a8.5 8.5 0 0 0-15-2L3 9m0-6v6h6m-5 7a8.5 8.5 0 0 0 15 2l2-3m0 6v-6h-6"/>',menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',minus:'<path d="M5 12h14"/>'};
+ const paths={history:'<path d="M3 11a9 9 0 1 1 3 7M3 4v7h7m2-4v5l3 2"/>',settings:'<path d="m9 3-.5 3-2 1-3-.5-1 3 2.5 2v2L2.5 16l1.5 2.5 3-.5 2 1 .5 3h4l.5-3 2-1 3 .5 1.5-2.5-2.5-2.5v-2L21 9l-1-3-3 .5-2-1-.5-3Z"/><circle cx="11.5" cy="12" r="3"/>',chevron:'<path d="m6 14 6-6 6 6"/>',clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',command:'<rect x="8" y="8" width="8" height="8" rx="1"/><path d="M8 8H5.5A2.5 2.5 0 1 1 8 5.5V8Zm8 0h2.5A2.5 2.5 0 1 0 16 5.5V8ZM8 16H5.5A2.5 2.5 0 1 0 8 18.5V16Zm8 0h2.5a2.5 2.5 0 1 1-2.5 2.5V16Z"/>',undo:'<path d="m8 5-5 5 5 5M3 10h11a6 6 0 0 1 6 6v3"/>',refresh:'<path d="M20 8a8.5 8.5 0 0 0-15-2L3 9m0-6v6h6m-5 7a8.5 8.5 0 0 0 15 2l2-3m0 6v-6h-6"/>',menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',minus:'<path d="M5 12h14"/>'};
  return '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(paths[name]||paths.clock)+'</svg>';
 }
-function installIcons(){initInsightButtons();for(const[id,name]of [['commandButton','command'],['focusButton','clock'],['undo','undo'],['refresh','refresh'],['menu','menu'],['collapse','minus']])$(id).innerHTML=iconSVG(name);}
+function installIcons(){initInsightButtons();for(const[id,name]of [['focusButton','clock'],['historyButton','history'],['refresh','refresh'],['menu','settings'],['collapse','chevron']])$(id).innerHTML=iconSVG(name);}
 function renderInsight(){
  const value=state.insight;if(!value)return;
  $('insightName').textContent=value.repo.full_name;$('insightDescription').textContent=UI.brief(value.repo.description,100);

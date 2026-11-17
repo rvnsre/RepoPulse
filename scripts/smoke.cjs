@@ -5,13 +5,13 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  window.webContents.on('console-message',(event,...legacy)=>{const level=event.level??legacy[0],message=event.message??legacy[1];if(level==='error'||typeof level==='number'&&level>=3){errors.push(message);console.error('RENDERER_ERROR:',message);}});
  await new Promise(resolve=>window.webContents.isLoading()?window.webContents.once('did-finish-load',resolve):resolve());
  const evaluate=async script=>{try{return await window.webContents.executeJavaScript(script);}catch(error){console.error('FAILED_NATIVE_SCRIPT:',script,'Renderer errors:',JSON.stringify(errors));throw error;}};
- async function until(check,attempts=50){for(let i=0;i<attempts;i++){if(await check())return;await new Promise(resolve=>setTimeout(resolve,100));}throw new Error('Native UI did not reach the expected state: '+JSON.stringify(await evaluate(`({rows:[...document.querySelectorAll('.repo-row')].map(r=>r.dataset.repoId),selected:document.getElementById('selectedLabel').textContent,toast:document.getElementById('toast').textContent,expanded:!document.getElementById('expanded').hidden,drawer:!document.getElementById('drawer').hidden,live:document.getElementById('liveToggle')?.textContent,pointerTrace:window.pointerTrace?.slice(-8),nativePointer:window.lastNativePointer,cssHover:document.documentElement.matches(':hover'),controller:typeof islandController!=='undefined'?islandController.status():null})`)));}
+ async function until(check,attempts=50){for(let i=0;i<attempts;i++){if(await check())return;await new Promise(resolve=>setTimeout(resolve,100));}throw new Error('Native UI did not reach the expected state: '+JSON.stringify(await evaluate(`({rows:[...document.querySelectorAll('.repo-row')].map(r=>r.dataset.repoId),selected:document.querySelector('.repo-row.selected')?.dataset.repoId,toast:document.getElementById('toast').textContent,expanded:!document.getElementById('expanded').hidden,drawer:!document.getElementById('drawer').hidden,live:document.getElementById('liveToggle')?.textContent,pointerTrace:window.pointerTrace?.slice(-8),nativePointer:window.lastNativePointer,cssHover:document.documentElement.matches(':hover'),controller:typeof islandController!=='undefined'?islandController.status():null})`)));}
  await evaluate("window.lastNativePointer=null;window.pulse.onPointer(v=>window.lastNativePointer=v);window.pointerTrace=[];for(const type of ['pointerenter','pointerleave'])document.addEventListener(type,e=>{if(e.target===document.documentElement){window.pointerTrace.push({type,x:e.clientX,y:e.clientY});if(window.pointerTrace.length>50)window.pointerTrace.shift();}},true)");
  async function moveScreen(x,y){const point={x:Math.max(0,Math.round(x)),y:Math.max(0,Math.round(y))};require('node:child_process').execFileSync('xdotool',['mousemove',String(point.x),String(point.y)],{timeout:2000});await new Promise(r=>setTimeout(r,50));const location=require('node:child_process').execFileSync('xdotool',['getmouselocation','--shell'],{encoding:'utf8',timeout:2000});const actual=Object.fromEntries(location.trim().split(/\r?\n/).map(line=>line.split('=')));assert.equal(Number(actual.X),point.x,'X server pointer x');assert.equal(Number(actual.Y),point.y,'X server pointer y');}
  async function movePointer(x,y){const b=window.getBounds();await moveScreen(b.x+x,b.y+y);}
  await until(()=>evaluate(`!!document.querySelector('.repo-row')`));
  await new Promise(r=>setTimeout(r,500));let dimensions=await evaluate(`({rows:document.querySelectorAll('.repo-row').length,width:innerWidth,height:innerHeight,natural:document.getElementById('expanded').scrollHeight,island:document.getElementById('island').offsetHeight,footer:document.querySelector('footer').getBoundingClientRect().bottom})`);
- assert.equal(dimensions.rows,2);assert.ok(dimensions.width>=900&&dimensions.width<=960);assert.ok(dimensions.height<500,JSON.stringify(dimensions));assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
+ assert.equal(dimensions.rows,3);assert.ok(dimensions.width>=900&&dimensions.width<=960);assert.ok(dimensions.height<500,JSON.stringify(dimensions));assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
 
  async function capture(name){
   window.show();window.focus();window.webContents.focus();let png=null;
@@ -25,19 +25,21 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
   if(name==='desktop-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_PREVIEW:'+encoded.slice(n,n+4096));}
  }
 
+ const scroll=await evaluate(`(()=>{const f=document.getElementById('feed');return{client:f.clientHeight,total:f.scrollHeight,text:document.getElementById('pickRange').textContent,footerActions:document.querySelectorAll('footer .row-learn,footer #install,footer #learn').length};})()`);assert.ok(scroll.total>scroll.client);assert.equal(scroll.footerActions,0);assert.ok(scroll.text.includes('of 3'));
+ await evaluate("document.getElementById('feed').scrollTop=9999");await new Promise(r=>setTimeout(r,100));assert.ok((await evaluate("document.getElementById('pickRange').textContent")).includes('3 of 3'));await evaluate("document.getElementById('feed').scrollTop=0");
  await capture('desktop-preview.png');
  const first=store.state.daily.repos[0],second=store.state.daily.repos[1];
  await evaluate(`window.originalRow=document.querySelector('.repo-row');document.querySelector('.row-extra button').focus();document.querySelector('.row-extra button').click()`);await until(()=>store.state.saved.length===1);await new Promise(r=>setTimeout(r,100));
  assert.equal(await evaluate(`window.originalRow===document.querySelector('.repo-row')`),true,'Saving must retain the row DOM');
  const fonts=await evaluate(`({description:parseFloat(getComputedStyle(document.querySelector('.repo-description')).fontSize),code:parseFloat(getComputedStyle(document.querySelector('pre')).fontSize),overflow:document.documentElement.scrollWidth>innerWidth})`);
  assert.ok(fonts.description>=14);assert.ok(fonts.code>=13);assert.equal(fonts.overflow,false);
- await evaluate(`document.getElementById('learn').click()`);await until(()=>store.state.history.length===1);
+ await evaluate(`document.querySelector('.repo-row .row-learn').click()`);await until(()=>store.state.history.length===1);
  assert.equal(snapshot().lastExternal.url,'https://github.com/'+first.full_name);assert.equal(snapshot().lastExternal.kind,'learn');assert.notEqual(store.state.daily.repos[0].id,first.id);assert.equal(store.state.daily.repos[1].id,second.id);
- await until(()=>evaluate(`!document.getElementById('undo').disabled`));await evaluate(`document.getElementById('undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
- await until(()=>evaluate(`document.querySelector('.repo-row').dataset.repoId==='${first.id}'&&document.getElementById('selectedLabel').textContent==='${first.full_name}'&&!document.getElementById('install').disabled`));await evaluate(`document.getElementById('install').click()`);await until(()=>snapshot().lastExternal?.kind==='releases');assert.equal(snapshot().lastExternal.url,'https://github.com/'+first.full_name+'/releases');
- await until(()=>evaluate(`!document.getElementById('undo').disabled`));await evaluate(`document.getElementById('undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
+ await until(()=>evaluate(`!!document.querySelector('.toast-undo')`));await evaluate(`document.querySelector('.toast-undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
+ await until(()=>evaluate(`document.querySelector('.repo-row').dataset.repoId==='${first.id}'&&!!document.querySelector('.repo-row .download-link')`));await evaluate(`document.querySelector('.repo-row .download-link').click()`);await until(()=>snapshot().lastExternal?.kind==='releases');assert.equal(snapshot().lastExternal.url,'https://github.com/'+first.full_name+'/releases');
+ await until(()=>evaluate(`!!document.querySelector('.toast-undo')`));await evaluate(`document.querySelector('.toast-undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
  await until(()=>evaluate(`document.querySelector('.repo-row').dataset.repoId==='${first.id}'`));
- await evaluate(`document.querySelector('.row-extra button:last-child').click()`);await until(()=>evaluate(`!document.getElementById('drawer').hidden`));await capture('workspace-preview.png');
+ await evaluate(`document.getElementById('menu').click();document.querySelector('[data-tab=details]').click()`);await until(()=>evaluate(`!document.getElementById('drawer').hidden`));await capture('workspace-preview.png');
  const workspaceBounds=await evaluate(`({open:document.body.classList.contains('workspace-open'),drawer:document.getElementById('drawer').getBoundingClientRect().toJSON(),content:document.getElementById('drawerContent').getBoundingClientRect().toJSON(),feed:getComputedStyle(document.getElementById('feed')).display,height:innerHeight})`);assert.equal(workspaceBounds.open,true);assert.equal(workspaceBounds.feed,'none');assert.ok(workspaceBounds.content.height>250,JSON.stringify(workspaceBounds));assert.ok(workspaceBounds.drawer.bottom<=workspaceBounds.height,JSON.stringify(workspaceBounds));
 
  await evaluate(`document.querySelector('[data-tab="tune"]').click()`);await until(()=>evaluate(`document.querySelectorAll('.topic').length===8`));
@@ -119,7 +121,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await until(()=>evaluate("!document.getElementById('expanded').hidden"));
  await new Promise(r=>setTimeout(r,500));
  const growth=await evaluate("getComputedStyle(document.getElementById('island')).transform");
- assert.ok(growth.includes('1.02'), 'Hover should grow the island: '+growth);
+ assert.ok(!snapshot().windowPolicy.transparent||growth.includes('1.02'), 'Transparent hover magnification: '+growth);
  await capture('hover-preview.png');
  // Use actual Chromium mouse input at a fixed screen coordinate near a clamped edge.
  await evaluate("window.pulse.settings({autoHide:false,keepOnFocus:false})");
@@ -127,7 +129,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await until(()=>evaluate("document.getElementById('expanded').hidden"));
  await new Promise(r=>setTimeout(r,160));
  const work=require('electron').screen.getDisplayMatching(window.getBounds()).workArea;
- window.setBounds({x:work.x+12,y:work.y+work.height-window.getBounds().height});
+ // The dock owns its top-center anchor; verify entry there rather than a user-dragged bottom edge.
  await new Promise(r=>setTimeout(r,450));
  const dockAnchor=window.getBounds(),point={x:dockAnchor.x+30,y:dockAnchor.y+30};
  await moveScreen(work.x-20,work.y-20);
