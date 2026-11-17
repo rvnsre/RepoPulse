@@ -21,25 +21,39 @@ function applyMode(){
  document.body.classList.toggle('collapsed',!expanded&&!insightOpen);document.body.classList.toggle('insight-open',insightOpen);document.body.classList.toggle('workspace-open',expanded&&drawer&&!insightOpen);
  $('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));
 }
+function desiredHeight(){
+ if(!expanded)return 64;
+ if(drawer||insightOpen)return undefined;
+ const feed=$('feed'),nodes=[...feed.querySelectorAll('.repo-slot')],style=getComputedStyle(feed);
+ return IslandMorph.panelHeight({header:document.querySelector('.topbar').getBoundingClientRect().height,
+ heading:document.querySelector('.feed-heading').getBoundingClientRect().height,
+ footer:document.querySelector('footer').getBoundingClientRect().height,padding:state.windowPolicy?.padding??8,
+ gap:parseFloat(style.rowGap)||12,count:state.settings.visibleRows||2,
+ rows:nodes.map(n=>n.getBoundingClientRect().height),empty:feed.querySelector('.empty')?.getBoundingClientRect().height||210});
+}
 async function windowMode(){
- const serial=++transition;rootAnimation?.cancel();hoverAnimation?.cancel();morphing=true;
- const mode=insightOpen?'insight':expanded?(drawer?'workspace':'panel'):'collapsed',before=pointerBounds||state.windowBounds;
+ fitKey='';const serial=++transition,currentTransform=getComputedStyle($('island')).transform;
+ rootAnimation?.cancel();hoverAnimation?.cancel();morphing=true;
+ const node=$('island'),mode=insightOpen?'insight':expanded?(drawer?'workspace':'panel'):'collapsed',before=pointerBounds||state.windowBounds;
  const duration=IslandMorph.duration(state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches);
  islandController?.configure(state.settings,mode);
  try{
   if(mode==='collapsed'&&before&&canAnimate()&&api.previewBounds){
    const target=await api.previewBounds(mode);if(serial!==transition)return;
-   rootAnimation=$('island').animate([{clipPath:'inset(0px 0px 0px 0px round 18px)'},{clipPath:IslandMorph.shape(before,target,state.windowPolicy?.padding??8)}],{duration:Math.min(160,duration),easing:'cubic-bezier(.4,0,.6,1)'});
+   rootAnimation=node.animate([{transform:currentTransform==='none'?'none':currentTransform,opacity:1},
+    {transform:IslandMorph.transform(before,target,state.windowPolicy?.padding??8),opacity:.9}],
+    {duration:Math.min(160,duration),easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'});
    try{await rootAnimation.finished;}catch{}if(serial!==transition)return;
   }
   applyMode();ultimateStatus();if(!expanded)compactProtectedEntry=false;
-  const reply=await api?.expand({mode,requestId:serial});if(serial!==transition)return;
+  const reply=await api?.expand({mode,requestId:serial,height:desiredHeight()});if(serial!==transition)return;
   updatePointerBounds(reply?.bounds);rootAnimation?.cancel();if(drawer)renderDrawer(false);
   if(mode!=='collapsed'&&before&&reply?.bounds&&canAnimate()){
-   rootAnimation=$('island').animate([{clipPath:IslandMorph.shape(reply.bounds,before,state.windowPolicy?.padding??8),opacity:.94},{clipPath:'inset(0px 0px 0px 0px round 18px)',opacity:1}],{duration,easing:'cubic-bezier(.16,1,.3,1)'});
+   rootAnimation=node.animate([{transform:IslandMorph.transform(reply.bounds,before,state.windowPolicy?.padding??8),opacity:.85},
+    {transform:'none',opacity:1}],{duration,easing:'cubic-bezier(.16,1,.3,1)'});
    try{await rootAnimation.finished;}catch{}if(serial!==transition)return;rootAnimation.cancel();
   }
- }finally{if(serial===transition){morphing=false;ultimateStatus();ultimateMagnify(!!islandController?.pointer);requestFit();}}
+ }finally{if(serial===transition){rootAnimation?.cancel();morphing=false;ultimateStatus();ultimateMagnify(!!islandController?.pointer);requestFit();}}
 }
 async function openDrawer(tab){insightOpen=false;if(tab==='library'&&section!=='library')uFilters.pinnedFirst=state.settings.pinnedFirst;section=tab;drawer=true;expanded=true;if(tab==='tune')draft={...state.profile.weights};search='';drawerStamp='';await windowMode();renderDrawer();}
 async function closeDrawer(){drawer=false;await windowMode();$('menu').focus({preventScroll:true});}
@@ -128,10 +142,19 @@ function reconcile(){
  while(slots.length>desired.length){const removed=slots.pop();removed.version++;removed.effect?.cancel();removed.element.remove();}
 }
 let fitFrame=0;
-function requestFit(){if(fitFrame||!api||morphing||insightOpen||expanded&&drawer)return;fitFrame=requestAnimationFrame(()=>{fitFrame=0;const height=expanded?(repos().length?Math.min(580,128+Math.min(repos().length,state.settings.visibleRows||2)*172*UI.textScale(state.settings.textScale)/100):360):64;api.fit({height,mode:expanded?(drawer?'workspace':'panel'):'collapsed'}).then(reply=>{if(reply?.mode===(expanded?(drawer?'workspace':'panel'):'collapsed'))updatePointerBounds(reply.bounds);}).catch(()=>{});});}
+let fitKey='';
+function requestFit(){
+ if(fitFrame||!api||morphing||insightOpen||expanded&&drawer)return;
+ fitFrame=requestAnimationFrame(()=>{
+  fitFrame=0;if(morphing||insightOpen||expanded&&drawer)return;
+  const height=desiredHeight(),mode=expanded?'panel':'collapsed',key=mode+':'+height+':'+innerWidth;
+  if(key===fitKey)return;fitKey=key;
+  api.fit({height,mode,requestId:transition}).then(reply=>{if(reply?.mode===(expanded?'panel':'collapsed'))updatePointerBounds(reply.bounds);}).catch(()=>{fitKey='';});
+ });
+}
 function render(){if(renderQueued)return;renderQueued=true;requestAnimationFrame(()=>{renderQueued=false;renderNow();});}
 function renderNow(){
- if(!state)return;const prefs=state.settings;renderInsight();ultimateRender();
+ if(!state)return;fitKey='';const prefs=state.settings;renderInsight();ultimateRender();
  for(const theme of ['graphite','contrast'])document.body.classList.toggle(theme,prefs.theme===theme);
  for(const [name,value]of Object.entries({compact:prefs.density==='compact',reduced:!canAnimate(),'no-commands':!prefs.showCommands,'wrap-names':prefs.wrapNames,'wrap-code':prefs.codeWrap}))document.body.classList.toggle(name,value);
  document.body.dataset.scale=String(UI.textScale(prefs.textScale));

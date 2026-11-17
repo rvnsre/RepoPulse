@@ -225,6 +225,22 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await evaluate("document.querySelector('#feed>.empty button').click()");await until(()=>evaluate("document.querySelectorAll('.repo-row').length===3"));
  await capture('catalog-recovery-preview.png');
  console.log('11.2 recovery checks passed: fully seen new-day catalog refills automatically, 70K hard floor, no phantom visits, readable filter-empty recovery and reset to three cards.');
+
+ // Real measured geometry across narrow widths, large fonts and command visibility.
+ await evaluate("window.pulse.settings({autoHide:false,dynamicRefresh:false,motion:'none',hoverLift:false})");
+ for(const width of [440,600,960])for(const scale of [100,150])for(const commands of [false,true]){
+  await evaluate("window.pulse.settings({textScale:"+scale+",showCommands:"+commands+",visibleRows:1})");
+  window.setBounds({width});await new Promise(r=>setTimeout(r,200));
+  const geometry=await evaluate(`(()=>{const row=document.querySelector('.repo-row'),feed=document.getElementById('feed'),r=row.getBoundingClientRect(),f=feed.getBoundingClientRect();return{overflow:document.documentElement.scrollWidth>innerWidth,rowOverflow:row.scrollWidth>row.clientWidth+1,visible:r.bottom<=f.bottom+1,height:r.height,feedHeight:f.height};})()`);
+  assert.equal(geometry.overflow,false,JSON.stringify({width,scale,commands,geometry}));
+  assert.equal(geometry.rowOverflow,false,JSON.stringify({width,scale,commands,geometry}));
+  // Very tall cards intentionally scroll on short displays.
+  assert.ok(geometry.visible||geometry.height>window.getBounds().height-160,JSON.stringify({width,scale,commands,geometry}));
+ }
+ await evaluate("window.pulse.settings({panelWidth:960,textScale:100,visibleRows:2,showCommands:true,motion:'full',hoverLift:true})");
+ await new Promise(r=>setTimeout(r,300));
+ await capture('geometry-preview.png');
+ console.log('11.3 measured geometry passed: 440/600/960 widths, 100/150 percent text, commands on/off, no horizontal card overflow and visible first-card actions.');
  assert.deepEqual(errors,[]);console.log('Native UI passed: readable fonts, stable row DOM, direct Learn URL, verified Releases URL, independent replacement, undo, native screenshots, settings, 150% text, three rows, rapid toggle and collection.');app.exit(0);
 }
 module.exports={smoke};

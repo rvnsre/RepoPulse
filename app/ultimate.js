@@ -22,9 +22,9 @@ function ultimateRender(){
  islandController?.configure(p,insightOpen?'insight':expanded?(drawer?'workspace':'panel'):'collapsed');const signature=JSON.stringify([p.hoverLift,p.hoverScale,p.motionPreset,p.motion,p.reducedMotion,p.motionDuration]);if(signature!==uMotionSignature){uMotionSignature=signature;if(hoverAnimation||islandController?.pointer)ultimateMagnify(!!islandController?.pointer);}ultimateStatus();
 }
 function ultimateMagnify(active){
- const current=getComputedStyle($('island')).transform;hoverAnimation?.cancel();document.body.classList.toggle('pointer-near',active);
+ document.body.classList.toggle('pointer-near',active);if(morphing)return;const current=getComputedStyle($('island')).transform;hoverAnimation?.cancel();
  if(state.windowPolicy?.padding===0||morphing||insightOpen||!state?.settings.hoverLift||!canAnimate())return;
- const c=IslandMotion.config(state.settings),node=$('island'),scale=IslandMorph.safeScale(c.scale,node.offsetWidth,node.offsetHeight,state.windowPolicy?.padding??8);hoverAnimation=$('island').animate([{transform:current==='none'?'scale(1)':current},{transform:'scale('+(active?scale:1)+')'}],{duration:active?160:100,easing:c.easing,fill:'forwards'});
+ const c=IslandMotion.config(state.settings),node=$('island'),scale=IslandMorph.safeScale(c.scale,node.offsetWidth,node.offsetHeight,state.windowPolicy?.padding??8);hoverAnimation=$('island').animate([{transform:current==='none'?'scale(1)':current},{transform:'scale('+(active?scale:1)+')'}],{duration:active?100:80,easing:c.easing,fill:'forwards'});
 }
 function ultimateFocus(){
  if(uFocusUntil>Date.now()){uFocusUntil=0;islandController.hold('focus session',false);clearInterval(uFocusTimer);ultimateStatus();toast('Focus session ended.');return;}
