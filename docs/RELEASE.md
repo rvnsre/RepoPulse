@@ -14,3 +14,10 @@
 - Test workspace JSON/CSV, import limits, note conflicts, deletion confirmations and recovery copies.
 - Test companion history permission approval/rejection/revocation and explicit score-only transfer.
 - Signing, dependency-lock review, distribution license and automatic updates remain production gates.
+
+
+## v10.0.0 evidence
+
+Code commit: `63440d8d911034380093e8a953137e27e2ec63c9`. [Build 44038959367](https://github.com/rvnsre/RepoPulse/actions/runs/44038959367) passed all five jobs: verification, extension and three platform builds. Verification passed 104 unit tests and syntax checks. Linux additionally passed the real Electron UI smoke and workspace/draft regression checks. Native screenshots were inspected for discovery and workspace views.
+
+See [the download table and changes](CHANGES-v10.md). Installer artifacts are ZIP downloads retained until 17 December 2026; GitHub sign-in may be required. They are not attached release assets.

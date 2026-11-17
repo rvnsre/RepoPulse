@@ -1,4 +1,4 @@
-# RepoPulse 0.5.0 Ultimate
+# RepoPulse 10.0.0
 
 A personalized GitHub discovery island for Windows, macOS and Linux, focused on **50,000+ star** public projects.
 
@@ -6,11 +6,21 @@ The island gently grows when the pointer enters, reveals from a compact dock on 
 
 Choose Fluid, Snappy, Calm or Soft Spring motion, hover growth, timing, card appearance, accent and text scaling. The native window reserves room around transforms so hover growth stays inside its bounds. System reduced-motion preferences remain respected.
 
-![Native application preview](docs/preview-v0.5.png)
+![Native application preview](docs/preview-v10.png)
 
 Native Electron screenshot using sample metadata. The native test temporarily disables automatic hiding to capture a stable desktop view.
 
-## Ultimate workspace
+## Version 10
+
+A redesigned discovery view pairs larger repository titles and descriptions with warm sand accents, deep teal panels and clearer browser actions. Library, notes, collections, comparison and preferences now open in a dedicated sidebar workspace with one content scroller.
+
+Hover and automatic hiding keep their deadlines through metadata refreshes. Notes update from imported annotations until you start editing; active drafts remain protected. Window geometry handles invalid saved positions and small displays, and startup restores the appropriate monitor.
+
+![Dedicated workspace](docs/workspace-v10.png)
+
+See [v10 changes and verified downloads](docs/CHANGES-v10.md). The earlier [Ultimate inventory](docs/ULTIMATE-v0.5.md) remains available for the inherited workspace features.
+
+## Personal workspace
 
 - Cached project library with multi-term search, personal-note search, negative terms and owner:, lang:, tag:, is: operators.
 - Personal notes, tags, ratings, pins, read status and a reading queue with priorities.
@@ -35,12 +45,15 @@ Requires Node.js 24+.
 ```sh
 npm install
 npm start
+npm run preview
 npm test
 npm run check
 npm run dist
 ```
 
 [GitHub Actions](https://github.com/rvnsre/RepoPulse/actions) tests the code and packages Windows EXE, macOS arm64 DMG/ZIP and Linux x64 AppImage/DEB/RPM. Successful run artifacts are downloadable. Packages are unsigned previews; publishing a version label does not itself attach installer assets.
+
+The loopback-only browser preview uses deterministic sample data and simulated external actions. It does not read personal desktop data or open external programs.
 
 The real Electron native check covers readable text, stable row DOM, browser destinations, replacement/undo, 150% text, notes/tags, library focus retention, bulk read, collections, comparison, Insights, command palette, focus mode, auto-hide, hover reveal/growth and narrow display behavior.
 
@@ -69,3 +82,4 @@ The optional browser extension processes recent history only after choosing Anal
 Letter shortcuts can be disabled in Settings.
 
 Copyright 2026 Ravan Sariyev. Distribution license is not yet selected. Signing, automatic updates, browser-store publication and native OS acceptance testing remain release work.
+
