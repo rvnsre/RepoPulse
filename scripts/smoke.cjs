@@ -215,7 +215,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  store.state.seen=store.state.cache.map(r=>r.id);store.state.daily={day:'2000-01-01',repos:[]};
  await evaluate("window.pulse.settings({autoHide:false,dynamicRefresh:false})");
  await until(()=>evaluate("document.querySelectorAll('.repo-row').length===3"));
- assert.equal(store.state.daily.repos.length,3);assert.ok(store.state.daily.repos.every(r=>r.stargazers_count>=70000));
+ assert.equal(store.state.daily.repos.length,3);assert.ok(store.state.daily.repos.every(r=>r.stargazers_count>=50000));
  await evaluate("document.getElementById('next').click()");await until(()=>evaluate("document.querySelectorAll('.repo-row').length===3"));
  assert.equal(store.state.history.length,recoveryHistory);assert.equal(JSON.stringify(store.state.profile.weights),recoveryWeights);
  await evaluate("window.pulse.settings({languages:['NotARealLanguage']})");await until(()=>evaluate("!!document.querySelector('#feed>.empty')"));
@@ -224,7 +224,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await capture('empty-filter-preview.png');
  await evaluate("document.querySelector('#feed>.empty button').click()");await until(()=>evaluate("document.querySelectorAll('.repo-row').length===3"));
  await capture('catalog-recovery-preview.png');
- console.log('11.2 recovery checks passed: fully seen new-day catalog refills automatically, 70K hard floor, no phantom visits, readable filter-empty recovery and reset to three cards.');
+ console.log('11.2 recovery checks passed: fully seen new-day catalog refills automatically, 50K hard floor, no phantom visits, readable filter-empty recovery and reset to three cards.');
 
  // Real measured geometry across narrow widths, large fonts and command visibility.
  await evaluate("window.pulse.settings({autoHide:false,dynamicRefresh:false,motion:'none',hoverLift:false})");
@@ -263,6 +263,15 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  assert.equal(await evaluate("document.querySelector('.owner-avatar').hidden"),true);
  await evaluate("window.pulse.settings({showOwners:true,opacity:100})");
  console.log('11.4 native regressions passed: pending-save draft preservation and working owner/opacity preferences.');
+
+ const emerging=require('../src/catalog-seed.json').repos.find(r=>r.stargazers_count>=50000&&r.stargazers_count<70000);
+ assert.ok(emerging);store.state.cache.push(emerging);store.state.daily.repos[0]=emerging;
+ await evaluate("window.pulse.settings({minStars:50000,languages:[],autoHide:false,dynamicRefresh:false})");
+ await until(()=>evaluate("Array.from(document.querySelectorAll('.repo-row')).some(r=>r.dataset.repoId==="+JSON.stringify(String(emerging.id))+")"));
+ assert.ok(store.state.daily.repos.some(r=>r.id===emerging.id));
+ assert.ok((await evaluate("document.getElementById('libraryStat').textContent")).includes('50K+'));
+ await capture('50k-catalog-preview.png');
+ console.log('11.5 native passed: verified 50K–70K repository renders through real state IPC and visible policy label.');
  assert.deepEqual(errors,[]);console.log('Native UI passed: readable fonts, stable row DOM, direct Learn URL, verified Releases URL, independent replacement, undo, native screenshots, settings, 150% text, three rows, rapid toggle and collection.');app.exit(0);
 }
 module.exports={smoke};
