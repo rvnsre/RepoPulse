@@ -66,3 +66,6 @@ footer{flex:none;display:flex;justify-content:space-between;align-items:center;m
 @media(max-width:760px){.repo-row,.compact .repo-row,.no-commands .repo-row{grid-template-columns:minmax(180px,1fr) minmax(180px,1.3fr);gap:12px;padding:12px}.repo-row>.code-block,.no-commands .repo-row>.code-block{grid-column:1/-1}.repo-copy{border:0;padding-top:0}.topbar{padding-inline:12px;gap:8px}.status{display:none}#autoHideButton,#queueButton{display:inline-flex}.feed-heading>div:first-child{display:none}.pick-range{font-size:10px}.foot-actions{gap:4px}.feed-heading>.live-controls{margin-left:0}.toolbar button{min-width:27px;width:27px}}
 @media(max-width:460px){.repo-row,.compact .repo-row,.no-commands .repo-row{grid-template-columns:minmax(0,1fr)}.repo-description{min-height:0}.row-actions{padding-top:6px}.pick-range{display:none}.foot-actions{width:100%;justify-content:space-between}.brand b{display:none}.toolbar #commandButton{min-width:50px}.collapsed .brand b{display:block}}
 .reduced .switch-track:after{transition:none}
+
+.no-commands .repo-row{grid-template-columns:minmax(215px,1fr) minmax(220px,2fr)}
+@media(max-width:460px){.no-commands .repo-row{grid-template-columns:minmax(0,1fr)}}

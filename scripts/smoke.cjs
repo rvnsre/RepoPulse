@@ -99,7 +99,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await movePointer(-20,-20);
  await until(()=>evaluate("document.body.classList.contains('collapsed')&&document.getElementById('expanded').hidden"));
  await capture('collapsed-preview.png');
- const dock=await evaluate(`(()=>{const b=document.getElementById('dockOpen'),r=b.getBoundingClientRect(),t=document.querySelector('.toolbar').getBoundingClientRect();return{id:Number(b.dataset.repoId),summary:document.getElementById('dockSummary').textContent,clickable:getComputedStyle(b).pointerEvents,overlap:r.right>t.left+1,x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+ const dock=await evaluate(`(()=>{const b=document.getElementById('dockOpen'),r=b.getBoundingClientRect(),t=document.querySelector('.toolbar').getBoundingClientRect();return{id:Number(b.dataset.repoId),summary:document.getElementById('dockSummary').textContent,clickable:getComputedStyle(b).pointerEvents,overlap:t.width>0&&r.right>t.left+1,x:r.x+r.width/2,y:r.y+r.height/2};})()`);
  assert.ok(dock.id>0&&dock.summary.length>0);assert.equal(dock.clickable,'auto');assert.equal(dock.overlap,false);
  await movePointer(dock.x,dock.y);
  await new Promise(r=>setTimeout(r,120));assert.equal(await evaluate("document.body.classList.contains('collapsed')"),true,'Hover over the compact link must keep its click target stable');

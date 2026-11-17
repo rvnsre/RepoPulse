@@ -76,7 +76,7 @@ function createWindow(){
  window=new BrowserWindow({...rect,...windowPolicy.options,alwaysOnTop:store.state.settings.pinned,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
  if(process.platform==='darwin'){app.dock?.hide();window.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:false});}window.setAlwaysOnTop(store.state.settings.pinned,'floating');
  window.once('ready-to-show',()=>{if(store.state.settings.startCollapsed&&!smokeMode)resize('collapsed');window.showInactive();});window.on('resize',applyWindowShape);
- window.setOpacity(store.state.settings.opacity/100);resize('panel');
+ window.setOpacity(1);resize('panel');
  window.loadFile(path.join(__dirname,'index.html'));
  window.webContents.setWindowOpenHandler(()=>({action:'deny'}));window.webContents.on('will-navigate',event=>event.preventDefault());window.webContents.session.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
  screen.on('display-metrics-changed',()=>{windowAnchor=topAnchor(screen.getDisplayMatching(window.getBounds()));resize(mode);});
@@ -158,7 +158,7 @@ function attachIpc(){
  handle('settings:set',input=>{
   const previous=store.state.settings,next=discovery.settings({...previous,...input});
   if(next.launchAtLogin!==previous.launchAtLogin){if(process.platform==='linux')throw new Error('Configure autostart in your Linux desktop session settings.');app.setLoginItemSettings({openAtLogin:next.launchAtLogin});}
-  store.update(s=>{s.settings=next;discovery.present(s);});if(!next.screenContext)context={topic:null,status:'off'};else if(!previous.screenContext)void collectContext();window.setAlwaysOnTop(next.pinned,'floating');window.setOpacity(next.opacity/100);resize(mode,next.anchor!==previous.anchor);emit();return snapshot();
+  store.update(s=>{s.settings=next;discovery.present(s);});if(!next.screenContext)context={topic:null,status:'off'};else if(!previous.screenContext)void collectContext();window.setAlwaysOnTop(next.pinned,'floating');window.setOpacity(1);resize(mode,next.anchor!==previous.anchor);emit();return snapshot();
  });
  handle('history:remove',(id,time)=>{if(!Number.isSafeInteger(id)||typeof time!=='string')throw new Error('Invalid history item');store.update(s=>{s.history=s.history.filter(h=>!(h.repo.id===id&&h.openedAt===time));});emit();return snapshot();});
  handle('exclusion:remove',(kind,value)=>{store.update(s=>{if(kind==='owner')s.blockedOwners=s.blockedOwners.filter(v=>v!==value);else if(kind==='hidden'&&Number.isSafeInteger(value)){s.hidden=s.hidden.filter(v=>v!==value);s.seen=s.seen.filter(v=>v!==value);}else if(kind==='snoozed'&&Number.isSafeInteger(value)){delete s.snoozed[value];s.seen=s.seen.filter(v=>v!==value);}else throw new Error('Invalid exclusion');discovery.present(s);});emit();return snapshot();});
