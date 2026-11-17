@@ -115,7 +115,7 @@ function renderNow(){
  $('status').title=state.lastError||'Interests remain on this device.';
  $('system').textContent=(({win32:'Windows',darwin:'macOS',linux:'Linux'})[state.platform]||'Desktop')+' / 50K+ stars / '+new Date().toLocaleDateString('en',{month:'short',day:'numeric'});
  $('undo').disabled=!state.canUndo;$('next').disabled=repos().length<=state.settings.visibleRows;
- dynamicSync();if(!canAnimate())for(const slot of slots)slot.effect?.cancel();reconcile();updateActions();if(drawer)renderDrawer(false);requestFit();
+ dynamicSync();if(!canAnimate()){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}reconcile();updateActions();if(drawer)renderDrawer(false);requestFit();
  // Release checks are demand-driven: live rotation must not poll GitHub for every card.
  clearTimeout(releaseTimer);
 }
@@ -193,10 +193,11 @@ $('next').addEventListener('click',()=>{pair=(pair+(state.settings.visibleRows||
 $('install').addEventListener('click',()=>run(()=>{const r=selected();return r&&openRepo(r,'releases');}));
 $('learn').addEventListener('click',()=>run(()=>{const r=selected();return r&&openRepo(r,'learn');}));
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>run(()=>openDrawer(b.dataset.tab))));
-document.addEventListener('visibilitychange',()=>{if(document.hidden)for(const slot of slots)slot.effect?.cancel();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}});
 matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',()=>render());
 window.addEventListener('keydown',e=>{
- const key=e.key.toLowerCase(),typing=['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName);
+ if(!state)return;
+ const key=e.key.toLowerCase(),typing=e.target.isContentEditable||['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName);
  if(key==='escape'){islandController?.pause(600);e.preventDefault();run(async()=>{if(drawer)await closeDrawer();else{expanded=false;await windowMode();}});return;}
  if((e.ctrlKey||e.metaKey)&&key==='k'){e.preventDefault();run(()=>openDrawer('commands'));return;}
  if((e.ctrlKey||e.metaKey)&&['+','=','-','0'].includes(key)){e.preventDefault();run(()=>changeSettings({textScale:key==='0'?100:UI.nextScale(state.settings.textScale,key==='-'?-1:1)}));return;}

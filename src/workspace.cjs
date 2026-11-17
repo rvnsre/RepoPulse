@@ -2,10 +2,10 @@
 const {normalizeRepo,localDay}=require('./engine.cjs');
 const COLORS=['sand','ocean','violet','mint','rose'];
 const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
-const idValid=id=>Number.isSafeInteger(Number(id))&&Number(id)>0;
+const idValid=id=>(typeof id==='number'||typeof id==='string'&&/^\d+$/.test(id))&&Number.isSafeInteger(Number(id))&&Number(id)>0;
 const safeText=(value,max)=>typeof value==='string'?value.trim().slice(0,max):'';
 function tags(input){return [...new Set((Array.isArray(input)?input:[]).map(t=>safeText(t,32).toLowerCase()).filter(Boolean))].slice(0,12);}
-function metadata(input={}){return{notes:safeText(input.notes,20000),tags:tags(input.tags),rating:[0,1,2,3,4,5].includes(Number(input.rating))?Number(input.rating):0,pinned:input.pinned===true,read:input.read===true,queued:input.queued===true,priority:['low','normal','high'].includes(input.priority)?input.priority:'normal',updatedAt:Number.isFinite(Date.parse(input.updatedAt))?input.updatedAt:null};}
+function metadata(input={}){input=input&&typeof input==='object'?input:{};return{notes:typeof input.notes==='string'?input.notes.slice(0,20000):'',tags:tags(input.tags),rating:(typeof input.rating==='number'||typeof input.rating==='string'&&input.rating.trim()!=='')&&[0,1,2,3,4,5].includes(Number(input.rating))?Number(input.rating):0,pinned:input.pinned===true,read:input.read===true,queued:input.queued===true,priority:['low','normal','high'].includes(input.priority)?input.priority:'normal',updatedAt:Number.isFinite(Date.parse(input.updatedAt))?input.updatedAt:null};}
 function normalize(input={}){
  const out={schema:'repopulse.workspace.v1',records:{},collections:[]};
  for(const [id,record]of Object.entries(input?.records||{}).slice(0,2000)){if(!idValid(id)||!record||typeof record!=='object')continue;const repo=normalizeRepo(record.repo);if(!repo||repo.id!==Number(id))continue;out.records[Number(id)]={...metadata(record),repo};}
@@ -34,7 +34,8 @@ function collection(input,action,payload={},known=[]){
 function merge(current,incoming){
  if(incoming?.schema!=='repopulse.workspace.v1')throw new Error('Choose a RepoPulse workspace export.');
  const a=normalize(current),b=normalize(incoming);if(!Object.keys(b.records).length&&!b.collections.length)throw new Error('Workspace contains no valid items.');
- for(const [id,r]of Object.entries(b.records)){if(!a.records[id]||Date.parse(r.updatedAt||0)>Date.parse(a.records[id].updatedAt||0))a.records[id]=r;}
+ const timestamp=value=>value&&Number.isFinite(Date.parse(value))?Date.parse(value):-Infinity;
+ for(const [id,r]of Object.entries(b.records)){if(!a.records[id]||timestamp(r.updatedAt)>timestamp(a.records[id].updatedAt))a.records[id]=r;}
  for(const c of b.collections){const old=a.collections.find(x=>x.id===c.id);if(old)old.repos=[...new Set([...old.repos,...c.repos])].slice(0,2000);else if(a.collections.length<50)a.collections.push(c);}return normalize(a);
 }
 function query(repos,input={},workspace={},saved=[],history=[]){
@@ -46,8 +47,8 @@ function query(repos,input={},workspace={},saved=[],history=[]){
  return terms.every(raw=>{const negative=raw.startsWith('-'),t=negative?raw.slice(1):raw;let found;
  if(t.startsWith('owner:'))found=r.full_name.split('/')[0].toLowerCase()===t.slice(6);
  else if(t.startsWith('lang:'))found=String(r.language||'').toLowerCase()===t.slice(5);
- else if(t.startsWith('tag:'))found=m.tags.includes(t.slice(4))||(r.topics||[]).includes(t.slice(4));
- else if(t.startsWith('is:')){const flags={saved:savedIds.has(r.id),queued:m.queued,pinned:m.pinned,read:m.read,unread:!m.read,noted:!!m.notes};found=flags[t.slice(3)]===true;}
+ else if(t.startsWith('tag:'))found=m.tags.includes(t.slice(4))||(r.topics||[]).some(topic=>topic.toLowerCase()===t.slice(4));
+ else if(t.startsWith('is:')){const flags={saved:savedIds.has(r.id),queued:m.queued,pinned:m.pinned,read:m.read,unread:!m.read,noted:!!m.notes,rated:m.rating>0,visited:visited.has(r.id)};found=flags[t.slice(3)]===true;}
  else found=hay.includes(t);return negative?!found:found;});
  });
  const priority={high:2,normal:1,low:0};
@@ -56,7 +57,7 @@ function query(repos,input={},workspace={},saved=[],history=[]){
 }
 function csv(repos,workspace={}){const w=normalize(workspace);const cell=v=>{let s=String(v??'');if(/^(\s*[=+\-@]|[\t\r])/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';};return[['repository','url','stars','language','license','rating','read','queued','tags','notes'],...repos.map(r=>{const m=w.records[r.id]||metadata();return[r.full_name,'https://github.com/'+r.full_name,r.stargazers_count,r.language,r.license,m.rating,m.read,m.queued,m.tags.join('; '),m.notes];})].map(row=>row.map(cell).join(',')).join('\r\n')+'\r\n';}
 function analytics(history=[],workspace={},now=Date.now()){
- const valid=history.filter(h=>h?.repo&&Number.isFinite(Date.parse(h.openedAt))),languages={},topics={};for(const h of valid){const lang=h.repo.language||'Other';languages[lang]=(languages[lang]||0)+1;for(const t of h.repo.topics||[])topics[t]=(topics[t]||0)+1;}
+ const valid=history.filter(h=>h?.repo&&Number.isFinite(Date.parse(h.openedAt))),languages=Object.create(null),topics=Object.create(null);for(const h of valid){const lang=h.repo.language||'Other';languages[lang]=(languages[lang]||0)+1;for(const t of h.repo.topics||[])topics[t]=(topics[t]||0)+1;}
  const days=Array.from({length:7},(_,i)=>{const d=new Date(now);d.setDate(d.getDate()-(6-i));const day=localDay(d);return{day,count:valid.filter(h=>localDay(new Date(h.openedAt))===day).length};});
  const w=normalize(workspace),records=Object.values(w.records),unique=new Set(valid.map(h=>h.repo.id)).size;
  return{opens:valid.length,unique,revisits:valid.length-unique,today:days[6].count,week:days.reduce((a,b)=>a+b.count,0),days,languages:Object.entries(languages).sort((a,b)=>b[1]-a[1]),topics:Object.entries(topics).sort((a,b)=>b[1]-a[1]).slice(0,12),notes:records.filter(r=>r.notes).length,queued:records.filter(r=>r.queued).length,pinned:records.filter(r=>r.pinned).length,read:records.filter(r=>r.read).length,rated:records.filter(r=>r.rating).length,collections:w.collections.length};

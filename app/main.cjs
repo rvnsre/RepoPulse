@@ -7,7 +7,7 @@ const discovery=require('../src/discovery.cjs');
 const workspace=require('../src/workspace.cjs');
 const {fetchCatalog}=require('../src/github.cjs');
 const {ReleaseClient,destination,repositoryUrl}=require('../src/navigation.cjs');
-const {bounds:layoutBounds}=require('../src/layout.cjs');
+const {bounds:layoutBounds,fittedHeight}=require('../src/layout.cjs');
 let lastExternal=null,revision=0;
 let releaseClient,lastAutomaticAt=0;
 let window,store,tray,timer,refreshPromise,quitting=false,mode='panel',lastError=null,moveTimer,adjusting=false;
@@ -93,7 +93,7 @@ function attachIpc(){
  handle('workspace:collection',async(action,payload)=>{if(['delete','clear'].includes(action)&&!await confirm(action==='delete'?'Delete this collection?':'Clear this collection?','Repository notes, ratings and saved projects remain available.'))return null;if(action==='create')payload={...payload,id:require('node:crypto').randomUUID()};store.update(s=>{s.workspace=workspace.collection(s.workspace,action,payload,[...s.cache,...s.saved,...Object.values(s.workspace.records).map(r=>r.repo)].map(r=>r.id));if(action==='add')for(const id of payload.repos||[]){const repo=findRepo(id);if(repo&&!s.workspace.records[id])s.workspace.records[id]={...workspace.metadata(),repo,updatedAt:new Date().toISOString()};}});emit();return snapshot();});
  handle('state:get',()=>snapshot());handle('catalog:refresh',force=>refresh(force===true));
  handle('window:expand',next=>resize(next));
- handle('window:fit',payload=>{if(!payload||payload.mode!==mode||!Number.isFinite(payload.height))return;const current=window.getBounds(),area=screen.getDisplayMatching(current).workArea,height=Math.round(Math.max(mode==='collapsed'?80:160,Math.min(payload.height,area.height-12)));if(Math.abs(current.height-height)>1){adjusting=true;window.setBounds({height,y:Math.round(Math.max(area.y,Math.min(current.y,area.y+area.height-height)))},false);setTimeout(()=>{adjusting=false;},100);}});handle('window:hide',()=>window.hide());handle('app:quit',()=>{quitting=true;app.quit();});
+ handle('window:fit',payload=>{if(!payload||payload.mode!==mode||!Number.isFinite(payload.height))return;const current=window.getBounds(),area=screen.getDisplayMatching(current).workArea,height=fittedHeight(payload.height,area.height,mode==='collapsed');if(Math.abs(current.height-height)>1){adjusting=true;window.setBounds({height,y:Math.round(Math.max(area.y,Math.min(current.y,area.y+area.height-height)))},false);setTimeout(()=>{adjusting=false;},100);}});handle('window:hide',()=>window.hide());handle('app:quit',()=>{quitting=true;app.quit();});
  handle('repo:open',openRepo);
  handle('repo:release-check',async(id,force=false)=>{const repo=findRepo(id);if(!repo)throw new Error('Repository unavailable');return {...await releaseClient.get(repo,force===true),id};});
  handle('repo:copy',(id,kind)=>{const repo=findRepo(id);if(!repo)throw new Error('Repository unavailable');const commands=discovery.sources(repo);const values={url:`https://github.com/${repo.full_name}`,clone:commands.clone,inspect:commands.inspect,markdown:`[${repo.full_name}](https://github.com/${repo.full_name})`,releases:repositoryUrl(repo)+'/releases',name:repo.full_name,owner:repo.full_name.split('/')[0],shallow:'git clone --depth 1 '+repositoryUrl(repo)+'.git',ssh:'git clone git@github.com:'+repo.full_name+'.git',cli:'gh repo clone '+repo.full_name,json:JSON.stringify(repo,null,2),stars:String(repo.stargazers_count)};if(!Object.hasOwn(values,kind))throw new Error('Unsupported copy');clipboard.writeText(values[kind]);return true;});

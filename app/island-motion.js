@@ -24,7 +24,7 @@ class Controller{
   if(this.prefs.idleCollapse)this.schedule('idle',(this.prefs.idleSeconds||30)*1000,()=>this.collapse('idle'));
  }
  collapse(reason){if(this.blocked()||this.mode!=='panel'||(reason==='leave'&&this.pointer)||(reason==='idle'&&this.pointer&&this.prefs.keepOnHover!==false))return;this.mode='collapsed';this.clear('hover');this.clear('idle');this.clear('leave');this.onCollapse(reason);this.onChange(this.status());}
- enter(){this.pointer=true;this.clear('leave');if(this.prefs.hoverExpand&&this.mode==='collapsed')this.schedule('hover',this.prefs.hoverDelay??160,()=>{if(this.pointer&&this.mode==='collapsed'){this.mode='panel';this.onExpand('hover');this.rearm();}});this.onChange(this.status());}
+ enter(reveal=true){this.pointer=true;this.clear('leave');if(reveal&&this.prefs.hoverExpand&&this.mode==='collapsed')this.schedule('hover',this.prefs.hoverDelay??160,()=>{if(this.pointer&&this.mode==='collapsed'){this.mode='panel';this.onExpand('hover');this.rearm();}});this.onChange(this.status());}
  leave(){this.pointer=false;this.clear('hover');this.rearm();this.onChange(this.status());}
  focus(value){this.focused=!!value;this.activity();}
  activity(){this.lastActivity=this.now();this.rearm();}

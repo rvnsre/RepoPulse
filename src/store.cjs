@@ -7,7 +7,7 @@ class Store {
   load() {
     if (!fs.existsSync(this.file)) return;
     try {
-      const data=JSON.parse(fs.readFileSync(this.file,'utf8'));
+      const data=JSON.parse(fs.readFileSync(this.file,'utf8').replace(/^\uFEFF/,''));
       if(data.version!==1) throw new Error('Unsupported state version');
       this.state={...defaults(),...data,profile:{...data.profile,weights:validWeights(data.profile?.weights)},settings:{...defaults().settings,...data.settings}};
       for(const key of ['saved','cache']) this.state[key]=Array.isArray(data[key])?data[key].map(normalizeRepo).filter(Boolean):[];

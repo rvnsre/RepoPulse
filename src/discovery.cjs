@@ -66,7 +66,7 @@ function sources(repo) {
 }
 function initialize(state) {
  if(state.settings?.compactRevision!==1)state.settings={...state.settings,panelWidth:960,density:'compact',motionDuration:80,motionPreset:'snappy',hoverDelay:0,hideDelay:0,autoHide:true,collapseOnLeave:true,hoverExpand:true};
- state.workspace=require('./workspace.cjs').normalize(state.workspace);state.settings=settings({...state.settings,...(state.settings?.autoHide===undefined?{hoverExpand:true}:{})});state.history=Array.isArray(state.history)?state.history.filter(h=>h&&normalizeRepo(h.repo)&&Number.isFinite(Date.parse(h.openedAt))).slice(0,500).map(h=>({repo:normalizeRepo(h.repo),openedAt:h.openedAt})):[];
+ state.workspace=require('./workspace.cjs').normalize(state.workspace);state.settings=settings({...state.settings,...(state.settings?.autoHide===undefined?{hoverExpand:true}:{})});state.history=Array.isArray(state.history)?state.history.filter(h=>h&&normalizeRepo(h.repo)&&Number.isFinite(Date.parse(h.openedAt))).sort((a,b)=>Date.parse(b.openedAt)-Date.parse(a.openedAt)).slice(0,500).map(h=>({repo:normalizeRepo(h.repo),openedAt:h.openedAt})):[];
  state.blockedOwners=Array.isArray(state.blockedOwners)?state.blockedOwners.filter(s=>typeof s==='string'&&/^[\w.-]+$/.test(s)):[];
  state.snoozed=state.snoozed&&typeof state.snoozed==='object'&&!Array.isArray(state.snoozed)?state.snoozed:{};
  return state;

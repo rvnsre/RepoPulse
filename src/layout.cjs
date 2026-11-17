@@ -11,4 +11,5 @@ function bounds(area,prefs={},mode='panel',center){
  if(!center){if(prefs.anchor==='left')cx=area.x+width/2+margin;if(prefs.anchor==='right')cx=area.x+area.width-width/2-margin;}
  return{x:Math.round(Math.max(area.x+margin,Math.min(cx-width/2,area.x+area.width-width-margin))),y:Math.round(Math.max(area.y,Math.min(y,area.y+area.height-height))),width:Math.max(1,Math.floor(width)),height:Math.max(1,Math.floor(height))};
 }
-module.exports={bounds};
+function fittedHeight(requested,areaHeight,collapsed=false){const available=Math.max(1,Math.floor(Number.isFinite(areaHeight)?areaHeight:1));const minimum=Math.min(available,collapsed?80:160);return Math.round(Math.max(minimum,Math.min(Number.isFinite(requested)?requested:minimum,available)));}
+module.exports={bounds,fittedHeight};

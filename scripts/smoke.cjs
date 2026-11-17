@@ -93,6 +93,23 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await evaluate("document.getElementById('island').dispatchEvent(new MouseEvent('mouseleave'))");
  await until(()=>evaluate("document.body.classList.contains('collapsed')&&document.getElementById('expanded').hidden"));
  await capture('collapsed-preview.png');
+ const dock=await evaluate(`(()=>{const b=document.getElementById('dockOpen'),r=b.getBoundingClientRect(),t=document.querySelector('.toolbar').getBoundingClientRect();return{id:Number(b.dataset.repoId),summary:document.getElementById('dockSummary').textContent,clickable:getComputedStyle(b).pointerEvents,overlap:r.right>t.left+1,x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+ assert.ok(dock.id>0&&dock.summary.length>0);assert.equal(dock.clickable,'auto');assert.equal(dock.overlap,false);
+ await evaluate(`document.getElementById('island').dispatchEvent(new MouseEvent('mouseenter',{clientX:${dock.x},clientY:${dock.y}}))`);
+ await new Promise(r=>setTimeout(r,120));assert.equal(await evaluate("document.body.classList.contains('collapsed')"),true,'Hover over the compact link must keep its click target stable');
+ const compactBefore=store.state.history.length,compactRepo=store.state.daily.repos.find(r=>r.id===dock.id);
+ await evaluate("document.getElementById('dockOpen').click()");
+ await until(()=>store.state.history.length===compactBefore+1);
+ assert.equal(snapshot().lastExternal.url,'https://github.com/'+compactRepo.full_name);
+ assert.equal(await evaluate("document.body.classList.contains('collapsed')"),true,'Compact link must not also expand the panel');
+ await evaluate("document.getElementById('dockOpen').dispatchEvent(new MouseEvent('click',{bubbles:true,detail:2}))");
+ await new Promise(r=>setTimeout(r,100));assert.equal(store.state.history.length,compactBefore+1,'Double clicks must not open a second replacement');
+ await evaluate("document.querySelector('.topbar').dispatchEvent(new MouseEvent('click',{bubbles:true,detail:1}))");
+ await until(()=>evaluate("!document.getElementById('expanded').hidden"));
+ await evaluate("document.getElementById('collapse').click()");
+ await until(()=>evaluate("document.getElementById('expanded').hidden"));
+ console.log('Compact action checks passed: short explanation, non-overlapping hit area, stable hover, direct GitHub click, no duplicate open and blank-header expansion.');
+
  await evaluate("document.getElementById('island').dispatchEvent(new MouseEvent('mouseenter'))");
  await until(()=>evaluate("!document.getElementById('expanded').hidden"));
  await new Promise(r=>setTimeout(r,500));

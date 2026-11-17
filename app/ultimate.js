@@ -14,7 +14,7 @@ function ultimateStatus(){
  f.textContent=remaining?Math.floor(remaining/60)+':'+String(remaining%60).padStart(2,'0'):'◷';f.title=remaining?'Stop focus session':'Start '+state.settings.focusMinutes+' minute focus session';f.setAttribute('aria-label',f.title);f.setAttribute('aria-pressed',String(remaining>0));
  $('autoHideButton').textContent=!state.settings.autoHide?'Auto hide off':status?.paused?'Hiding paused':'Auto hide on';$('autoHideButton').title=status?.paused?'Resume automatic hiding':'Pause automatic hiding for 5 minutes';$('autoHideButton').setAttribute('aria-pressed',String(!!status?.paused));
  $('queueCount').textContent=String(state.analytics?.queued||0);if($('editionLabel'))$('editionLabel').textContent=new Date().toLocaleDateString('en',{weekday:'long',month:'short',day:'numeric'});if($('libraryStat'))$('libraryStat').textContent=(state.catalogSize||0)+' established projects';$('queueButton').hidden=!state.settings.showQueueCount;
- document.body.classList.toggle('workspace-open',expanded&&drawer);$('dockHint').hidden=expanded;$('dockText').textContent=remaining?'Focus / '+Math.ceil(remaining/60)+' min':selected()?.full_name||'Your next discovery';document.body.classList.toggle('focus-session',remaining>0);
+ document.body.classList.toggle('workspace-open',expanded&&drawer);$('dockHint').hidden=expanded;const dock=UI.dockModel(repos(),selectedId),open=$('dockOpen');if($('dockText').textContent!==dock.title)$('dockText').textContent=dock.title;if($('dockSummary').textContent!==dock.summary)$('dockSummary').textContent=dock.summary;open.disabled=!dock.repo||pending.has(dock.repo.id);open.dataset.repoId=dock.repo?.id||'';open.title=dock.repo?dock.title+'\n'+dock.repo.description:'Open the panel to find a repository';open.setAttribute('aria-label',dock.repo?'Open '+dock.title+' on GitHub':'No repository available');document.body.classList.toggle('focus-session',remaining>0);
  $('island').setAttribute('aria-label',expanded?'RepoPulse discovery panel':'RepoPulse collapsed island. Hover or activate the header to expand.');
 }
 function ultimateRender(){
@@ -35,13 +35,14 @@ function ultimateInit(){
  uFilters.pinnedFirst=state.settings.pinnedFirst;dynamicInit();
  islandController=new IslandMotion.Controller({onExpand:()=>run(async()=>{expanded=true;await windowMode();}),onCollapse:()=>run(async()=>{expanded=false;drawer=false;await windowMode();}),onChange:ultimateStatus});
  islandController.configure(state.settings,expanded?'panel':'collapsed');
- $('island').addEventListener('mouseenter',()=>{islandController.enter();ultimateMagnify(true);});
+ $('island').addEventListener('mouseenter',e=>{const target=document.elementFromPoint(e.clientX,e.clientY);islandController.enter(!target?.closest('#dockOpen,.toolbar'));ultimateMagnify(true);});
+ $('island').addEventListener('pointerover',e=>{if(!expanded&&!e.target.closest('#dockOpen,.toolbar'))islandController.enter();});
  $('island').addEventListener('mouseleave',()=>{islandController.leave();ultimateMagnify(false);});
  $('island').addEventListener('pointerdown',()=>{uKeyboardFocus=false;islandController.focus(false);islandController.activity();});$('island').addEventListener('wheel',()=>islandController.activity(),{passive:true});
  document.addEventListener('keydown',()=>{uKeyboardFocus=true;islandController.focus(true);islandController.activity();});
  document.addEventListener('focusin',e=>{islandController.focus(uKeyboardFocus||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName));islandController.hold('editing',state.settings.protectEditing&&['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName));});
  document.addEventListener('focusout',()=>queueMicrotask(()=>{const active=document.activeElement;islandController.focus($('island').contains(active)&&(uKeyboardFocus||['INPUT','TEXTAREA','SELECT'].includes(active?.tagName)));islandController.hold('editing',state.settings.protectEditing&&['INPUT','TEXTAREA','SELECT'].includes(active?.tagName));}));
- window.addEventListener('blur',()=>{islandController.focus(false);islandController.hold('editing',false);});
+ window.addEventListener('blur',()=>{uKeyboardFocus=false;islandController.focus(false);islandController.hold('editing',false);});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)hoverAnimation?.cancel();});
  matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',()=>{if(state.settings.motion!=='full'||state.settings.reducedMotion){hoverAnimation?.cancel();document.body.classList.remove('pointer-near');}});
  $('commandButton').addEventListener('click',()=>run(()=>openDrawer('commands')));$('focusButton').addEventListener('click',()=>run(ultimateFocus));
@@ -162,10 +163,10 @@ function dynamicBlocked(){
  if(Date.now()<dynamicHoldUntil)return 'interaction';
  if(busy||pending.size||slots.some(slot=>slot.desired))return 'busy';
  if(uFocusUntil>Date.now())return 'focus session';
- if(state.settings.cyclePauseHover&&document.querySelector('.repo-row:hover'))return 'hover';
+ if(state.settings.cyclePauseHover&&document.querySelector('.repo-row:hover,#dockOpen:hover'))return 'hover';
  const active=document.activeElement;
  if(['INPUT','TEXTAREA','SELECT'].includes(active?.tagName))return 'editing';
- if(state.settings.cyclePauseFocus&&uKeyboardFocus&&document.hasFocus()&&active?.closest?.('.repo-row'))return 'keyboard';
+ if(state.settings.cyclePauseFocus&&uKeyboardFocus&&document.hasFocus()&&active?.closest?.('.repo-row,#dockOpen'))return 'keyboard';
  return '';
 }
 function dynamicStatus(status){
@@ -197,3 +198,21 @@ function dynamicInit(){
  window.addEventListener('beforeunload',()=>dynamicScheduler.destroy());
  dynamicSync();
 }
+
+let dockPressed=null;
+document.getElementById('dockOpen').addEventListener('pointerdown',()=>{
+ const id=Number(document.getElementById('dockOpen').dataset.repoId);
+ dockPressed=[...repos(),...(state?.catalog||[])].find(r=>r.id===id)||null;
+ dynamicHoldUntil=Date.now()+1000;
+});
+document.getElementById('dockOpen').addEventListener('pointercancel',()=>{dockPressed=null;});
+document.getElementById('dockOpen').addEventListener('keydown',()=>{dockPressed=null;});
+document.getElementById('dockOpen').addEventListener('click',e=>{
+ e.stopPropagation();if(e.detail>1)return;
+ const repo=dockPressed||UI.dockModel(repos(),selectedId).repo;dockPressed=null;
+ if(repo)run(()=>openRepo(repo,'learn'));
+});
+document.querySelector('.topbar').addEventListener('click',e=>{
+ if(!state||expanded||e.target.closest('button')||e.detail>1)return;
+ run(async()=>{expanded=true;drawer=false;await windowMode();});
+});
