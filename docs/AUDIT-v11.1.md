@@ -71,7 +71,7 @@ Electron constraints: https://www.electronjs.org/docs/latest/api/browser-window 
 
 ## Validation and remaining OS acceptance
 
-220 Node tests plus syntax/JSON/taxonomy checks pass locally, including 28 new audit regressions. Local Chromium cannot start because this execution environment rejects its singleton socket; native Electron CI is used for visual and desktop-pointer checks. Final results and package links are recorded below after completion.
+220 Node tests plus syntax/JSON/taxonomy checks pass locally, including 28 new audit regressions. Local Chromium cannot start because this execution environment rejects its singleton socket; native Electron CI is used for visual and desktop-pointer checks. Final build evidence and download links follow below.
 
 | Environment | Physical/compositor acceptance |
 |---|---|
@@ -83,3 +83,22 @@ Electron constraints: https://www.electronjs.org/docs/latest/api/browser-window 
 | Offline/rate limit | Cached status, amber/error dot and honest Last push fallback; never false Live. |
 
 Platform configuration tests and successful package compilation do not substitute for these device checks. Quit the old tray process before opening the update and verify 11.1.0 in Settings. Packages remain unsigned preview builds in Actions artifact ZIPs; they are not automatically published GitHub Release assets.
+
+
+## Final build evidence
+
+Source: [692990b](https://github.com/rvnsre/RepoPulse/commit/692990b3ecd8810ed55bd27c375167d8d888e98e). [Successful verification and packaging run](https://github.com/rvnsre/RepoPulse/actions/runs/44126425948). All five jobs passed, including 220 tests and syntax/JSON/taxonomy checks.
+
+The real Electron/X11 check passes: native pointer/resize stability and interrupted re-entry, all three picks reachable by scrolling, no duplicated footer actions, matching action baselines, npm and complete Git Clone clipboard contents, keyboard command-tab navigation, 150% text/narrow layout, accurate 78-minute stale header/Cached status/dot, browser destinations, replacement/undo, prior workspace/draft flows and compact idle advice. Metadata hydration is scoped to cards so the compact ticker sharing a repo ID cannot consume the update.
+
+| Platform | Contents of artifact ZIP | Download |
+|---|---|---|
+| Windows x64 | NSIS installer and portable EXE | [RepoPulse-Windows](https://github.com/rvnsre/RepoPulse/actions/runs/44126425948/artifacts/14347981263) |
+| Linux x64 | RPM, DEB and AppImage | [RepoPulse-Linux](https://github.com/rvnsre/RepoPulse/actions/runs/44126425948/artifacts/14349365157) |
+| macOS arm64 | DMG and app ZIP | [RepoPulse-macOS](https://github.com/rvnsre/RepoPulse/actions/runs/44126425948/artifacts/14349046029) |
+
+Actions installer artifacts expire after 30 days and normally require GitHub sign-in. All packages use the same source commit. macOS and Windows packaging passes; this does not claim physical device visual acceptance.
+
+![Native 11.1 desktop fixture](preview-v11.1.png)
+
+Native Electron screenshot with deterministic fixture repositories, generated placeholder avatars and simulated release metadata. Live and auto-hide are temporarily paused for capture and exercised separately in the same native test. The screenshot is not a claim about these projects' current public release tags.

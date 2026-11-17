@@ -6,7 +6,7 @@ The island gently grows when the pointer enters, reveals from a compact dock on 
 
 Choose Fluid, Snappy, Calm or Soft Spring motion, hover growth, timing, card appearance, accent and text scaling. The native window reserves room around transforms so hover growth stays inside its bounds. System reduced-motion preferences remain respected.
 
-![Native application preview](docs/preview-v11.png)
+![Native application preview](docs/preview-v11.1.png)
 
 Native Electron screenshot using sample metadata. The native test temporarily disables automatic hiding and Live rotation to capture a stable desktop view; autonomous operation is exercised separately in the same test.
 
