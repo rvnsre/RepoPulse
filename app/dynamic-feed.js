@@ -38,7 +38,7 @@ function interval(p={}){
 }
 class Scheduler{
  constructor({rotate,onStatus=()=>{},blocked=()=>'',now=Date.now,random=Math.random,setTimer=(fn,ms)=>setTimeout(fn,ms),clearTimer=id=>clearTimeout(id)}={}){
-  this.rotate=rotate;this.onStatus=onStatus;this.blocked=blocked;this.now=now;this.random=random;this.setTimer=setTimer;this.clearTimer=clearTimer;this.enabled=false;this.busy=false;this.destroyed=false;this.timer=null;this.remaining=0;this.deadline=0;this.reason='off';this.exhausted=false;this.key=null;this.policy='';this.range=interval();this.error=null;
+  this.rotate=rotate;this.onStatus=onStatus;this.blocked=blocked;this.now=now;this.random=random;this.setTimer=setTimer;this.clearTimer=clearTimer;this.enabled=false;this.busy=false;this.destroyed=false;this.timer=null;this.remaining=0;this.period=0;this.deadline=0;this.reason='off';this.exhausted=false;this.key=null;this.policy='';this.range=interval();this.error=null;
  }
  delay(){return this.range.min+Math.floor(Math.max(0,Math.min(.999999,this.random()))*(this.range.max-this.range.min+1));}
  clear(){if(this.timer!==null){this.clearTimer(this.timer);this.timer=null;}}
@@ -46,12 +46,12 @@ class Scheduler{
   const range=interval(p),policy=JSON.stringify([p.dynamicRefresh!==false,range.min,range.max]);
   if(this.key!==key){this.key=key;this.exhausted=false;}
   const changed=policy!==this.policy;this.policy=policy;this.range=range;this.enabled=p.dynamicRefresh!==false;
-  if(changed){this.exhausted=false;this.remaining=this.delay();this.deadline=this.now()+this.remaining;this.reason='';this.error=null;this.clear();}
+  if(changed){this.exhausted=false;this.remaining=this.delay();this.period=this.remaining;this.deadline=this.now()+this.remaining;this.reason='';this.error=null;this.clear();}
   if(!this.enabled){this.reason='off';this.clear();this.report();return;}
   if(!this.timer&&!this.busy&&!this.destroyed)this.arm();
  }
  arm(){this.clear();if(this.destroyed||!this.enabled||this.exhausted||this.busy){this.report();return;}this.timer=this.setTimer(()=>{this.timer=null;void this.tick();},Math.min(250,Math.max(0,this.deadline-this.now())));}
- report(){if(!this.destroyed)this.onStatus({enabled:this.enabled,busy:this.busy,reason:this.exhausted?'exhausted':this.reason,remaining:Math.max(0,this.remaining),error:this.error});}
+ report(){if(!this.destroyed)this.onStatus({enabled:this.enabled,busy:this.busy,reason:this.exhausted?'exhausted':this.reason,remaining:Math.max(0,this.remaining),period:this.period,error:this.error});}
  async tick(){
   if(this.destroyed||!this.enabled||this.busy||this.exhausted)return;
   const reason=this.blocked()||'';
@@ -62,7 +62,7 @@ class Scheduler{
   this.busy=true;this.report();
   try{const result=await this.rotate();if(this.destroyed)return;this.exhausted=!!result?.exhausted;this.error=null;}
   catch(error){this.error=error?.message||'Automatic replacement failed';}
-  finally{this.busy=false;if(!this.destroyed){this.remaining=this.error?10000:this.delay();this.deadline=this.now()+this.remaining;this.report();this.arm();}}
+  finally{this.busy=false;if(!this.destroyed){this.remaining=this.error?10000:this.delay();this.period=this.remaining;this.deadline=this.now()+this.remaining;this.report();this.arm();}}
  }
  destroy(){this.destroyed=true;this.clear();}
 }

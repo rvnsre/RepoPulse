@@ -165,7 +165,7 @@ function dynamicBlocked(){
  if(state.settings.cyclePauseHover&&document.querySelector('.repo-row:hover'))return 'hover';
  const active=document.activeElement;
  if(['INPUT','TEXTAREA','SELECT'].includes(active?.tagName))return 'editing';
- if(state.settings.cyclePauseFocus&&active?.closest?.('.repo-row'))return 'keyboard';
+ if(state.settings.cyclePauseFocus&&uKeyboardFocus&&active?.closest?.('.repo-row'))return 'keyboard';
  return '';
 }
 function dynamicStatus(status){
@@ -175,7 +175,7 @@ function dynamicStatus(status){
  const label=!status.enabled?'Live off':status.reason==='exhausted'?'Live · caught up':status.busy?'Live · updating':status.error?'Live · retrying':status.reason?'Live · paused':'Live '+Math.ceil(status.remaining/1000)+'s';
  control.textContent=label;
  control.title=status.reason==='exhausted'?'No unseen eligible projects remain. Refresh the catalog later.':status.error||status.reason?'Rotation: '+(status.error||status.reason):'Automatic unseen repository replacement every '+state.settings.cycleMin+'–'+state.settings.cycleMax+' seconds. Click to pause.';
- const progress=$('liveProgress');progress.hidden=!state.settings.cycleCountdown||!status.enabled;progress.classList.toggle('paused',!!status.reason);progress.firstElementChild.style.transform='scaleX('+Math.max(0,Math.min(1,status.remaining/(state.settings.cycleMax*1000)))+')';
+ const progress=$('liveProgress');progress.hidden=!state.settings.cycleCountdown||!status.enabled;progress.classList.toggle('paused',!!status.reason);progress.firstElementChild.style.transform='scaleX('+Math.max(0,Math.min(1,status.remaining/Math.max(1,status.period)))+')';
 }
 function dynamicSync(){
  if(!dynamicScheduler)return;
