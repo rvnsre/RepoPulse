@@ -17,5 +17,7 @@
  }
  function dockModel(items=[],id){const repo=items.find(r=>r?.id===id)||items[0]||null;return{repo,title:repo?.full_name||'No discovery yet',summary:repo?brief(repo.description):'Open the panel to discover projects'};}
  function externalMode(message){if(typeof message==='object'&&message?.requestId!=null)return null;const mode=typeof message==='string'?message:message?.mode;return ['panel','collapsed','workspace'].includes(mode)?mode:null;}
- return{externalMode,brief,dockModel,visible,rowPlan,motion,textScale,nextScale,search,history,accept};
+ function pointInside(point,rect){return !!point&&!!rect&&point.x>=rect.x&&point.y>=rect.y&&point.x<rect.x+rect.width&&point.y<rect.y+rect.height;}
+ function pointerMoved(previous,next){return !previous||previous.x!==next.x||previous.y!==next.y;}
+ return{pointInside,pointerMoved,externalMode,brief,dockModel,visible,rowPlan,motion,textScale,nextScale,search,history,accept};
 });

@@ -1,5 +1,5 @@
 'use strict';
-let uKeyboardFocus=false,uMotionSignature='',compactProtectedEntry=false,lastPointerScreen=null;
+let uKeyboardFocus=false,uMotionSignature='',compactProtectedEntry=false,lastPointerScreen=null,pointerBounds=null;
 let islandController=null,hoverAnimation=null,uFocusUntil=0,uFocusTimer=null,uQueryVersion=0,uLimit=60,uLastTab='details';
 const uDrafts=new Map(),uCompare=new Set(),uSelected=new Set();
 const uFilters={query:'',scope:'all',sort:'stars',language:'',topic:'',license:'',collection:'',pinnedFirst:true};
@@ -35,11 +35,12 @@ function ultimateInit(){
  uFilters.pinnedFirst=state.settings.pinnedFirst;dynamicInit();
  islandController=new IslandMotion.Controller({onExpand:()=>run(async()=>{expanded=true;await windowMode();}),onCollapse:()=>run(async()=>{expanded=false;drawer=false;await windowMode();}),onChange:ultimateStatus});
  islandController.configure(state.settings,expanded?'panel':'collapsed');
- // Observe the stable viewport, not the border that scales during animation.
+ // Window resizes generate boundary events without physical mouse movement.
+ pointerBounds=state.windowBounds||null;
  const surface=document.documentElement;
- surface.addEventListener('pointerenter',e=>{if(e.pointerType==='touch')return;const target=document.elementFromPoint(e.clientX,e.clientY);compactProtectedEntry=!expanded&&!!target?.closest('#dockOpen,.toolbar');lastPointerScreen={x:e.screenX,y:e.screenY};islandController.enter(!compactProtectedEntry);ultimateMagnify(true);});
- surface.addEventListener('pointerleave',e=>{if(e.pointerType==='touch')return;if(e.clientX>=0&&e.clientY>=0&&e.clientX<innerWidth&&e.clientY<innerHeight)return;compactProtectedEntry=false;lastPointerScreen=null;islandController.leave();ultimateMagnify(false);});
- surface.addEventListener('pointermove',e=>{if(e.pointerType==='touch')return;const moved=lastPointerScreen&&(lastPointerScreen.x!==e.screenX||lastPointerScreen.y!==e.screenY);lastPointerScreen={x:e.screenX,y:e.screenY};if(moved&&compactProtectedEntry&&!expanded&&!e.target.closest('#dockOpen,.toolbar')){compactProtectedEntry=false;islandController.enter(true,true);}});
+ surface.addEventListener('pointerenter',e=>{if(e.pointerType==='touch')return;const point={x:e.screenX,y:e.screenY},moved=UI.pointerMoved(lastPointerScreen,point);lastPointerScreen=point;const target=document.elementFromPoint(e.clientX,e.clientY);compactProtectedEntry=!expanded&&!!target?.closest('#dockOpen,.toolbar');islandController.enter(moved&&!compactProtectedEntry);ultimateMagnify(true);});
+ surface.addEventListener('pointerleave',e=>{if(e.pointerType==='touch')return;const point={x:e.screenX,y:e.screenY},moved=UI.pointerMoved(lastPointerScreen,point);lastPointerScreen=point;if(!moved||pointerBounds&&UI.pointInside(point,pointerBounds))return;compactProtectedEntry=false;islandController.leave();ultimateMagnify(false);});
+ surface.addEventListener('pointermove',e=>{if(e.pointerType==='touch')return;const point={x:e.screenX,y:e.screenY},moved=UI.pointerMoved(lastPointerScreen,point);lastPointerScreen=point;if(!moved)return;const protectedTarget=!!e.target.closest('#dockOpen,.toolbar');if(!islandController.pointer){compactProtectedEntry=!expanded&&protectedTarget;islandController.enter(!compactProtectedEntry);}else if(compactProtectedEntry&&!expanded&&!protectedTarget){compactProtectedEntry=false;islandController.enter(true,true);}});
  $('island').addEventListener('pointerdown',()=>{uKeyboardFocus=false;islandController.focus(false);islandController.activity();});$('island').addEventListener('wheel',()=>islandController.activity(),{passive:true});
  document.addEventListener('keydown',()=>{uKeyboardFocus=true;islandController.focus(true);islandController.activity();});
  document.addEventListener('focusin',e=>{islandController.focus(uKeyboardFocus||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName));islandController.hold('editing',state.settings.protectEditing&&['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName));});
@@ -218,3 +219,11 @@ document.querySelector('.topbar').addEventListener('click',e=>{
  if(!state||expanded||e.target.closest('button')||e.detail>1)return;
  run(async()=>{expanded=true;drawer=false;await windowMode();});
 });
+
+function updatePointerBounds(bounds){
+ if(!bounds||!['x','y','width','height'].every(k=>Number.isFinite(bounds[k])))return;
+ pointerBounds=bounds;if(!lastPointerScreen||!islandController)return;
+ const inside=UI.pointInside(lastPointerScreen,bounds);
+ if(inside&&!islandController.pointer)islandController.enter(false);
+ else if(!inside&&islandController.pointer){compactProtectedEntry=false;islandController.leave();ultimateMagnify(false);}
+}
