@@ -33,7 +33,7 @@ function transition(style='auto',sequence=0,motion={duration:80,easing:'ease-out
  return{style:selected[0],enter:[start,final],exit:[final,start],options:{duration:Math.max(0,Math.min(600,Number(motion.duration)||0)),easing:id==='soft-spring'?'cubic-bezier(.2,1.15,.35,1)':motion.easing||'ease-out'}};
 }
 function interval(p={}){
- const clamp=(value,fallback)=>Number.isFinite(value)?Math.max(3,Math.min(10,Math.round(value))):fallback;
+ const clamp=(value,fallback)=>{const number=typeof value==='number'||typeof value==='string'&&value.trim()!==''?Number(value):NaN;return Number.isFinite(number)?Math.max(3,Math.min(10,Math.round(number))):fallback;};
  const a=clamp(p.cycleMin,3),b=clamp(p.cycleMax,10);return{min:Math.min(a,b)*1000,max:Math.max(a,b)*1000};
 }
 class Scheduler{

@@ -68,3 +68,8 @@ test('Countdown progress has a full period and random endpoints stay inside 3–
  for(const random of [()=>0,()=>1,()=>.5]){x.scheduler.random=random;const delay=x.scheduler.delay();assert.ok(delay>=3000&&delay<=10000);}
  x.scheduler.destroy();
 });
+
+test('Intervals selected in HTML settings accept numeric strings and reject empty input',()=>{
+ assert.deepEqual(interval({cycleMin:'5',cycleMax:'8'}),{min:5000,max:8000});
+ assert.deepEqual(interval({cycleMin:'',cycleMax:null}),{min:3000,max:10000});
+});

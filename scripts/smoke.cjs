@@ -5,7 +5,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  window.webContents.on('console-message',(event,...legacy)=>{const level=event.level??legacy[0],message=event.message??legacy[1];if(level==='error'||typeof level==='number'&&level>=3){errors.push(message);console.error('RENDERER_ERROR:',message);}});
  await new Promise(resolve=>window.webContents.isLoading()?window.webContents.once('did-finish-load',resolve):resolve());
  const evaluate=async script=>{try{return await window.webContents.executeJavaScript(script);}catch(error){console.error('FAILED_NATIVE_SCRIPT:',script,'Renderer errors:',JSON.stringify(errors));throw error;}};
- async function until(check){for(let i=0;i<50;i++){if(await check())return;await new Promise(resolve=>setTimeout(resolve,100));}throw new Error('Native UI did not reach the expected state: '+JSON.stringify(await evaluate(`({rows:[...document.querySelectorAll('.repo-row')].map(r=>r.dataset.repoId),selected:document.getElementById('selectedLabel').textContent,toast:document.getElementById('toast').textContent,expanded:!document.getElementById('expanded').hidden,drawer:!document.getElementById('drawer').hidden})`)));}
+ async function until(check,attempts=50){for(let i=0;i<attempts;i++){if(await check())return;await new Promise(resolve=>setTimeout(resolve,100));}throw new Error('Native UI did not reach the expected state: '+JSON.stringify(await evaluate(`({rows:[...document.querySelectorAll('.repo-row')].map(r=>r.dataset.repoId),selected:document.getElementById('selectedLabel').textContent,toast:document.getElementById('toast').textContent,expanded:!document.getElementById('expanded').hidden,drawer:!document.getElementById('drawer').hidden,live:document.getElementById('liveToggle')?.textContent})`)));}
  await until(()=>evaluate(`!!document.querySelector('.repo-row')`));
  await new Promise(r=>setTimeout(r,500));let dimensions=await evaluate(`({rows:document.querySelectorAll('.repo-row').length,width:innerWidth,height:innerHeight,footer:document.querySelector('footer').getBoundingClientRect().bottom})`);
  assert.equal(dimensions.rows,2);assert.ok(dimensions.width>=900&&dimensions.width<=960);assert.ok(dimensions.height<500,JSON.stringify(dimensions));assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
@@ -109,7 +109,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  const historyBefore=store.state.history.length,weightsBefore=JSON.stringify(store.state.profile.weights);
  await evaluate("document.activeElement.blur();window.pulse.settings({panelWidth:960,textScale:100,visibleRows:2,autoHide:false,dynamicRefresh:true,cycleMin:3,cycleMax:3,cyclePauseHover:false,cyclePauseFocus:false,motion:'full',motionPreset:'snappy',motionDuration:80})");
  const cycleBefore=store.state.daily.repos.map(r=>r.id).join(',');
- await until(()=>store.state.daily.repos.map(r=>r.id).join(',')!==cycleBefore);
+ await until(()=>store.state.daily.repos.map(r=>r.id).join(',')!==cycleBefore,160); // Includes the intentional 10-second post-Undo protection.
  assert.equal(store.state.history.length,historyBefore,'Autonomous display must not become a recorded visit');
  assert.equal(JSON.stringify(store.state.profile.weights),weightsBefore,'Autonomous display must not train interests');
  await evaluate("document.getElementById('liveToggle').click()");
