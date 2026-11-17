@@ -1,4 +1,4 @@
-# RepoPulse 10.1.1
+# RepoPulse 10.1.2
 
 A personalized GitHub discovery island for Windows, macOS and Linux, focused on **50,000+ star** public projects.
 
@@ -9,6 +9,12 @@ Choose Fluid, Snappy, Calm or Soft Spring motion, hover growth, timing, card app
 ![Native application preview](docs/preview-v10.1.png)
 
 Native Electron screenshot using sample metadata. The native test temporarily disables automatic hiding and Live rotation to capture a stable desktop view; autonomous operation is exercised separately in the same test.
+
+## Hover stability / 10.1.2
+
+Native pointer/window membership now controls hover so resizing or scaling the island cannot repeatedly expand and collapse it. A fixed anchor preserves dock position near display edges, and stale window acknowledgements cannot override the latest intent. The regression uses an actual desktop pointer and checks stationary hover plus rapid exit/re-entry. See [verified downloads and upgrade instructions](docs/CHANGES-v10.1.2.md).
+
+Quit the old process from the tray before starting the update; closing its window only hides it. Settings must show **10.1.2**.
 
 ## Compact actions / 10.1.1
 
