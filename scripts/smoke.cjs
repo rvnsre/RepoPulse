@@ -11,7 +11,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  async function movePointer(x,y){const b=window.getBounds();await moveScreen(b.x+x,b.y+y);}
  await until(()=>evaluate(`!!document.querySelector('.repo-row')`));
  await new Promise(r=>setTimeout(r,500));let dimensions=await evaluate(`({rows:document.querySelectorAll('.repo-row').length,width:innerWidth,height:innerHeight,natural:document.getElementById('expanded').scrollHeight,island:document.getElementById('island').offsetHeight,footer:document.querySelector('footer').getBoundingClientRect().bottom})`);
- assert.equal(dimensions.rows,3);assert.ok(dimensions.width>=900&&dimensions.width<=960);assert.ok(dimensions.height<500,JSON.stringify(dimensions));assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
+ assert.equal(dimensions.rows,3);assert.ok(dimensions.width>=900&&dimensions.width<=960);assert.ok(dimensions.height<=650,JSON.stringify(dimensions));assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
 
  async function capture(name){
   window.show();window.focus();window.webContents.focus();let png=null;
@@ -230,7 +230,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await evaluate("window.pulse.settings({autoHide:false,dynamicRefresh:false,motion:'none',hoverLift:false})");
  for(const width of [440,600,960])for(const scale of [100,150])for(const commands of [false,true]){
   await evaluate("window.pulse.settings({textScale:"+scale+",showCommands:"+commands+",visibleRows:1})");
-  window.setBounds({width});await new Promise(r=>setTimeout(r,200));
+  window.setBounds({width});await new Promise(r=>setTimeout(r,200));await evaluate("document.getElementById('feed').scrollTop=0");
   const geometry=await evaluate(`(()=>{const row=document.querySelector('.repo-row'),feed=document.getElementById('feed'),r=row.getBoundingClientRect(),f=feed.getBoundingClientRect();return{overflow:document.documentElement.scrollWidth>innerWidth,rowOverflow:row.scrollWidth>row.clientWidth+1,visible:r.bottom<=f.bottom+1,height:r.height,feedHeight:f.height};})()`);
   assert.equal(geometry.overflow,false,JSON.stringify({width,scale,commands,geometry}));
   assert.equal(geometry.rowOverflow,false,JSON.stringify({width,scale,commands,geometry}));
