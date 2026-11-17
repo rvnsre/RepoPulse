@@ -69,3 +69,6 @@ footer{flex:none;display:flex;justify-content:space-between;align-items:center;m
 
 .no-commands .repo-row{grid-template-columns:minmax(215px,1fr) minmax(220px,2fr)}
 @media(max-width:460px){.no-commands .repo-row{grid-template-columns:minmax(0,1fr)}}
+
+/* Empty-filter recovery must remain visible inside the feed scroller. */
+#feed>.empty{flex:none;min-height:190px;padding:20px;display:flex;flex-direction:column;gap:12px;align-items:flex-start}#feed>.empty h2{font-size:20px}#feed>.empty p{font-size:13px;line-height:1.5}.feed-heading #libraryStat{display:inline;font-size:11px;color:var(--muted)}

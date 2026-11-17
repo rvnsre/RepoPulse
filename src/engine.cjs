@@ -37,7 +37,7 @@ function normalizeRepo(r) {
   const license=typeof r.license==='string'?r.license:typeof r.license?.spdx_id==='string'?r.license.spdx_id:null;
   return {id:r.id,full_name:r.full_name,description:typeof r.description==='string'&&r.description.trim()?r.description.slice(0,600):'Explore this open-source project on GitHub.',stargazers_count:r.stargazers_count,language:typeof r.language==='string'?r.language.trim().slice(0,64)||null:null,topics:[...new Set((Array.isArray(r.topics)?r.topics:[]).filter(t=>typeof t==='string').map(t=>t.trim().slice(0,80)).filter(Boolean))].slice(0,30),archived:!!r.archived,fork:!!r.fork,pushed_at:typeof r.pushed_at==='string'&&Number.isFinite(Date.parse(r.pushed_at))?r.pushed_at:'',avatar_url:'https://github.com/'+encodeURIComponent(r.full_name.split('/')[0])+'.png?size=64',html_url:'https://github.com/'+r.full_name,license:license?license.slice(0,120):null};
 }
-function eligible(repo) { return !!repo && repo.stargazers_count >= 50000 && !repo.archived && !repo.fork; }
+function eligible(repo) { return !!repo && repo.stargazers_count >= 70000 && !repo.archived && !repo.fork; }
 function repoTopics(r) {
   const detected = classify(`${r.full_name} ${r.description} ${r.language || ''} ${r.topics.join(' ')}`);
   for (const [key,topic] of Object.entries(TOPICS)) if (topic.github.some(t=>r.topics.includes(t))) detected[key] = (detected[key]||0)+2;

@@ -209,6 +209,22 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  assert.equal(await evaluate("document.getElementById('connectionDot').dataset.status"),'stale');
  await evaluate("window.pulse.settings({})");await capture('audit-preview.png');
  console.log('11.1 audit native checks passed: all three picks reachable, no duplicated footer actions, exact button baselines, npm/clone copy, nowrap code and stale sync consistency.');
+
+ // Reproduce the reported 0-pick state with a fully seen catalog on a new day.
+ const recoveryHistory=store.state.history.length,recoveryWeights=JSON.stringify(store.state.profile.weights);
+ store.state.seen=store.state.cache.map(r=>r.id);store.state.daily={day:'2000-01-01',repos:[]};
+ await evaluate("window.pulse.settings({autoHide:false,dynamicRefresh:false})");
+ await until(()=>evaluate("document.querySelectorAll('.repo-row').length===3"));
+ assert.equal(store.state.daily.repos.length,3);assert.ok(store.state.daily.repos.every(r=>r.stargazers_count>=70000));
+ await evaluate("document.getElementById('next').click()");await until(()=>evaluate("document.querySelectorAll('.repo-row').length===3"));
+ assert.equal(store.state.history.length,recoveryHistory);assert.equal(JSON.stringify(store.state.profile.weights),recoveryWeights);
+ await evaluate("window.pulse.settings({languages:['NotARealLanguage']})");await until(()=>evaluate("!!document.querySelector('#feed>.empty')"));
+ await until(()=>window.getBounds().height>=300);
+ assert.ok(await evaluate("document.querySelector('#feed>.empty').getBoundingClientRect().height>=180"));
+ await capture('empty-filter-preview.png');
+ await evaluate("document.querySelector('#feed>.empty button').click()");await until(()=>evaluate("document.querySelectorAll('.repo-row').length===3"));
+ await capture('catalog-recovery-preview.png');
+ console.log('11.2 recovery checks passed: fully seen new-day catalog refills automatically, 70K hard floor, no phantom visits, readable filter-empty recovery and reset to three cards.');
  assert.deepEqual(errors,[]);console.log('Native UI passed: readable fonts, stable row DOM, direct Learn URL, verified Releases URL, independent replacement, undo, native screenshots, settings, 150% text, three rows, rapid toggle and collection.');app.exit(0);
 }
 module.exports={smoke};

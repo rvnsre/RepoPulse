@@ -1,4 +1,4 @@
-# RepoPulse 11.1.0
+# RepoPulse 11.2.0
 
 A personalized GitHub discovery island for Windows, macOS and Linux, focused on **50,000+ star** public projects.
 
@@ -9,6 +9,16 @@ Choose Fluid, Snappy, Calm or Soft Spring motion, hover growth, timing, card app
 ![Native application preview](docs/preview-v11.1.png)
 
 Native Electron screenshot using sample metadata. The native test temporarily disables automatic hiding and Live rotation to capture a stable desktop view; autonomous operation is exercised separately in the same test.
+
+## Catalog recovery / 11.2
+
+The discovery threshold is now **70,000 stars**. The old 300-project fetch cap is removed: pagination and non-overlapping star-range sharding support catalogs past GitHub's 1,000-result-per-query limit, up to a bounded 5,000-project capacity. This supports 2,000+ entries when that many qualifying repositories exist; it does not invent entries to reach a requested count.
+
+The current GitHub query returned **301 unique eligible repositories** (100 + 100 + 100 + 1 across four pages, checked 18 November 2026 Asia/Baku). The actual count changes over time. A small real, API-verified starter catalog ships for offline startup; online sync loads the complete eligible set.
+
+Seen history no longer empties a new day's feed. Previously seen candidates are reused when needed, current cards are retained if no alternative exists, and live rotation excludes already visible neighbors. No views or preference updates are recorded by automatic recovery. Truly restrictive filters show a readable empty state with a Reset feed filters action.
+
+[Details and verified downloads](docs/FIX-v11.2.md).
 
 ## Cross-platform audit / 11.1
 
