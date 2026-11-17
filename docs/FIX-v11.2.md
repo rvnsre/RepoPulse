@@ -14,7 +14,7 @@ Changes:
 
 On 18 November 2026 (Asia/Baku), the connected GitHub repository search for `stars:>=70000 archived:false fork:false` returned 100, 100, 100 and 1 result across four pages: **301 unique repositories**. Therefore 2,000 real eligible repositories could not be added under this threshold at the time of the check. The app supports that capacity when the qualifying public pool grows. No generated project, duplicated ID or fabricated star count is shipped to inflate the total.
 
-The bundled starter data contains 24 real repositories, individually read from the public GitHub repository API and validated above the floor. It is not the complete online catalog and is not counted as a successful current sync.
+All 301 search results were individually read from the public GitHub repository API and bundled as the offline startup snapshot. The lowest verified star count was 70,020. This verified snapshot is not counted as a successful current network sync; online requests revalidate the catalog.
 
 ## Validation
 

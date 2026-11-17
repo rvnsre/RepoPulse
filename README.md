@@ -14,7 +14,7 @@ Native Electron screenshot using sample metadata. The native test temporarily di
 
 The discovery threshold is now **70,000 stars**. The old 300-project fetch cap is removed: pagination and non-overlapping star-range sharding support catalogs past GitHub's 1,000-result-per-query limit, up to a bounded 5,000-project capacity. This supports 2,000+ entries when that many qualifying repositories exist; it does not invent entries to reach a requested count.
 
-The current GitHub query returned **301 unique eligible repositories** (100 + 100 + 100 + 1 across four pages, checked 18 November 2026 Asia/Baku). The actual count changes over time. A small real, API-verified starter catalog ships for offline startup; online sync loads the complete eligible set.
+The current GitHub query returned **301 unique eligible repositories** (100 + 100 + 100 + 1 across four pages, checked 18 November 2026 Asia/Baku). The actual count changes over time. A bundled, individually API-verified snapshot of all 301 repositories ships for immediate offline/cold startup; online sync revalidates the complete eligible set.
 
 Seen history no longer empties a new day's feed. Previously seen candidates are reused when needed, current cards are retained if no alternative exists, and live rotation excludes already visible neighbors. No views or preference updates are recorded by automatic recovery. Truly restrictive filters show a readable empty state with a Reset feed filters action.
 
