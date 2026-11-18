@@ -28,4 +28,4 @@
 
 The top zone follows each display's native work area, so macOS menu-bar safe positioning is preserved. Native Wayland placement/stacking remains compositor controlled; its fallback uses normal window hover. X11's opaque fallback shapes its visible surface to the small indicator. Coordinates remain in DIP at different display scale factors.
 
-Source: [72588d01](https://github.com/rvnsre/RepoPulse/commit/72588d013e8b3fb8b30b0bac97601484b10c7760). [Builds and installers](https://github.com/rvnsre/RepoPulse/actions/runs/44204670843).
+Source: [25cc3af3](https://github.com/rvnsre/RepoPulse/commit/25cc3af3e84751f4cab474aee8d4bd6ec33a72c0). [Builds and installers](https://github.com/rvnsre/RepoPulse/actions/runs/44205632675).

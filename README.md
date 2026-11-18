@@ -1,6 +1,12 @@
-# RepoPulse 11.5.0
+# RepoPulse 11.6.0
 
 A personalized GitHub discovery island for Windows, macOS and Linux, focused on **50,000+ star** public projects.
+
+## Camera-edge auto-hide / 11.6
+
+The application now starts hidden under the top-center camera area: a **120 × 16 DIP hot zone** with just a **48 × 3 DIP visible indicator**. Hover there to reveal the animated panel; leaving uses an 80 ms debounce before collapse. Background sync and pending repository operations no longer pin the panel open. Stale keyboard focus is cleared on pointer exit. Actual editing and explicitly paused hiding remain protected.
+
+[Behavior, changed files and regression checks](docs/AUTO-HIDE-v11.6.md).
 
 ## Current catalog / 11.5
 
@@ -59,7 +65,7 @@ The compact suggestion uses deterministic fixture metadata in this native previe
 
 Native pointer/window membership now controls hover so resizing or scaling the island cannot repeatedly expand and collapse it. A fixed anchor preserves dock position near display edges, and stale window acknowledgements cannot override the latest intent. The regression uses an actual desktop pointer and checks stationary hover plus rapid exit/re-entry. See [verified downloads and upgrade instructions](docs/CHANGES-v10.1.2.md).
 
-Quit the old process from the tray before starting the update; closing its window only hides it. Settings must show **11.5.0**.
+Quit the old process from the tray before starting the update; closing its window only hides it. Settings must show **11.6.0**.
 
 ## Compact actions / 10.1.1
 
