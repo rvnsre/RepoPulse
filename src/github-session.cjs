@@ -4,6 +4,7 @@ const fs=require('node:fs');
 function createGitHubSession({safeStorage,tokenPath,fetchImpl=fetch,now=Date.now}){
  let token='',loaded=false;
  const limits=new Map();
+ const active=new AbortController();
  function encryptionAvailable(){
   return safeStorage.isEncryptionAvailable()&&safeStorage.getSelectedStorageBackend?.()!=='basic_text';
  }
@@ -37,7 +38,7 @@ function createGitHubSession({safeStorage,tokenPath,fetchImpl=fetch,now=Date.now
   const current=limits.get(scope);
   if(current?.until>now())throw new Error('GitHub rate limit. Retry after '+new Date(current.until).toLocaleTimeString()+'.');
   const credential=load();
-  const response=await fetchImpl(url.href,{...options,redirect:'error',headers:{...options.headers,...(credential?{Authorization:'Bearer '+credential}:{})}});
+  const response=await fetchImpl(url.href,{...options,redirect:'error',signal:options.signal?AbortSignal.any([options.signal,active.signal]):active.signal,headers:{...options.headers,...(credential?{Authorization:'Bearer '+credential}:{})}});
   if(response.status===401)throw new Error('GitHub rejected the configured token. Replace or remove it in Settings.');
   if(response.status===403||response.status===429){
    const attempts=(current?.attempts||0)+1;
@@ -50,6 +51,6 @@ function createGitHubSession({safeStorage,tokenPath,fetchImpl=fetch,now=Date.now
   if(response.ok||response.status===304)limits.delete(scope);
   return response;
  }
- return {request,set,configured:()=>fs.existsSync(tokenPath)};
+ return {request,set,close:()=>active.abort(),configured:()=>fs.existsSync(tokenPath)};
 }
 module.exports={createGitHubSession};

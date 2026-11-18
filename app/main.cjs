@@ -210,5 +210,5 @@ if(singleton)app.whenReady().then(()=>{
  powerMonitor.on('resume',()=>{if(!quitting)refresh().catch(error=>{lastError=error.message;emit();});});timer=setInterval(()=>{if(!smokeMode&&(store.state.daily?.day!==localDay()||(!Number.isFinite(Date.parse(store.state.cacheAt))||Date.now()-Date.parse(store.state.cacheAt)>=240000)))void refresh().catch(error=>{lastError=error.message;emit();});},60000);app.on('second-instance',show);app.on('activate',show);
  if(smokeMode)require('../scripts/smoke.cjs').smoke({app,window,store,resize,TOPICS,snapshot}).catch(error=>{console.error(error);app.exit(1);});
 }).catch(error=>{dialog.showErrorBox('RepoPulse could not start',error.message);app.quit();});
-app.on('before-quit',()=>{quitting=true;clearInterval(timer);clearInterval(pointerTimer);clearInterval(advisorTimer);clearInterval(contextTimer);clearTimeout(moveTimer);});app.on('will-quit',()=>globalShortcut.unregisterAll());app.on('window-all-closed',()=>{});
+app.on('before-quit',()=>{quitting=true;github?.close();clearInterval(timer);clearInterval(pointerTimer);clearInterval(advisorTimer);clearInterval(contextTimer);clearTimeout(moveTimer);});app.on('will-quit',()=>globalShortcut.unregisterAll());app.on('window-all-closed',()=>{});
 

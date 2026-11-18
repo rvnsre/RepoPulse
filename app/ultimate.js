@@ -210,7 +210,7 @@ function dynamicStatus(status){
 function dynamicSync(){
  if(!dynamicScheduler)return;
  const s=state;
- const key=JSON.stringify([Math.floor(Date.now()/30000),s.cacheAt,s.catalogSize,s.daily?.day,s.settings.minStars,s.settings.languages,s.exclusions]);
+ const key=JSON.stringify([Math.floor(Date.now()/30000),s.cacheAt,s.catalogSize,s.daily?.day,s.settings.minStars,s.settings.languages,s.settings.topics,s.settings.cooldownWindowMs,s.exclusions]);
  dynamicScheduler.configure(s.settings,key);
 }
 function dynamicInit(){
@@ -224,8 +224,9 @@ function dynamicInit(){
  }});
  $('liveToggle').addEventListener('click',()=>run(()=>changeSettings({dynamicRefresh:!state.settings.dynamicRefresh})));
  document.addEventListener('pointerdown',()=>{dynamicHoldUntil=Date.now()+800;},true);
- window.addEventListener('beforeunload',()=>dynamicScheduler.destroy());
- dynamicSync();setInterval(dynamicSync,15000);
+ const syncTimer=setInterval(dynamicSync,15000);
+ window.addEventListener('beforeunload',()=>{clearInterval(syncTimer);dynamicScheduler.destroy();},{once:true});
+ dynamicSync();
 }
 
 let dockPressed=null;
