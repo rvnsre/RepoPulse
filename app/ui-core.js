@@ -1,5 +1,14 @@
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.RepoPulseUI=factory();})(typeof window==='object'?window:this,function(){
  'use strict';
+ function renderQueue(render,{requestFrame=fn=>requestAnimationFrame(fn),cancelFrame=id=>cancelAnimationFrame(id),setTimer=(fn,ms)=>setTimeout(fn,ms),clearTimer=id=>clearTimeout(id),delay=50}={}){
+  let queued=false,frame=null,timer=null,version=0;
+  const clear=()=>{if(frame!==null)cancelFrame(frame);if(timer!==null)clearTimer(timer);frame=timer=null;};
+  const schedule=()=>{if(queued)return;queued=true;const current=++version;
+   const flush=()=>{if(!queued||current!==version)return;queued=false;clear();render();};
+   timer=setTimer(flush,delay);try{frame=requestFrame(flush);}catch{}
+  };
+  schedule.cancel=()=>{version++;queued=false;clear();};return schedule;
+ }
  function visible(items,offset=0,count=2){items=Array.isArray(items)?items:[];if(!items.length)return[];offset=Number.isFinite(offset)?Math.trunc(offset):0;count=Number.isFinite(count)?Math.trunc(count):2;count=Math.min(Math.max(1,count),items.length);return Array.from({length:count},(_,i)=>items[((offset+i)%items.length+items.length)%items.length]);}
  function rowPlan(previous,next){const old=new Set(previous),current=new Set(next);return{added:next.filter(id=>!old.has(id)),removed:previous.filter(id=>!current.has(id)),retained:next.filter(id=>old.has(id)),order:next};}
  function motion(prefs={},systemReduced=false,hidden=false){return !hidden&&!prefs.reducedMotion&&prefs.motion!=='none'&&!(prefs.motion!=='full'&&systemReduced);}
@@ -17,5 +26,5 @@
  }
  function dockModel(items=[],id){items=(Array.isArray(items)?items:[]).filter(r=>r&&typeof r.full_name==='string');const repo=items.find(r=>r?.id===id)||items[0]||null;return{repo,title:repo?.full_name||'No discovery yet',summary:repo?brief(repo.description):'Open the panel to discover projects'};}
  function externalMode(message){if(typeof message==='object'&&message?.requestId!=null)return null;const mode=typeof message==='string'?message:message?.mode;return ['panel','collapsed','workspace','insight'].includes(mode)?mode:null;}
- return{externalMode,brief,dockModel,visible,rowPlan,motion,textScale,nextScale,search,history,accept};
+ return{renderQueue,externalMode,brief,dockModel,visible,rowPlan,motion,textScale,nextScale,search,history,accept};
 });

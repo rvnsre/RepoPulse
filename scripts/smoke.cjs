@@ -9,7 +9,10 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await evaluate("window.lastNativePointer=null;window.pulse.onPointer(v=>window.lastNativePointer=v);window.pointerTrace=[];for(const type of ['pointerenter','pointerleave'])document.addEventListener(type,e=>{if(e.target===document.documentElement){window.pointerTrace.push({type,x:e.clientX,y:e.clientY});if(window.pointerTrace.length>50)window.pointerTrace.shift();}},true)");
  async function moveScreen(x,y){const point={x:Math.max(0,Math.round(x)),y:Math.max(0,Math.round(y))};require('node:child_process').execFileSync('xdotool',['mousemove',String(point.x),String(point.y)],{timeout:2000});await new Promise(r=>setTimeout(r,50));const location=require('node:child_process').execFileSync('xdotool',['getmouselocation','--shell'],{encoding:'utf8',timeout:2000});const actual=Object.fromEntries(location.trim().split(/\r?\n/).map(line=>line.split('=')));assert.equal(Number(actual.X),point.x,'X server pointer x');assert.equal(Number(actual.Y),point.y,'X server pointer y');}
  async function movePointer(x,y){const b=window.getBounds();await moveScreen(b.x+x,b.y+y);}
- await until(()=>evaluate(`!!document.querySelector('.repo-row')`));
+ await evaluate("window.originalRAF=window.requestAnimationFrame;window.requestAnimationFrame=()=>0;queueRender.cancel();queueFit.cancel();document.getElementById('status').textContent='Waiting for a withheld frame';render()");
+ await until(()=>evaluate(`!!document.querySelector('.repo-row')&&document.getElementById('status').textContent!=='Waiting for a withheld frame'`));
+ await evaluate("window.requestAnimationFrame=window.originalRAF;render();requestFit()");
+ console.log('Native withheld-frame regression passed: cards and status render without compositor callbacks.');
  await new Promise(r=>setTimeout(r,500));let dimensions=await evaluate(`({rows:document.querySelectorAll('.repo-row').length,width:innerWidth,height:innerHeight,natural:document.getElementById('expanded').scrollHeight,island:document.getElementById('island').offsetHeight,footer:document.querySelector('footer').getBoundingClientRect().bottom})`);
  assert.equal(dimensions.rows,3);assert.ok(dimensions.width>=900&&dimensions.width<=960);assert.ok(dimensions.height<=650,JSON.stringify(dimensions));assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
 

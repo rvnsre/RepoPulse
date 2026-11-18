@@ -1,7 +1,7 @@
 'use strict';
 const UI=window.RepoPulseUI,raw=window.pulse,$=id=>document.getElementById(id);
 let insightOpen=false,morphing=false,sceneSequence=0;
-let state,section='details',expanded=true,drawer=false,selectedId=null,pair=0,draft={},toastTimer,busy=false,search='',sort='recent',savedLanguage='',renderQueued=false,transition=0,rootAnimation=null,drawerStamp='',releaseTimer;
+let state,section='details',expanded=true,drawer=false,selectedId=null,pair=0,draft={},toastTimer,busy=false,search='',sort='recent',savedLanguage='',transition=0,rootAnimation=null,drawerStamp='',releaseTimer;
 const pending=new Set(),slots=[],releaseStates=new Map(),releaseRequests=new Map();
 const api=raw?{...raw}:null;
 function adopt(next){state=UI.accept(state,next);return state;}
@@ -141,18 +141,17 @@ function reconcile(){
  }
  while(slots.length>desired.length){const removed=slots.pop();removed.version++;removed.effect?.cancel();removed.element.remove();}
 }
-let fitFrame=0;
 let fitKey='';
-function requestFit(){
- if(fitFrame||!api||morphing||insightOpen||expanded&&drawer)return;
- fitFrame=requestAnimationFrame(()=>{
-  fitFrame=0;if(morphing||insightOpen||expanded&&drawer)return;
-  const height=desiredHeight(),mode=expanded?'panel':'collapsed',key=mode+':'+height+':'+innerWidth;
-  if(key===fitKey)return;fitKey=key;
-  api.fit({height,mode,requestId:transition}).then(reply=>{if(reply?.mode===(expanded?'panel':'collapsed'))updatePointerBounds(reply.bounds);}).catch(()=>{fitKey='';});
- });
-}
-function render(){if(renderQueued)return;renderQueued=true;requestAnimationFrame(()=>{renderQueued=false;renderNow();});}
+const queueFit=UI.renderQueue(()=>{
+ if(!api||morphing||insightOpen||expanded&&drawer)return;
+ const height=desiredHeight(),mode=expanded?'panel':'collapsed',key=mode+':'+height+':'+innerWidth;
+ if(height===undefined||key===fitKey)return;fitKey=key;
+ api.fit({height,mode,requestId:transition}).then(reply=>{if(reply?.mode===(expanded?'panel':'collapsed'))updatePointerBounds(reply.bounds);}).catch(()=>{fitKey='';});
+});
+function requestFit(){if(!api||morphing||insightOpen||expanded&&drawer)return;queueFit();}
+const queueRender=UI.renderQueue(()=>renderNow());
+function render(){queueRender();}
+window.addEventListener('beforeunload',()=>{queueFit.cancel();queueRender.cancel();});
 function renderNow(){
  if(!state)return;fitKey='';const prefs=state.settings;renderInsight();ultimateRender();
  for(const theme of ['graphite','contrast'])document.body.classList.toggle(theme,prefs.theme===theme);
