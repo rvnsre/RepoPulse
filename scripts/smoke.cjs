@@ -186,6 +186,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
 
  
  await evaluate("document.activeElement.blur();window.pulse.settings({autoHide:false,dynamicRefresh:false})");
+ await until(()=>evaluate(`!busy&&state.settings.dynamicRefresh===false&&state.feed.epoch===${store.state.feed.epoch}`));
  const nextBefore=store.state.daily.repos.map(r=>r.id),nextHistory=store.state.history.length;
  await evaluate("document.getElementById('next').click()");
  await until(()=>store.state.daily.repos.every(r=>!nextBefore.includes(r.id)));
@@ -221,7 +222,10 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
 
  // Reproduce the reported 0-pick state with a fully seen catalog on a new day.
  const recoveryHistory=store.state.history.length,recoveryWeights=JSON.stringify(store.state.profile.weights);
- store.state.seen=store.state.cache.map(r=>r.id);store.state.daily={day:'2000-01-01',repos:[]};
+ store.state.seen=store.state.cache.map(r=>r.id);const cooledAt=Date.now()-store.state.settings.cooldownWindowMs-1000;
+ store.state.presentedAt=Object.fromEntries(store.state.seen.map(id=>[id,cooledAt]));
+ store.state.seenHistory=store.state.seenHistory.map(entry=>({...entry,timestamp:cooledAt}));
+ store.state.daily={day:'2000-01-01',repos:[]};
  await evaluate("window.pulse.settings({autoHide:false,dynamicRefresh:false})");
  await until(()=>evaluate("document.querySelectorAll('.repo-row').length===3"));
  assert.equal(store.state.daily.repos.length,3);assert.ok(store.state.daily.repos.every(r=>r.stargazers_count>=50000));
