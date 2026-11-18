@@ -47,12 +47,12 @@
             "x64"
           ]
         }
-      ],
-      "artifactName": "RepoPulse-${version}-Windows-${arch}-${target}.${ext}"
+      ]
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "RepoPulse-${version}-Windows-${arch}-Setup.${ext}"
     },
     "mac": {
       "target": [
@@ -95,6 +95,9 @@
       ],
       "category": "Development",
       "artifactName": "RepoPulse-${version}-Linux-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "RepoPulse-${version}-Windows-${arch}-Portable.${ext}"
     }
   },
   "homepage": "https://github.com/rvnsre/RepoPulse"
