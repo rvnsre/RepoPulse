@@ -51,3 +51,15 @@ test('Linux launch on login quotes the installed binary without a shell command'
  assert.match(desktopEntry('/opt/Repo Pulse/bin'),/Exec="\/opt\/Repo Pulse\/bin"/);
  assert.throws(()=>desktopEntry('/opt/repo\nExec=bad'),/Invalid/);
 });
+
+test('A settings update cannot strand an already queued hover reveal',()=>{
+ const {Controller}=require('../app/island-motion.js');
+ const pending=new Map();let id=0,expanded=0;
+ const controller=new Controller({setTimer:fn=>{pending.set(++id,fn);return id;},clearTimer:id=>pending.delete(id),onExpand:()=>expanded++});
+ controller.configure({hoverExpand:true,hoverDelay:80},'collapsed');
+ controller.enter();
+ controller.configure({hoverExpand:true,hoverDelay:0},'collapsed');
+ assert.equal(pending.size,1);
+ pending.values().next().value();
+ assert.equal(expanded,1);
+});

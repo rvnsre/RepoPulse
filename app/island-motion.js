@@ -16,8 +16,12 @@ class Controller{
   prefs=prefs&&typeof prefs==='object'?prefs:{};
   const keys=['autoHide','collapseOnLeave','idleCollapse','hideDelay','idleSeconds','hoverDelay','hoverExpand','keepOnFocus','keepOnHover'];
   const changed=mode!==this.mode||keys.some(key=>prefs[key]!==this.prefs[key]);
+  const pendingReveal=this.timers.hover!==undefined;
   this.prefs={...prefs};this.mode=mode;
-  if(changed){this.clear('hover');this.rearm();}
+  if(changed){
+   this.clear('hover');this.rearm();
+   if(pendingReveal&&this.pointer&&mode==='collapsed'&&prefs.hoverExpand)this.enter(true,true);
+  }
  }
  blocked(){const protectedHold=[...this.holds].some(name=>this.pointer||!['refresh','opening','next picks'].includes(name));return protectedHold||this.mode==='workspace'||this.now()<this.pausedUntil||(this.focused&&this.prefs.keepOnFocus!==false);}
  rearm(){this.clear('idle');this.clear('leave');if(!this.prefs.autoHide||this.mode!=='panel'||this.blocked())return;

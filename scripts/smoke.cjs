@@ -141,6 +141,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  const dockAnchor=window.getBounds(),point={x:dockAnchor.x+dockAnchor.width/2,y:dockAnchor.y+4};
  await moveScreen(work.x-20,work.y-20);
  await evaluate("window.hoverModes=[];window.stopHoverTrace=window.pulse.onMode(m=>window.hoverModes.push(m));window.pulse.settings({autoHide:true,collapseOnLeave:true,hideDelay:0,hoverDelay:0,keepOnFocus:false})");
+ await until(()=>evaluate("islandController.prefs.hoverDelay===0&&islandController.prefs.hideDelay===0"));
  await moveScreen(point.x,point.y);
  await until(()=>evaluate("!document.getElementById('expanded').hidden"));
  for(let i=0;i<8;i++)await moveScreen(point.x,point.y);
