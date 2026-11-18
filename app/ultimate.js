@@ -57,7 +57,7 @@ function ultimateInit(){
  window.addEventListener('blur',()=>{uKeyboardFocus=false;islandController.focus(false);islandController.hold('editing',false);});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)hoverAnimation?.cancel();});
  matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',()=>{if(state.settings.motion!=='full'||state.settings.reducedMotion){hoverAnimation?.cancel();document.body.classList.remove('pointer-near');}});
- $('edgeReveal').addEventListener('click',()=>run(async()=>{insightOpen=false;expanded=true;drawer=false;await windowMode();}));
+ $('edgeReveal').addEventListener('click',()=>run(async()=>{if(!islandController.pointer)islandController.pause(1200);insightOpen=false;expanded=true;drawer=false;await windowMode();}));
  $('commandButton').addEventListener('click',()=>run(()=>openDrawer('commands')));$('focusButton').addEventListener('click',()=>run(ultimateFocus));
  $('autoHideButton').addEventListener('click',()=>run(()=>{const enabled=!state.settings.autoHide;if(enabled)islandController.pause(0);return changeSettings({autoHide:enabled,...(enabled?{collapseOnLeave:true,hoverExpand:true}:{})});}));$('historyButton').addEventListener('click',()=>run(()=>openDrawer('history')));
  $('queueButton').addEventListener('click',()=>run(async()=>{uFilters.scope='queued';await openDrawer('library');}));

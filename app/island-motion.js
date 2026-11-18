@@ -19,7 +19,7 @@ class Controller{
   this.prefs={...prefs};this.mode=mode;
   if(changed){this.clear('hover');this.rearm();}
  }
- blocked(){return this.holds.size>0||this.mode==='workspace'||this.now()<this.pausedUntil||(this.focused&&this.prefs.keepOnFocus!==false);}
+ blocked(){const protectedHold=[...this.holds].some(name=>this.pointer||!['refresh','opening','next picks'].includes(name));return protectedHold||this.mode==='workspace'||this.now()<this.pausedUntil||(this.focused&&this.prefs.keepOnFocus!==false);}
  rearm(){this.clear('idle');this.clear('leave');if(!this.prefs.autoHide||this.mode!=='panel'||this.blocked())return;
   if(!this.pointer&&this.prefs.collapseOnLeave)this.schedule('leave',this.prefs.hideDelay??140,()=>this.collapse('leave'));
   if(this.prefs.idleCollapse)this.schedule('idle',(this.prefs.idleSeconds||30)*1000,()=>this.collapse('idle'));
