@@ -1,10 +1,43 @@
 'use strict';
 const {repositoryUrl}=require('./navigation.cjs');
 const validDate=value=>typeof value==='string'&&Number.isFinite(Date.parse(value))?value:null;
-function observe(previous={},repos=[],now=Date.now()){
- if(!previous||typeof previous!=='object'||Array.isArray(previous))previous={};const out={};for(const repo of repos){const old=Array.isArray(previous[repo.id])?previous[repo.id].filter(s=>s&&Number.isFinite(s.at)&&s.at<=now&&s.at>=now-3*86400000&&Number.isSafeInteger(s.stars)&&s.stars>=0):[];const day=new Date(now).toISOString().slice(0,13),sample={at:now,stars:repo.stargazers_count};out[repo.id]=[...old.filter(s=>new Date(s.at).toISOString().slice(0,13)!==day),sample].slice(-73);}return out;
+const DAY=86400000;
+function sampleDay(sample) {
+ if(typeof sample?.dateUtc==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(sample.dateUtc)&&Number.isFinite(Date.parse(sample.dateUtc)))return sample.dateUtc;
+ if(Number.isSafeInteger(sample?.at)&&Math.abs(sample.at)<=8640000000000000)return new Date(sample.at).toISOString().slice(0,10);
+ return null;
 }
-function velocity(input=[]){const samples=(Array.isArray(input)?input:[]).filter(s=>s&&Number.isSafeInteger(s.at)&&Math.abs(s.at)<=8640000000000000&&Number.isSafeInteger(s.stars)&&s.stars>=0).sort((a,b)=>a.at-b.at);if(samples.length<2)return null;const latest=samples.at(-1),prior=samples.slice(0,-1).filter(s=>latest.at-s.at>=23*3600000&&latest.at-s.at<=25*3600000).sort((a,b)=>Math.abs(latest.at-a.at-86400000)-Math.abs(latest.at-b.at-86400000))[0];return prior?{delta:latest.stars-prior.stars,hours:Math.round((latest.at-prior.at)/3600000),observedAt:new Date(latest.at).toISOString()}:null;}
+function observe(previous={},repos=[],now=Date.now()){
+ const today=new Date(now).toISOString().slice(0,10),first=new Date(now-89*DAY).toISOString().slice(0,10);
+ const out={};
+ for(const repo of repos){
+  const days=new Map();
+  for(const sample of Array.isArray(previous?.[repo.id])?previous[repo.id]:[]){
+   const dateUtc=sampleDay(sample);
+   if(dateUtc&&dateUtc>=first&&dateUtc<=today&&Number.isSafeInteger(sample.stars)&&sample.stars>=0)days.set(dateUtc,{dateUtc,stars:sample.stars});
+  }
+  days.set(today,{dateUtc:today,stars:repo.stargazers_count});
+  out[repo.id]=[...days.values()].sort((a,b)=>a.dateUtc.localeCompare(b.dateUtc));
+ }
+ return out;
+}
+function velocity(input=[]){
+ const days=new Map();
+ for(const sample of Array.isArray(input)?input:[]){
+  const day=sampleDay(sample);
+  if(day&&Number.isSafeInteger(sample.stars)&&sample.stars>=0)days.set(day,sample.stars);
+ }
+ const latest=[...days.keys()].sort().at(-1);
+ if(!latest)return null;
+ const current=Date.parse(latest);
+ const delta=offset=>{
+  const day=new Date(current-offset*DAY).toISOString().slice(0,10);
+  return days.has(day)?days.get(latest)-days.get(day):null;
+ };
+ const daily=delta(1),weekly=delta(7);
+ if(daily===null&&weekly===null)return null;
+ return {delta:daily??weekly,hours:daily===null?168:24,daily,weekly,observedAt:latest};
+}
 class ActivityClient{
  constructor({fetchImpl=fetch,now=Date.now,limit=36,ttl=900000}={}){this.fetch=fetchImpl;this.now=now;this.limit=limit;this.ttl=ttl;this.used=[];this.cache=new Map();this.inflight=new Map();this.active=0;this.retryAt=0;}
  async get(repo){repositoryUrl(repo);const key=repo.full_name.toLowerCase(),now=this.now(),cached=this.cache.get(key);if(cached?.expires>now)return cached.value;if(this.inflight.has(key))return this.inflight.get(key);this.used=this.used.filter(t=>now-t<3600000);if(now<this.retryAt||this.used.length+(!require('./install.cjs').known(repo)&&['JavaScript','TypeScript'].includes(repo.language)?3:2)>this.limit||this.active>=2)return cached?.value||{status:'deferred'};

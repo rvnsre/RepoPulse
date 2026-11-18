@@ -1,7 +1,7 @@
 'use strict';
 const {MIN_STARS,MAX_CATALOG,TARGET_CATALOG,CATALOG_REVISION}=require('./catalog-policy.cjs');
-const {selectDaily, ranked, eligible, localDay, normalizeRepo, defaults}=require('./engine.cjs');
-const SETTINGS={...{"autoHide":true,"hoverExpand":true,"collapseOnLeave":true,"idleCollapse":true,"hideDelay":80,"idleSeconds":30,"hoverDelay":0,"keepOnFocus":false,"keepOnHover":true,"hoverScale":102,"motionPreset":"snappy","subtleMotion":false,"hoverLift":true,"glow":true,"showBadges":true,"showQuickActions":true,"showStatus":true,"showQueueCount":true,"pinnedFirst":true,"markReadOnOpen":false,"quietMode":false,"focusMinutes":25,"accent":"sand","cardStyle":"soft","roundness":20,"stagger":true,"startCollapsed":true,"protectEditing":true,"showHints":true},pinned:true,reducedMotion:false,launchAtLogin:false,autoReplace:true,notifications:false,pausedLearning:false,opacity:100,anchor:'center',theme:'reference',density:'compact',minStars:MIN_STARS,languages:[],textScale:100,motion:'system',motionDuration:80,visibleRows:2,panelWidth:960,compactRevision:1,dynamicRefresh:true,cycleMin:3,cycleMax:10,transitionStyle:'auto',cyclePauseHover:false,cyclePauseFocus:true,cycleCountdown:true,cycleAccent:true,liveRevision:2,dockRevision:1,catalogRevision:CATALOG_REVISION,edgeRevision:1,cycleMotion:'adaptive',windowMotionDuration:160,idleAdvisor:true,screenContext:false,workTopic:'tools',showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,shortcuts:true,exactStars:false,toastSeconds:5,uniqueHistory:false};
+const {ranked, eligible, localDay, normalizeRepo, defaults}=require('./engine.cjs');
+const SETTINGS={...{"autoHide":true,"hoverExpand":true,"collapseOnLeave":true,"idleCollapse":true,"hideDelay":80,"idleSeconds":30,"hoverDelay":0,"keepOnFocus":false,"keepOnHover":true,"hoverScale":102,"motionPreset":"snappy","subtleMotion":false,"hoverLift":true,"glow":true,"showBadges":true,"showQuickActions":true,"showStatus":true,"showQueueCount":true,"pinnedFirst":true,"markReadOnOpen":false,"quietMode":false,"focusMinutes":25,"accent":"sand","cardStyle":"soft","roundness":20,"stagger":true,"startCollapsed":true,"protectEditing":true,"showHints":true},pinned:true,reducedMotion:false,launchAtLogin:false,autoReplace:true,notifications:false,pausedLearning:false,opacity:100,anchor:'center',theme:'reference',density:'compact',minStars:MIN_STARS,languages:[],topics:[],cooldownWindowMs:43200000,textScale:100,motion:'system',motionDuration:80,visibleRows:2,panelWidth:960,compactRevision:1,dynamicRefresh:true,cycleMin:3,cycleMax:10,transitionStyle:'auto',cyclePauseHover:false,cyclePauseFocus:true,cycleCountdown:true,cycleAccent:true,liveRevision:2,dockRevision:1,catalogRevision:CATALOG_REVISION,edgeRevision:1,cycleMotion:'adaptive',windowMotionDuration:160,idleAdvisor:true,screenContext:false,workTopic:'tools',showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,shortcuts:true,exactStars:false,toastSeconds:5,uniqueHistory:false};
 function settings(input={}) {
  input=input&&typeof input==='object'&&!Array.isArray(input)?input:{};const out={...SETTINGS};
  for(const key of ['idleAdvisor','screenContext','dynamicRefresh','cyclePauseHover','cyclePauseFocus','cycleCountdown','cycleAccent','pinned','reducedMotion','launchAtLogin','autoReplace','hoverExpand','notifications','pausedLearning','showCommands','showDescriptions','showOwners','showReasons','wrapNames','codeWrap','shortcuts','exactStars','uniqueHistory','autoHide','hoverExpand','collapseOnLeave','idleCollapse','keepOnFocus','keepOnHover','subtleMotion','hoverLift','glow','showBadges','showQuickActions','showStatus','showQueueCount','pinnedFirst','markReadOnOpen','quietMode','stagger','startCollapsed','protectEditing','showHints'])if(typeof input[key]==='boolean')out[key]=input[key];
@@ -15,66 +15,141 @@ function settings(input={}) {
  if((typeof input.windowMotionDuration==='number'||typeof input.windowMotionDuration==='string'&&input.windowMotionDuration.trim())&&[160,200,280,360].includes(Number(input.windowMotionDuration)))out.windowMotionDuration=Number(input.windowMotionDuration);
  if(Object.hasOwn(require('./engine.cjs').TOPICS,input.workTopic))out.workTopic=input.workTopic;
  if(Array.isArray(input.languages))out.languages=[...new Set(input.languages.filter(s=>typeof s==='string').map(s=>s.trim()).filter(s=>s&&s.length<=64))].slice(0,20);
+ if(Array.isArray(input.topics))out.topics=[...new Set(input.topics.filter(t=>typeof t==='string'&&/^[a-z0-9-]{1,80}$/i.test(t)).map(t=>t.toLowerCase()))].slice(0,20);
+ if(Number.isSafeInteger(input.cooldownWindowMs))out.cooldownWindowMs=Math.max(1800000,Math.min(604800000,input.cooldownWindowMs));
  return out;
 }
-function allowed(repo,state,now=Date.now()) {
+function canonicalKey(repo) {
+ return repo.full_name.toLowerCase();
+}
+function distinct(repos) {
+ const ids=new Set(),names=new Set();
+ return repos.filter(repo=>{
+  const name=canonicalKey(repo);
+  if(ids.has(repo.id)||names.has(name))return false;
+  ids.add(repo.id);names.add(name);return true;
+ });
+}
+function matchesActiveFilters(repo,prefs) {
+ return eligible(repo)&&repo.stargazers_count>=prefs.minStars&&
+  (!prefs.languages.length||prefs.languages.includes(repo.language))&&
+  (!prefs.topics?.length||prefs.topics.some(topic=>repo.topics?.some(value=>value.toLowerCase()===topic)));
+}
+function allowed(repo,state,now=Date.now(),prefs=settings(state.settings)) {
+ return matchesActiveFilters(repo,prefs)&&!(state.hidden||[]).includes(repo.id)&&
+  !(state.blockedOwners||[]).some(owner=>owner.toLowerCase()===canonicalKey(repo).split('/')[0])&&
+  !(Number(state.snoozed?.[repo.id])>now);
+}
+function filteredCatalog(pool,state,now) {
  const prefs=settings(state.settings);
- return eligible(repo)&&repo.stargazers_count>=prefs.minStars&&!(state.hidden||[]).includes(repo.id)&&!(state.blockedOwners||[]).some(owner=>owner.toLowerCase()===repo.full_name.split('/')[0].toLowerCase())&&!(Number(state.snoozed?.[repo.id])>now)&&(!prefs.languages.length||prefs.languages.includes(repo.language));
+ const normalized=(Array.isArray(pool)?pool:[]).map(normalizeRepo).filter(Boolean);
+ return distinct(normalized).filter(repo=>allowed(repo,state,now,prefs));
+}
+function identityIndex(repos) {
+ const ids=new Set(repos.map(repo=>repo.id)),names=new Set(repos.map(canonicalKey));
+ return repo=>ids.has(repo.id)||names.has(canonicalKey(repo));
+}
+function feedPools(state,visible,now,pool=filteredCatalog(state.cache,state,now),day=state.daily?.day||localDay()) {
+ const isVisible=identityIndex(visible),isBookmarked=identityIndex(state.saved||[]);
+ const seen=new Set(state.seen||[]),recentIds=new Map(),recentNames=new Map();
+ for(const entry of state.seenHistory||[]){
+  recentIds.set(entry.id,Math.max(recentIds.get(entry.id)||0,entry.timestamp));
+  recentNames.set(entry.key,Math.max(recentNames.get(entry.key)||0,entry.timestamp));
+ }
+ const prefs=settings(state.settings);
+ const lastSeen=repo=>Math.max(recentIds.get(repo.id)||0,recentNames.get(canonicalKey(repo))||0,Number(state.presentedAt?.[repo.id])||0);
+ const available=ranked(pool,state.profile?.weights||{},day).filter(repo=>!isVisible(repo));
+ const unseen=available.filter(repo=>!seen.has(repo.id)&&!lastSeen(repo)&&!isBookmarked(repo));
+ const replay=unseen.length?[]:available.filter(repo=>{
+  const last=lastSeen(repo);
+  return last>0?now-last>=prefs.cooldownWindowMs:!seen.has(repo.id);
+ }).sort((a,b)=>lastSeen(a)-lastSeen(b)||b.score-a.score);
+ return {unseen,replay};
+}
+function hydrate(pool,repos) {
+ const byId=new Map(pool.map(repo=>[repo.id,repo])),byName=new Map(pool.map(repo=>[canonicalKey(repo),repo]));
+ return distinct(repos.map(repo=>byId.get(repo.id)||byName.get(canonicalKey(repo))).filter(Boolean));
 }
 function selectFeed(pool,state,day=localDay(),now=Date.now()) {
- pool=[...new Map((Array.isArray(pool)?pool:[]).map(normalizeRepo).filter(Boolean).map(r=>[r.id,r])).values()];const filtered=pool.filter(r=>allowed(r,state,now));
- const latest=new Map(pool.map(r=>[r.id,r]));const daily=state.daily?{...state.daily,repos:(state.daily.repos||[]).map(r=>latest.has(r.id)?{...r,...latest.get(r.id)}:null).filter(r=>r&&allowed(r,state,now))}:null;
- const selected=selectDaily(filtered,{...state,daily},day),used=new Set(selected.repos.map(r=>r.id));
- // Seen is a ranking preference, never a permanent eligibility exclusion.
- const revisits=ranked(filtered,state.profile?.weights||{},day).filter(r=>!used.has(r.id)).sort((a,b)=>Number(state.presentedAt?.[a.id]||0)-Number(state.presentedAt?.[b.id]||0)||b.score-a.score);
- for(const repo of revisits){if(selected.repos.length>=3)break;selected.repos.push(repo);used.add(repo.id);}return selected;
+ const filtered=filteredCatalog(pool,state,now);
+ const visible=hydrate(filtered,state.daily?.repos||[]).slice(0,3);
+ const {unseen,replay}=feedPools(state,visible,now,filtered,day);
+ return {day,repos:[...visible,...(unseen.length?unseen:replay)].slice(0,3)};
 }
-function present(state) {
- const previous=new Set(state.daily?.repos?.map(r=>r.id)||[]);state.daily=selectFeed(state.cache,state);markPresented(state,state.daily.repos.filter(r=>!previous.has(r.id)));
- state.seen=[...new Set([...(state.seen||[]),...state.daily.repos.map(r=>r.id)])];
+function recordAction(state,repo,action,now=Date.now()) {
+ state.seenHistory=[...(state.seenHistory||[]),{id:repo.id,key:canonicalKey(repo),timestamp:now,action}].slice(-20000);
+}
+function markPresented(state,repos,now) {
+ state.presentedAt=state.presentedAt||{};
+ state.seen=[...new Set([...(state.seen||[]),...repos.map(repo=>repo.id)])];
+ for(const repo of repos){
+  state.presentedAt[repo.id]=now;
+  recordAction(state,repo,'shown',now);
+ }
+}
+function saveFeed(state,now,phase='ready',bump=true) {
+ const pool=filteredCatalog(state.cache,state,now);
+ const {unseen,replay}=feedPools(state,state.daily?.repos||[],now,pool);
+ state.feed={phase,epoch:(state.feed?.epoch||0)+Number(bump),visibleIds:(state.daily?.repos||[]).map(repo=>repo.id),queueIds:unseen.map(repo=>repo.id),hasReplay:replay.length>0,matchingCount:pool.length};
+ return state.feed;
+}
+function present(state,now=Date.now()) {
+ const wasVisible=identityIndex(state.daily?.repos||[]);
+ state.daily=selectFeed(state.cache,state,localDay(),now);
+ markPresented(state,state.daily.repos.filter(repo=>!wasVisible(repo)),now);
+ saveFeed(state,now);
  return state.daily;
 }
-function candidates(state,now=Date.now(),manual=false){
- const used=new Set((state.daily?.repos||[]).map(r=>r.id)),seen=new Set(state.seen||[]);
- const pool=ranked(state.cache,state.profile?.weights||{},state.daily?.day||localDay()).filter(r=>allowed(r,state,now)&&!used.has(r.id));
- const unseen=pool.filter(r=>!seen.has(r.id));if(unseen.length)return unseen;
- const cooled=pool.filter(r=>now-Number(state.presentedAt?.[r.id]||now)>=1800000);return (manual||!cooled.length?pool:cooled).sort((a,b)=>Number(state.presentedAt?.[a.id]||0)-Number(state.presentedAt?.[b.id]||0)||b.score-a.score);
+function candidates(state,now=Date.now()) {
+ const {unseen,replay}=feedPools(state,state.daily?.repos||[],now);
+ return unseen.length?unseen:replay;
 }
-function markPresented(state,repos,now=Date.now()){state.presentedAt=state.presentedAt||{};for(const repo of repos)state.presentedAt[repo.id]=now;}
-function nextBatch(state,now=Date.now()){
- const pool=candidates(state,now,true),before=state.daily;if(!pool.length)return{changed:false,exhausted:true};
- const count=Math.min(3,pool.length),chosen=pool.slice(0,count),priorSeen=new Set(state.seen||[]);
- state.lastRotation={day:before?.day||localDay(),repos:(before?.repos||[]).map(r=>({...r}))};
- state.daily={day:before?.day||localDay(),repos:[...chosen,...(before?.repos||[]).slice(count)].slice(0,3)};
- state.seen=[...new Set([...(state.seen||[]),...chosen.map(r=>r.id)])];markPresented(state,chosen,now);
- return{changed:true,count,revisited:chosen.some(r=>priorSeen.has(r.id))};
+function advance(state,index,now) {
+ const before=state.daily;
+ const filtered=filteredCatalog(state.cache,state,now);
+ const previous=hydrate(filtered,before?.repos||[]);
+ const day=before?.day||localDay();
+ const {unseen,replay}=feedPools(state,previous,now,filtered,day);
+ const chosen=(unseen.length?unseen:replay).slice(0,index===null?3:1);
+ if(!chosen.length){
+  if(JSON.stringify(previous.map(repo=>repo.id))!==JSON.stringify(before?.repos?.map(repo=>repo.id))){
+   state.daily={day,repos:previous};
+   saveFeed(state,now);
+  }
+  return {changed:false,exhausted:true,reason:'exhausted'};
+ }
+ const revisited=!unseen.length;
+ const target=index===null?null:before.repos[index];
+ const slot=target?previous.findIndex(identityIndex([target])):-1;
+ const repos=index===null?[...chosen,...previous.slice(chosen.length)].slice(0,3):
+  slot<0?[...previous,...chosen].slice(0,3):previous.map((repo,i)=>i===slot?chosen[0]:repo);
+ state.lastRotation={day,repos:previous};
+ state.daily={day,repos};
+ markPresented(state,chosen,now);
+ saveFeed(state,now,revisited?'rebuilding':'ready');
+ return {changed:true,count:chosen.length,revisited,id:chosen[0].id,index};
+}
+function nextBatch(state,now=Date.now()) {
+ return advance(state,null,now);
 }
 function rotate(state,id,now=Date.now()) {
- const before=state.daily, index=before?.repos.findIndex(r=>r.id===id)??-1;
- if(index<0)return false;
- const candidate=candidates(state,now)[0];if(!candidate)return false;
- state.lastRotation={day:before.day,repos:before.repos.map(r=>({...r}))};
- const next=before.repos.filter(r=>r.id!==id);
- if(candidate)next.splice(index,0,candidate);
- state.daily={day:before.day,repos:next};
- state.seen=[...new Set([...(state.seen||[]),id,...next.map(r=>r.id)])];if(candidate)markPresented(state,[candidate],now);
- return true;
+ const index=state.daily?.repos.findIndex(repo=>repo.id===id)??-1;
+ return index>=0&&advance(state,index,now).changed;
 }
 function cycle(state,id,day=localDay(),now=Date.now()) {
- if(!Number.isSafeInteger(id)||state.daily?.day!==day||!state.daily.repos.some(r=>r.id===id))return{changed:false,reason:'stale'};
- const used=new Set(state.daily.repos.map(r=>r.id)),seen=new Set(state.seen||[]);
- const candidate=candidates(state,now)[0];
- if(!candidate)return{changed:false,exhausted:true,reason:'exhausted'};
- const index=state.daily.repos.findIndex(r=>r.id===id);
- state.lastRotation={day:state.daily.day,repos:state.daily.repos.map(r=>({...r}))};
- state.daily={...state.daily,repos:state.daily.repos.map((r,i)=>i===index?candidate:r)};
- state.seen=[...new Set([...(state.seen||[]),id,candidate.id])];markPresented(state,[candidate],now);
- return{changed:true,id:candidate.id,index};
+ const index=state.daily?.repos.findIndex(repo=>repo.id===id)??-1;
+ if(!Number.isSafeInteger(id)||state.daily?.day!==day||index<0)return {changed:false,reason:'stale'};
+ return advance(state,index,now);
 }
-function undo(state) {
- if(!state.lastRotation||state.lastRotation.day!==localDay())return false;
- const latest=new Map(state.cache.map(r=>[r.id,r]));state.daily={...state.lastRotation,repos:state.lastRotation.repos.map(r=>latest.has(r.id)?{...r,...latest.get(r.id)}:null).filter(r=>r&&allowed(r,state))};present(state);
- state.lastRotation=null;return true;
+function undo(state,now=Date.now()) {
+ if(state.lastRotation?.day!==localDay())return false;
+ const repos=hydrate(filteredCatalog(state.cache,state,now),state.lastRotation.repos);
+ state.lastRotation=null;
+ if(!repos.length){present(state,now);return false;}
+ state.daily={day:localDay(),repos};
+ markPresented(state,repos,now);
+ present(state,now);
+ return true;
 }
 function collection(input) {
  if(input?.schema!=='repopulse.collection.v1'||!Array.isArray(input.repos)||input.repos.length>2000)throw new Error('Choose a RepoPulse collection JSON file (up to 2,000 repositories).');
@@ -88,7 +163,9 @@ function sources(repo) {
 function initialize(state) {
  if(!state||typeof state!=='object'||Array.isArray(state))state=defaults();
  const unique=input=>[...new Map((Array.isArray(input)?input:[]).map(raw=>{const r=normalizeRepo(raw);return r?{...r,...(typeof raw.reason==='string'?{reason:raw.reason.slice(0,200)}:{})}:null;}).filter(Boolean).map(r=>[r.id,r])).values()];
- state.cache=unique(state.cache);state.saved=unique(state.saved);state.profile={...(state.profile&&typeof state.profile==='object'?state.profile:{}),weights:require('./engine.cjs').validWeights(state.profile?.weights)};
+ state.cache=distinct(unique(state.cache)).filter(eligible);state.saved=distinct(unique(state.saved));
+ state.seenHistory=(Array.isArray(state.seenHistory)?state.seenHistory:[]).filter(e=>e&&Number.isSafeInteger(e.id)&&typeof e.key==='string'&&Number.isFinite(e.timestamp)&&e.timestamp>0&&['shown','skipped','bookmarked'].includes(e.action)).slice(-20000);
+ state.feed={phase:'hydrating',epoch:0,visibleIds:[],queueIds:[],hasReplay:false};state.profile={...(state.profile&&typeof state.profile==='object'?state.profile:{}),weights:require('./engine.cjs').validWeights(state.profile?.weights)};
  for(const key of ['seen','hidden','liked'])state[key]=[...new Set((Array.isArray(state[key])?state[key]:[]).filter(id=>Number.isSafeInteger(id)&&id>0))];
  if(state.daily)state.daily={day:typeof state.daily.day==='string'?state.daily.day:'',repos:unique(state.daily.repos)};
  if(state.lastRotation)state.lastRotation={day:typeof state.lastRotation.day==='string'?state.lastRotation.day:'',repos:unique(state.lastRotation.repos)};
@@ -105,11 +182,11 @@ function initialize(state) {
 }
 function bootstrap(state,seed=require('./catalog-seed.json').repos){
  const clean=items=>[...new Map((Array.isArray(items)?items:[]).map(normalizeRepo).filter(r=>r&&eligible(r)).map(r=>[r.id,r])).values()];
- const cached=clean(state.cache),upgrade=state.catalogUpgradePending===true,bundled=clean(seed);
+ const cached=distinct(clean(state.cache)),upgrade=state.catalogUpgradePending===true,bundled=distinct(clean(seed));
  if(!cached.length||upgrade){
-  state.cache=[...new Map([...bundled,...cached].map(r=>[r.id,r])).values()].sort((a,b)=>b.stargazers_count-a.stargazers_count||a.id-b.id).slice(0,MAX_CATALOG);
+  state.cache=distinct([...cached,...bundled]).sort((a,b)=>b.stargazers_count-a.stargazers_count||a.id-b.id).slice(0,MAX_CATALOG);
   state.cacheAt=null;state.catalogInfo={source:cached.length?'bundled-upgrade':'bundled',loaded:state.cache.length,minStars:MIN_STARS,target:TARGET_CATALOG,capacity:MAX_CATALOG};
  }else state.cache=cached;
  state.catalogUpgradePending=false;present(state);return state;
 }
-module.exports={bootstrap,SETTINGS,settings,allowed,selectFeed,present,candidates,nextBatch,rotate,cycle,undo,collection,sources,initialize};
+module.exports={bootstrap,SETTINGS,settings,allowed,canonicalKey,distinct,matchesActiveFilters,recordAction,saveFeed,selectFeed,present,candidates,nextBatch,rotate,cycle,undo,collection,sources,initialize};

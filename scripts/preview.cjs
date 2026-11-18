@@ -37,5 +37,5 @@ function createPreviewServer({platform='linux',repos:fixtureRepos}={}){
  let source=fs.readFileSync(path.join(__dirname,'../app',name),'utf8');if(name==='index.html')source=source.replace("connect-src 'none'","connect-src 'self'").replace('<script src="ui-core.js">','<script src="preview-bridge.js"></script><script src="ui-core.js">');res.setHeader('Content-Type',name.endsWith('.html')?'text/html':name.endsWith('.css')?'text/css':'application/javascript');res.end(source);
  }catch(error){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({error:error.message}));}});
 }
-if(require.main===module)createPreviewServer().listen(4173,'127.0.0.1',()=>console.log('Fixture preview: http://127.0.0.1:4173'));
+if(require.main===module){const server=createPreviewServer();server.listen(0,'127.0.0.1',()=>console.log('Fixture preview: http://127.0.0.1:'+server.address().port));};
 module.exports={createPreviewServer};

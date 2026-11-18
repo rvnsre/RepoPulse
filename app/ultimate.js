@@ -20,7 +20,7 @@ function ultimateStatus(){
  if(!state)return;const status=islandController?.status(),remaining=Math.max(0,Math.ceil((uFocusUntil-Date.now())/1000)),f=$('focusButton');
  f.textContent=remaining?Math.floor(remaining/60)+':'+String(remaining%60).padStart(2,'0'):'';if(!remaining)f.innerHTML=iconSVG('clock');f.title=remaining?'Stop focus session':'Start '+state.settings.focusMinutes+' minute focus session';f.setAttribute('aria-label',f.title);f.setAttribute('aria-pressed',String(remaining>0));
  $('autoHideLabel').textContent=state.settings.autoHide?'Auto hide on':'Auto hide off';$('autoHideButton').setAttribute('aria-checked',String(state.settings.autoHide));$('autoHideButton').title='Toggle automatic collapse';
- $('queueCount').textContent=String(state.analytics?.queued||0);if($('editionLabel'))$('editionLabel').textContent=new Date().toLocaleDateString('en',{weekday:'long',month:'short',day:'numeric'});if($('libraryStat'))$('libraryStat').textContent=state.catalogSize+' projects · 50K+';$('queueButton').hidden=!state.settings.showQueueCount;
+ $('queueCount').textContent=String(state.feed?.queueIds.length||0);if($('editionLabel'))$('editionLabel').textContent=new Date().toLocaleDateString('en',{weekday:'long',month:'short',day:'numeric'});if($('libraryStat'))$('libraryStat').textContent=(state.feed?.matchingCount??state.catalogSize)+' projects · '+compact(state.settings.minStars)+'+';$('queueButton').hidden=!state.settings.showQueueCount;
  document.body.classList.toggle('workspace-open',expanded&&drawer);$('dockHint').hidden=expanded;const dock=UI.dockModel(repos(),selectedId),open=$('dockOpen');if($('dockText').textContent!==dock.title)$('dockText').textContent=dock.title;if($('dockSummary').textContent!==dock.summary)$('dockSummary').textContent=dock.summary;open.disabled=!dock.repo||pending.has(dock.repo.id);open.dataset.repoId=dock.repo?.id||'';open.title=dock.repo?dock.title+'\n'+dock.repo.description:'Open the panel to find a repository';open.setAttribute('aria-label',dock.repo?'Open '+dock.title+' on GitHub':'No repository available');document.body.classList.toggle('focus-session',remaining>0);
  $('island').setAttribute('aria-label',expanded?'RepoPulse discovery panel':'RepoPulse hidden. Move to the top-center screen edge or activate the reveal handle.');
 }
@@ -68,7 +68,7 @@ function ultimateInit(){
  $('edgeReveal').addEventListener('click',()=>run(async()=>{if(!islandController.pointer)islandController.pause(1200);insightOpen=false;expanded=true;drawer=false;await windowMode();}));
  $('commandButton').addEventListener('click',()=>run(()=>openDrawer('commands')));$('focusButton').addEventListener('click',()=>run(ultimateFocus));
  $('autoHideButton').addEventListener('click',()=>run(()=>{const enabled=!state.settings.autoHide;if(enabled)islandController.pause(0);return changeSettings({autoHide:enabled,...(enabled?{collapseOnLeave:true,hoverExpand:true}:{})});}));$('historyButton').addEventListener('click',()=>run(()=>openDrawer('history')));
- $('queueButton').addEventListener('click',()=>run(async()=>{uFilters.scope='queued';await openDrawer('library');}));
+ $('queueButton').addEventListener('click',()=>run(async()=>{await openDrawer('library');}));
  window.addEventListener('beforeunload',()=>{islandController.destroy();clearInterval(uFocusTimer);clearTimeout(releaseTimer);clearTimeout(toastTimer);hoverAnimation?.cancel();});
 }
 function ultimateSelect(label,values,value,onChange){const select=el('select',{'aria-label':label});for(const [v,text]of values)select.append(el('option',{value:v},text));select.value=String(value??'');select.addEventListener('change',()=>run(()=>onChange(select.value)));return select;}
@@ -217,7 +217,7 @@ function dynamicInit(){
  dynamicScheduler=new DynamicFeed.Scheduler({blocked:dynamicBlocked,onStatus:dynamicStatus,rotate:async()=>{
   const rows=visible();if(!rows.length)return{exhausted:true};
   const repo=rows[dynamicCursor++%rows.length];
-  const result=await api.cycle({id:repo.id,day:state.daily.day});
+  const result=await api.cycle({id:repo.id,day:state.daily.day,epoch:state.feed?.epoch});
   if(result.state)adopt(result.state);
   if(result.changed){if(selectedId===repo.id)selectedId=result.id;render();}
   return result;
