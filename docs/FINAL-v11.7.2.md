@@ -4,6 +4,8 @@
 
 Electron's hidden renderer can defer the first animation frame, while `ready-to-show` waits for that paint. Waiting only for that event can leave an invisible application with no initial cards. Native visibility now responds to either `ready-to-show` or `did-finish-load`, once only, and explicitly allows painting while initially hidden. The initial window already has its correct small collapsed geometry, so this fallback does not flash a large panel.
 
+The updated Electron clipboard API is asynchronous. Command copying now waits for the system write before reporting success, and propagates failures to the UI; the native checks await actual clipboard contents for both npm and Git Clone.
+
 Two lifecycle regressions cover either event ordering and repeated notifications. The smoke-test failure diagnostic now reports actual native visibility.
 
 ## Reliability and dependency work included
