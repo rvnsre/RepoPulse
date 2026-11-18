@@ -36,7 +36,10 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  }
 
  const scroll=await evaluate(`(()=>{const f=document.getElementById('feed');return{client:f.clientHeight,total:f.scrollHeight,text:document.getElementById('pickRange').textContent,footerActions:document.querySelectorAll('footer .row-learn,footer #install,footer #learn').length};})()`);assert.ok(scroll.total>scroll.client);assert.equal(scroll.footerActions,0);assert.ok(scroll.text.includes('of 3'));
- await evaluate("document.getElementById('feed').scrollTop=9999");await until(async()=>(await evaluate("document.getElementById('pickRange').textContent")).includes('3 of 3'));await evaluate("document.getElementById('feed').scrollTop=0");
+ await evaluate("document.getElementById('feed').scrollTop=9999");
+ await until(()=>evaluate(`(()=>{const feed=document.getElementById('feed').getBoundingClientRect();const third=document.querySelectorAll('.repo-row')[2].getBoundingClientRect();return third.bottom<=feed.bottom+2&&third.top>=feed.top;})()`));
+ assert.match(await evaluate("updatePickRange();document.getElementById('pickRange').textContent"),/3 of 3/);
+ await evaluate("document.getElementById('feed').scrollTop=0;updatePickRange()");
  await capture('desktop-preview.png');
  const first=store.state.daily.repos[0],second=store.state.daily.repos[1];
  await evaluate(`window.originalRow=document.querySelector('.repo-row');document.querySelector('.row-extra button').focus();document.querySelector('.row-extra button').click()`);await until(()=>store.state.saved.length===1);await new Promise(r=>setTimeout(r,100));
