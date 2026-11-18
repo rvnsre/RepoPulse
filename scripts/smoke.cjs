@@ -25,7 +25,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
     if(bytes.length>(tiny?100:5000)&&varied){png=bytes;break;}
    }
   }
-  assert.ok(png,'The compositor must produce a visible native preview within five seconds.');fs.writeFileSync(path.join(root,name),png);
+  assert.ok(png,'Native preview '+name+' must be painted. '+JSON.stringify(await evaluate("({nativeMode:state.windowMode,expanded,drawer,morphing,busy,autoHide:state.settings.autoHide,controller:islandController?.status(),width:innerWidth,height:innerHeight})")));fs.writeFileSync(path.join(root,name),png);
   if(name==='idle-insight-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_INSIGHT:'+encoded.slice(n,n+4096));}
   if(name==='audit-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_AUDIT:'+encoded.slice(n,n+4096));}
   if(name==='desktop-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_PREVIEW:'+encoded.slice(n,n+4096));}
@@ -154,6 +154,8 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  console.log('Real pointer/resize regression passed: stable edge hover, exact dock-anchor restoration and interrupted close/re-entry.');
 
  await evaluate("window.pulse.settings({autoHide:false,motion:'none',hoverLift:false})");
+ await evaluate("document.getElementById('edgeReveal').click()");
+ await until(()=>window.getBounds().height>100);
  await movePointer(-20,-20);
  window.setBounds({width:600});
  await new Promise(r=>setTimeout(r,250));
