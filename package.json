@@ -1,6 +1,6 @@
 {
   "name": "repopulse",
-  "version": "11.8.1",
+  "version": "11.8.2",
   "description": "Your daily open-source signal. A private, personalized GitHub discovery island.",
   "main": "app/main.cjs",
   "license": "UNLICENSED",

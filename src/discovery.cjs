@@ -49,12 +49,14 @@ function identityIndex(repos) {
  const ids=new Set(repos.map(repo=>repo.id)),names=new Set(repos.map(canonicalKey));
  return repo=>ids.has(repo.id)||names.has(canonicalKey(repo));
 }
-function feedPools(state,visible,now,pool=filteredCatalog(state.cache,state,now),day=state.daily?.day||localDay()) {
+function feedPools(state,visible,now,pool=filteredCatalog(state.cache,state,now),day=state.daily?.day||localDay(),manualBrowse=false) {
  const isVisible=identityIndex(visible),isBookmarked=identityIndex(state.saved||[]);
  const seen=new Set(state.seen||[]),recentIds=new Map(),recentNames=new Map();
+ const skippedIds=new Set(),skippedNames=new Set();
  for(const entry of state.seenHistory||[]){
   recentIds.set(entry.id,Math.max(recentIds.get(entry.id)||0,entry.timestamp));
   recentNames.set(entry.key,Math.max(recentNames.get(entry.key)||0,entry.timestamp));
+  if(manualBrowse&&entry.action==='skipped'){skippedIds.add(entry.id);skippedNames.add(entry.key);}
  }
  const prefs=settings(state.settings);
  const lastSeen=repo=>Math.max(recentIds.get(repo.id)||0,recentNames.get(canonicalKey(repo))||0,Number(state.presentedAt?.[repo.id])||0);
@@ -64,7 +66,10 @@ function feedPools(state,visible,now,pool=filteredCatalog(state.cache,state,now)
   const last=lastSeen(repo);
   return last>0?now-last>=prefs.cooldownWindowMs:!seen.has(repo.id);
  }).sort((a,b)=>lastSeen(a)-lastSeen(b)||b.score-a.score);
- return {unseen,replay};
+ const browse=manualBrowse&&!unseen.length&&!replay.length?available.filter(repo=>
+  !isBookmarked(repo)&&!skippedIds.has(repo.id)&&!skippedNames.has(canonicalKey(repo))
+ ).sort((a,b)=>lastSeen(a)-lastSeen(b)||b.score-a.score):[];
+ return {unseen,replay,browse};
 }
 function hydrate(pool,repos) {
  const byId=new Map(pool.map(repo=>[repo.id,repo])),byName=new Map(pool.map(repo=>[canonicalKey(repo),repo]));
@@ -107,13 +112,14 @@ function candidates(state,now=Date.now()) {
  const {unseen,replay}=feedPools(state,state.daily?.repos||[],now);
  return unseen.length?unseen:replay;
 }
-function advance(state,index,now) {
+function advance(state,index,now,manualBrowse=false) {
  const before=state.daily;
  const filtered=filteredCatalog(state.cache,state,now);
  const previous=hydrate(filtered,before?.repos||[]);
  const day=before?.day||localDay();
- const {unseen,replay}=feedPools(state,previous,now,filtered,day);
- const chosen=(unseen.length?unseen:replay).slice(0,index===null?3:1);
+ const {unseen,replay,browse}=feedPools(state,previous,now,filtered,day,manualBrowse);
+ const browsing=browse.length>0;
+ const chosen=(unseen.length?unseen:replay.length?replay:browse).slice(0,index===null?3:1);
  if(!chosen.length){
   if(JSON.stringify(previous.map(repo=>repo.id))!==JSON.stringify(before?.repos?.map(repo=>repo.id))){
    state.daily={day,repos:previous};
@@ -129,11 +135,11 @@ function advance(state,index,now) {
  state.lastRotation={day,repos:previous};
  state.daily={day,repos};
  markPresented(state,chosen,now);
- saveFeed(state,now,revisited?'rebuilding':'ready');
- return {changed:true,count:chosen.length,revisited,id:chosen[0].id,index};
+ saveFeed(state,now,revisited&&!browsing?'rebuilding':'ready');
+ return {changed:true,count:chosen.length,revisited,browsing,id:chosen[0].id,index};
 }
-function nextBatch(state,now=Date.now()) {
- return advance(state,null,now);
+function nextBatch(state,now=Date.now(),{manualBrowse=false}={}) {
+ return advance(state,null,now,manualBrowse);
 }
 function rotate(state,id,now=Date.now()) {
  const index=state.daily?.repos.findIndex(repo=>repo.id===id)??-1;

@@ -87,3 +87,40 @@ test('An unsuccessful or older lookup preserves the verified release',()=>{
  assert.strictEqual(rememberRelease(current,repo(1),{releaseChecked:false}),current);
  assert.strictEqual(rememberRelease(current,repo(1),{releaseChecked:true,tag:'v1',checkedAt:'2026-11-17T00:00:00Z'}),current);
 });
+
+test('Manual Next Picks advances during cooldown without adding replay to the unseen queue',()=>{
+ const rows=Array.from({length:9},(_,i)=>repo(i+1));
+ const s=state([...rows,repo(10,'other/low',81021)]);
+ for(const r of rows){
+  s.seen.push(r.id);
+  D.recordAction(s,r,'shown',now);
+ }
+ const before=s.daily.repos.map(r=>r.id);
+ const outside=rows.filter(r=>!before.includes(r.id));
+ s.saved=[outside[0]];
+ D.recordAction(s,outside[1],'skipped',now+1);
+ D.saveFeed(s,now+2);
+ assert.equal(s.feed.queueIds.length,0);
+ assert.equal(D.cycle(s,before[0],s.daily.day,now+2).changed,false);
+ const result=D.nextBatch(s,now+2,{manualBrowse:true});
+ assert.equal(result.browsing,true);
+ assert.equal(result.count,3);
+ assert.equal(s.feed.queueIds.length,0);
+ assert.ok(s.daily.repos.every(r=>r.stargazers_count>=100000&&!before.includes(r.id)&&r.id!==outside[0].id&&r.id!==outside[1].id));
+ assert.equal(D.undo(s,now+3),true);
+ assert.deepEqual(s.daily.repos.map(r=>r.id),before);
+});
+
+test('Manual Next Picks still prefers unseen projects',()=>{
+ const s=state(Array.from({length:7},(_,i)=>repo(i+1)));
+ const queue=new Set(s.feed.queueIds);
+ assert.equal(D.nextBatch(s,now+1,{manualBrowse:true}).revisited,false);
+ assert.ok(s.daily.repos.every(r=>queue.has(r.id)));
+});
+
+test('Manual Next Picks preserves the existing page if every matching repo is visible',()=>{
+ const s=state([repo(1),repo(2),repo(3),repo(4,'other/low',81021)]);
+ const before=s.daily.repos.map(r=>r.id);
+ assert.equal(D.nextBatch(s,now+1,{manualBrowse:true}).changed,false);
+ assert.deepEqual(s.daily.repos.map(r=>r.id),before);
+});
