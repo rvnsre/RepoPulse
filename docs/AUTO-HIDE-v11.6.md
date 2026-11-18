@@ -28,4 +28,6 @@
 
 The top zone follows each display's native work area, so macOS menu-bar safe positioning is preserved. Native Wayland placement/stacking remains compositor controlled; its fallback uses normal window hover. X11's opaque fallback shapes its visible surface to the small indicator. Coordinates remain in DIP at different display scale factors.
 
-Source: [25cc3af3](https://github.com/rvnsre/RepoPulse/commit/25cc3af3e84751f4cab474aee8d4bd6ec33a72c0). [Builds and installers](https://github.com/rvnsre/RepoPulse/actions/runs/44205632675).
+Source: [4045232a](https://github.com/rvnsre/RepoPulse/commit/4045232a8bf17bd68fd8430132141a93da4d4025). [Builds and installers](https://github.com/rvnsre/RepoPulse/actions/runs/44206973446).
+
+The final native UI smoke completed successfully, including pending background refresh, stale focus while already outside, neighboring-tab exclusion and repeated camera-edge reveal/collapse. The dynamic preview explicitly reveals the panel after hidden-state testing; tiny hidden captures validate actual painted pixel variation instead of requiring a large PNG file.
