@@ -18,6 +18,7 @@ function ultimateStatus(){
  $('island').setAttribute('aria-label',expanded?'RepoPulse discovery panel':'RepoPulse hidden. Move to the top-center screen edge or activate the reveal handle.');
 }
 function ultimateRender(){
+ if(islandController&&!islandController.pointer&&!drawer&&(islandController.focused||uKeyboardFocus)){uKeyboardFocus=false;islandController.focus(false);}
  const p=state.settings;document.body.classList.toggle('workspace-open',expanded&&drawer);document.body.classList.toggle('offline',!!state.lastError);document.body.dataset.accent=p.accent;document.body.dataset.card=p.cardStyle;document.body.dataset.roundness=String(p.roundness);document.body.classList.toggle('no-glow',!p.glow);document.body.classList.toggle('hide-hints',!p.showHints);$('status').hidden=!p.showStatus;
  islandController?.configure(p,insightOpen?'insight':expanded?(drawer?'workspace':'panel'):'collapsed');const signature=JSON.stringify([p.hoverLift,p.hoverScale,p.motionPreset,p.motion,p.reducedMotion,p.motionDuration]);if(signature!==uMotionSignature){uMotionSignature=signature;if(hoverAnimation||islandController?.pointer)ultimateMagnify(!!islandController?.pointer);}ultimateStatus();
 }
@@ -41,7 +42,7 @@ function ultimateInit(){
  // Native pointer samples are independent of animated DOM hit boundaries.
  pointerBounds=state.windowBounds||null;
  if(state.windowPolicy?.pointer!==false&&api.onPointer&&api.pointerState){
-  const acceptPointer=value=>{if(!value)return;const before=islandController.pointer;if(value.inside){const x=value.point.x-value.bounds.x,y=value.point.y-value.bounds.y,target=document.elementFromPoint(x,y),protectedTarget=!expanded&&!!target?.closest('#dockOpen,.toolbar');const force=value.moved&&compactProtectedEntry&&!protectedTarget;compactProtectedEntry=protectedTarget;islandController.enter(value.entered&&value.moved&&!protectedTarget,force);if(value.moved)islandController.activity();}else if(before){leaveSurface();}if(before!==value.inside)ultimateMagnify(value.inside);};
+  const acceptPointer=value=>{if(!value)return;const before=islandController.pointer;if(value.inside){const x=value.point.x-value.bounds.x,y=value.point.y-value.bounds.y,target=document.elementFromPoint(x,y),protectedTarget=!expanded&&!!target?.closest('#dockOpen,.toolbar');const force=value.moved&&compactProtectedEntry&&!protectedTarget;compactProtectedEntry=protectedTarget;islandController.enter(value.entered&&value.moved&&!protectedTarget,force);if(value.moved)islandController.activity();}else if(before||islandController.focused||uKeyboardFocus){leaveSurface();}if(before!==value.inside)ultimateMagnify(value.inside);};
   const stopPointer=api.onPointer(acceptPointer);run(async()=>acceptPointer(await api.pointerState()));window.addEventListener('beforeunload',stopPointer);
  }else{
   // Browser fixture has no native window; its viewport never resizes for island modes.

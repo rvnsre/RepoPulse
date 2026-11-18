@@ -31,7 +31,7 @@ class Controller{
  activity(){this.lastActivity=this.now();this.rearm();}
  hold(name,value=true){if(value)this.holds.add(name);else this.holds.delete(name);this.rearm();this.onChange(this.status());}
  pause(ms){this.pausedUntil=this.now()+Math.max(0,ms);this.clear('resume');this.rearm();if(ms>0)this.schedule('resume',ms,()=>{this.pausedUntil=0;this.rearm();this.onChange(this.status());});this.onChange(this.status());}
- status(){return{mode:this.mode,pointer:this.pointer,paused:this.now()<this.pausedUntil,held:this.holds.size>0,reason:this.holds.size?[...this.holds].join(', '):this.mode==='workspace'?'workspace':this.now()<this.pausedUntil?'paused':'ready'};}
+ status(){return{mode:this.mode,pointer:this.pointer,focused:this.focused,paused:this.now()<this.pausedUntil,held:this.holds.size>0,reason:this.holds.size?[...this.holds].join(', '):this.mode==='workspace'?'workspace':this.now()<this.pausedUntil?'paused':'ready'};}
  destroy(){this.destroyed=true;for(const key of Object.keys(this.timers))this.clear(key);this.holds.clear();}
 }
 return{presets,config,frames,Controller};
