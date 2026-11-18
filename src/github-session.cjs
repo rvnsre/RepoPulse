@@ -51,6 +51,6 @@ function createGitHubSession({safeStorage,tokenPath,fetchImpl=fetch,now=Date.now
   if(response.ok||response.status===304)limits.delete(scope);
   return response;
  }
- return {request,set,close:()=>active.abort(),configured:()=>fs.existsSync(tokenPath)};
+ return {request,set,retryAt:()=>Math.max(0,...[...limits.values()].map(limit=>limit.until)),close:()=>active.abort(),configured:()=>fs.existsSync(tokenPath)};
 }
 module.exports={createGitHubSession};

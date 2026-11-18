@@ -93,7 +93,7 @@ function markPresented(state,repos,now) {
 function saveFeed(state,now,phase='ready',bump=true) {
  const pool=filteredCatalog(state.cache,state,now);
  const {unseen,replay}=feedPools(state,state.daily?.repos||[],now,pool);
- state.feed={phase,epoch:(state.feed?.epoch||0)+Number(bump),visibleIds:(state.daily?.repos||[]).map(repo=>repo.id),queueIds:unseen.map(repo=>repo.id),hasReplay:replay.length>0,matchingCount:pool.length};
+ state.feed={schemaVersion:1,phase,epoch:(state.feed?.epoch||0)+Number(bump),visibleIds:(state.daily?.repos||[]).map(repo=>repo.id),queueIds:unseen.map(repo=>repo.id),hasReplay:replay.length>0,matchingCount:pool.length};
  return state.feed;
 }
 function present(state,now=Date.now()) {
@@ -168,7 +168,7 @@ function initialize(state) {
  const unique=input=>[...new Map((Array.isArray(input)?input:[]).map(raw=>{const r=normalizeRepo(raw);return r?{...r,...(typeof raw.reason==='string'?{reason:raw.reason.slice(0,200)}:{})}:null;}).filter(Boolean).map(r=>[r.id,r])).values()];
  state.cache=distinct(unique(state.cache)).filter(eligible);state.saved=distinct(unique(state.saved));
  state.seenHistory=(Array.isArray(state.seenHistory)?state.seenHistory:[]).filter(e=>e&&Number.isSafeInteger(e.id)&&typeof e.key==='string'&&Number.isFinite(e.timestamp)&&e.timestamp>0&&['shown','skipped','bookmarked'].includes(e.action)).slice(-20000);
- state.feed={phase:'hydrating',epoch:0,visibleIds:[],queueIds:[],hasReplay:false};state.profile={...(state.profile&&typeof state.profile==='object'?state.profile:{}),weights:require('./engine.cjs').validWeights(state.profile?.weights)};
+ state.feed={schemaVersion:1,phase:'hydrating',epoch:0,visibleIds:[],queueIds:[],hasReplay:false};state.profile={...(state.profile&&typeof state.profile==='object'?state.profile:{}),weights:require('./engine.cjs').validWeights(state.profile?.weights)};
  for(const key of ['seen','hidden','liked'])state[key]=[...new Set((Array.isArray(state[key])?state[key]:[]).filter(id=>Number.isSafeInteger(id)&&id>0))];
  if(state.daily)state.daily={day:typeof state.daily.day==='string'?state.daily.day:'',repos:unique(state.daily.repos)};
  if(state.lastRotation)state.lastRotation={day:typeof state.lastRotation.day==='string'?state.lastRotation.day:'',repos:unique(state.lastRotation.repos)};

@@ -45,3 +45,9 @@ test('Only matching uploaded assets from the same repository are offered',()=>{
  assert.deepEqual(releaseAssets([release],project,'linux','x64').map(a=>a.name),[names[0]]);
  assert.deepEqual(releaseAssets([release],project,'win32','x64').map(a=>a.name),[names[2]]);
 });
+
+test('Linux launch on login quotes the installed binary without a shell command',()=>{
+ const {desktopEntry}=require('../src/startup.cjs');
+ assert.match(desktopEntry('/opt/Repo Pulse/bin'),/Exec="\/opt\/Repo Pulse\/bin"/);
+ assert.throws(()=>desktopEntry('/opt/repo\nExec=bad'),/Invalid/);
+});
