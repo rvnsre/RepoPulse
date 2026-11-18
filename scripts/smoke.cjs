@@ -18,7 +18,12 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
   for(let attempt=0;attempt<12;attempt++){
    await new Promise(resolve=>setTimeout(resolve,400));const bounds=window.getBounds();
    const image=await window.webContents.capturePage({x:0,y:0,width:bounds.width,height:bounds.height},{stayHidden:false,stayAwake:true});
-   if(!image.isEmpty()){const bytes=image.toPNG();if(bytes.length>(name==='edge-hidden-preview.png'?100:5000)){png=bytes;break;}}
+   if(!image.isEmpty()){
+    const bytes=image.toPNG(),tiny=name==='edge-hidden-preview.png'||name==='collapsed-preview.png';
+    const bitmap=tiny?image.toBitmap():null;
+    const varied=!tiny||bitmap.some((value,i)=>value!==bitmap[i%4]);
+    if(bytes.length>(tiny?100:5000)&&varied){png=bytes;break;}
+   }
   }
   assert.ok(png,'The compositor must produce a visible native preview within five seconds.');fs.writeFileSync(path.join(root,name),png);
   if(name==='idle-insight-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_INSIGHT:'+encoded.slice(n,n+4096));}
