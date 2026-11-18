@@ -63,3 +63,27 @@ test('A settings update cannot strand an already queued hover reveal',()=>{
  pending.values().next().value();
  assert.equal(expanded,1);
 });
+
+test('Mixed catalog responses do not date cached star counts as new observations',async()=>{
+ const {fetchCatalog}=require('../src/github.cjs'),{observe}=require('../src/activity.cjs');
+ const rows=Array.from({length:101},(_,i)=>repo(i+1));
+ const read=revalidate=>async url=>{
+  const page=Number(new URL(url).searchParams.get('page'));
+  if(revalidate&&page===2)return{status:304};
+  return{ok:true,headers:new Headers({etag:'page-'+page}),json:async()=>({total_count:101,items:page===2?rows.slice(100):rows.slice(0,100)})};
+ };
+ const first=await fetchCatalog([],read(false),{cachePages:true});
+ const prior=observe({},first,now);
+ const second=await fetchCatalog(first,read(true),{cachePages:true});
+ const next=observe(prior,fetchCatalog.observations,now+86400000,second);
+ assert.equal(next[1].length,2);
+ assert.equal(next[101].length,1);
+});
+
+test('An unsuccessful or older lookup preserves the verified release',()=>{
+ const {rememberRelease}=require('../src/activity.cjs');
+ const current=rememberRelease({},repo(1),{releaseChecked:true,tag:'v2',checkedAt:'2026-11-18T00:00:00Z'});
+ assert.equal(current[1].tag,'v2');
+ assert.strictEqual(rememberRelease(current,repo(1),{releaseChecked:false}),current);
+ assert.strictEqual(rememberRelease(current,repo(1),{releaseChecked:true,tag:'v1',checkedAt:'2026-11-17T00:00:00Z'}),current);
+});

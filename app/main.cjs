@@ -12,7 +12,7 @@ const {bounds:layoutBounds,fittedHeight,defaultAnchor}=require('../src/layout.cj
 const {PointerTracker}=require('../src/pointer.cjs');
 const advisor=require('../src/advisor.cjs');const idleGate=new advisor.IdleGate();let insight=null,context={topic:null,status:'off'},advisorTimer,contextTimer,screenLocked=false,contextBusy=false;
 const {policy,activeDisplay,topAnchor,dockShape,registerShortcuts,bindInitialVisibility}=require('../src/window-policy.cjs');const windowPolicy=policy(process.platform,process.env,smokeFlag());function smokeFlag(){return !app.isPackaged&&process.argv.includes('--smoke-test');}
-const {ActivityClient,observe,velocity}=require('../src/activity.cjs');const install=require('../src/install.cjs');let github,activityClient,lastSyncAttempt=0,shortcutAvailable=false,trayAvailable=false;
+const {ActivityClient,observe,velocity,rememberRelease}=require('../src/activity.cjs');const install=require('../src/install.cjs');let github,activityClient,lastSyncAttempt=0,shortcutAvailable=false,trayAvailable=false;
 if(process.platform==='linux'&&process.env.WAYLAND_DISPLAY){if(process.env.DISPLAY)app.commandLine.appendSwitch('ozone-platform','x11');else app.commandLine.appendSwitch('enable-features','GlobalShortcutsPortal');}
 const pointerTracker=new PointerTracker();let pointerTimer;
 let lastExternal=null,revision=0;
@@ -21,7 +21,7 @@ let window,store,tray,timer,refreshPromise,quitting=false,mode='panel',lastError
 const opening=new Map(),smokeMode=!app.isPackaged&&process.argv.includes('--smoke-test');
 if(smokeMode&&process.platform==='linux')app.disableHardwareAcceleration();
 const singleton=app.requestSingleInstanceLock();if(!singleton)app.quit();
-function snapshot(){const s=store.state;return {catalogPolicy:require('../src/catalog-policy.cjs'),windowPolicy:{...windowPolicy,options:undefined},shortcutAvailable,trayAvailable,insight,contextStatus:context.status,windowMode:mode,windowBounds:window?.getBounds(),workspace:s.workspace,catalog:[...new Map([...s.cache,...s.saved,...Object.values(s.workspace?.records||{}).map(r=>r.repo)].map(r=>[r.id,r])).values()],analytics:workspace.analytics(s.history,s.workspace),revision,rateLimitUntil:github?.retryAt()||0,githubTokenConfigured:github?.configured()||false,feed:s.feed,daily:s.daily,saved:s.saved,history:s.history,settings:s.settings,profile:s.profile,topics:TOPICS,cacheAt:s.cacheAt,catalogSize:s.cache.length,catalogInfo:s.catalogInfo||null,languages:[...new Set(s.cache.map(r=>r.language).filter(Boolean))].sort(),blockedOwners:s.blockedOwners,snoozedCount:Object.values(s.snoozed).filter(t=>t>Date.now()).length,canUndo:!!s.lastRotation&&s.lastRotation.day===localDay(),lastError,version:app.getVersion(),platform:process.platform,arch:process.arch,recoveryNotice:s.recoveryNotice||null,...(smokeMode?{lastExternal,fixture:true}:{}),exclusions:{hidden:s.hidden.map(id=>({id,name:findRepo(id)?.full_name||String(id)})),snoozed:Object.entries(s.snoozed).filter(([,until])=>until>Date.now()).map(([id,until])=>({id:Number(id),name:findRepo(Number(id))?.full_name||id,until})),owners:s.blockedOwners}};}
+function snapshot(){const s=store.state;return {catalogPolicy:require('../src/catalog-policy.cjs'),windowPolicy:{...windowPolicy,options:undefined},shortcutAvailable,trayAvailable,insight,contextStatus:context.status,windowMode:mode,windowBounds:window?.getBounds(),workspace:s.workspace,catalog:[...new Map([...s.cache,...s.saved,...Object.values(s.workspace?.records||{}).map(r=>r.repo)].map(r=>[r.id,r])).values()],analytics:workspace.analytics(s.history,s.workspace),revision,rateLimitUntil:github?.retryAt()||0,githubTokenConfigured:github?.configured()||false,feed:s.feed,releaseMetadata:s.releaseMetadata,starTrends:Object.fromEntries((s.daily?.repos||[]).map(repo=>[repo.id,{velocity:velocity(s.starSamples?.[repo.id]),baseline:Array.isArray(s.starSamples?.[repo.id])?s.starSamples[repo.id].at(-1)?.dateUtc??null:null}])),daily:s.daily,saved:s.saved,history:s.history,settings:s.settings,profile:s.profile,topics:TOPICS,cacheAt:s.cacheAt,catalogSize:s.cache.length,catalogInfo:s.catalogInfo||null,languages:[...new Set(s.cache.map(r=>r.language).filter(Boolean))].sort(),blockedOwners:s.blockedOwners,snoozedCount:Object.values(s.snoozed).filter(t=>t>Date.now()).length,canUndo:!!s.lastRotation&&s.lastRotation.day===localDay(),lastError,version:app.getVersion(),platform:process.platform,arch:process.arch,recoveryNotice:s.recoveryNotice||null,...(smokeMode?{lastExternal,fixture:true}:{}),exclusions:{hidden:s.hidden.map(id=>({id,name:findRepo(id)?.full_name||String(id)})),snoozed:Object.entries(s.snoozed).filter(([,until])=>until>Date.now()).map(([id,until])=>({id:Number(id),name:findRepo(Number(id))?.full_name||id,until})),owners:s.blockedOwners}};}
 function emit(){revision++;if(window&&!window.isDestroyed())window.webContents.send('state:changed',snapshot());}
 function findRepo(id){return [...(store.state.daily?.repos||[]),...store.state.saved,...store.state.cache,...store.state.history.map(h=>h.repo),...Object.values(store.state.workspace?.records||{}).map(r=>r.repo)].find(r=>r?.id===id);}
 let lastShape='';function applyWindowShape(){if(!window||window.isDestroyed())return;if(process.platform==='darwin')window.invalidateShadow();if(process.platform!=='linux'||windowPolicy.nativeWayland||windowPolicy.transparent)return;const b=window.getBounds(),key=b.width+':'+b.height+':'+mode;if(key===lastShape)return;try{window.setShape(dockShape(b.width,b.height,mode==='collapsed'));windowPolicy.shaped=true;lastShape=key;}catch{windowPolicy.shaped=false;}}
@@ -42,11 +42,31 @@ function samplePointer(){
 }
 function show(){const display=activeDisplay(screen);windowAnchor=topAnchor(display);resize('panel');window.show();window.focus();}
 function summon(){if(!window.isVisible()||mode==='collapsed'||activeDisplay(screen).id!==screen.getDisplayMatching(window.getBounds()).id){show();}else resize('collapsed');}
+let visibleActivityPromise;
+function persistRelease(repo,activity){
+ if(quitting||findRepo(repo.id)?.full_name!==repo.full_name)return false;
+ const current=store.state.releaseMetadata;
+ const next=rememberRelease(current,repo,activity);
+ if(next===current)return false;
+ store.update(s=>{s.releaseMetadata=next;});
+ return true;
+}
+function refreshVisibleActivity(){
+ if(visibleActivityPromise)return visibleActivityPromise;
+ visibleActivityPromise=(async()=>{
+  for(const repo of store.state.daily?.repos||[]){
+   if(quitting)break;
+   if(persistRelease(repo,await activityClient.get(repo)))emit();
+  }
+ })().finally(()=>{visibleActivityPromise=null;});
+ return visibleActivityPromise;
+}
 async function refresh(force=false){
  if(refreshPromise)return refreshPromise;
  refreshPromise=(async()=>{const previousDay=store.state.daily?.day;
-  if(force||(!Number.isFinite(Date.parse(store.state.cacheAt))||Date.now()-Date.parse(store.state.cacheAt)>=240000)&&Date.now()-lastSyncAttempt>=240000){lastSyncAttempt=Date.now();try{const cache=await fetchCatalog(store.state.cache,github.request,{delayMs:6500,cachePages:true});store.update(s=>{s.cache=cache;s.catalogInfo={...fetchCatalog.info,source:'github'};if(fetchCatalog.info.freshPages>0){s.cacheAt=new Date().toISOString();s.starSamples=observe(s.starSamples,cache);}discovery.present(s);});lastError=null;}catch(e){lastError=e.message;}}
+  if(force||(!Number.isFinite(Date.parse(store.state.cacheAt))||Date.now()-Date.parse(store.state.cacheAt)>=240000)&&Date.now()-lastSyncAttempt>=240000){lastSyncAttempt=Date.now();try{const cache=await fetchCatalog(store.state.cache,github.request,{delayMs:6500,cachePages:true});store.update(s=>{s.cache=cache;s.catalogInfo={...fetchCatalog.info,source:'github'};if(fetchCatalog.info.freshPages>0){s.cacheAt=new Date().toISOString();s.starSamples=observe(s.starSamples,fetchCatalog.observations,Date.now(),cache);}discovery.present(s);});lastError=null;}catch(e){lastError=e.message;}}
   if(store.state.daily?.day!==localDay())store.update(s=>{discovery.present(s);});emit();
+  if(!smokeMode)void refreshVisibleActivity().catch(error=>console.error('Background release refresh failed:',error.message));
   if(previousDay&&previousDay!==localDay()&&store.state.settings.notifications&&!store.state.settings.quietMode&&Notification.isSupported()&&store.state.daily.repos.length)new Notification({title:'Your GitHub discoveries are ready',body:`${store.state.daily.repos.length} new 50K+ star projects, selected for you.`}).show();
   return {state:snapshot(),error:lastError};
  })().finally(()=>{refreshPromise=null;});return refreshPromise;
@@ -128,7 +148,7 @@ function attachIpc(){
  handle('window:expand',input=>{const next=typeof input==='object'?input?.mode:input,requestId=typeof input==='object'?input?.requestId:null;if(!['panel','collapsed','workspace','insight'].includes(next))throw new Error('Invalid window mode');if(requestId!=null){if(!Number.isSafeInteger(requestId)||requestId<=0)throw new Error('Invalid window request');if(requestId<=lastWindowRequest)return{mode,requestId,ignored:true,bounds:window.getBounds()};lastWindowRequest=requestId;}resize(next,false,requestId,typeof input==='object'?input.height:null);return{mode,requestId,bounds:window.getBounds()};});
  handle('window:fit',payload=>{if(!payload||payload.mode!==mode||!Number.isFinite(payload.height)||payload.requestId!=null&&payload.requestId<lastWindowRequest)return;const current=window.getBounds(),area=screen.getDisplayMatching(current).workArea,height=fittedHeight(payload.height,area.height,mode==='collapsed');if(Math.abs(current.height-height)>1){clearTimeout(moveTimer);const y=Math.round(Math.max(area.y,Math.min(windowAnchor?.y??current.y,area.y+area.height-height)));lastProgrammaticPosition={x:current.x,y};window.setBounds({height,y},false);}return{mode,bounds:window.getBounds()};});handle('window:hide',()=>window.hide());handle('app:quit',()=>{quitting=true;app.quit();});
  handle('repo:open',openRepo);
- handle('repo:activity',async id=>{const repo=findRepo(id);if(!repo||!Number.isSafeInteger(id))throw Error('Invalid repository');const value=await activityClient.get(repo);return{...value,velocity:velocity(store.state.starSamples?.[id]),install:install.plan(repo,process.platform,value.packageName)};});
+ handle('repo:activity',async id=>{const repo=findRepo(id);if(!repo||!Number.isSafeInteger(id))throw Error('Invalid repository');const value=await activityClient.get(repo);persistRelease(repo,value);return{...value,velocity:velocity(store.state.starSamples?.[id]),install:install.plan(repo,process.platform,value.packageName)};});
  handle('repo:release-check',async(id,force=false)=>{const repo=findRepo(id);if(!repo)throw new Error('Repository unavailable');return {...await releaseClient.get(repo,force===true),id};});
  handle('repo:asset',async(id,url)=>{
   const repo=findRepo(id);if(!repo)throw new Error('Repository unavailable');
@@ -177,7 +197,7 @@ function attachIpc(){
   if(!['rebuild','cache'].includes(kind))throw new Error('Invalid recovery operation.');
   if(!await confirm(kind==='cache'?'Replace cached catalog?':'Clear discovery history and rebuild?','Your bookmarks and personal workspace will be preserved.'))return snapshot();
   store.update(s=>{
-   if(kind==='cache'){s.cache=[];s.catalogInfo=null;s.starSamples={};discovery.bootstrap(s);}
+   if(kind==='cache'){s.cache=[];s.catalogInfo=null;s.starSamples={};s.releaseMetadata={};discovery.bootstrap(s);}
    else{s.seen=[];s.seenHistory=[];s.presentedAt={};discovery.present(s);}
    s.lastRotation=null;
   });

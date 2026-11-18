@@ -2,7 +2,7 @@
 const {normalizeRepo,eligible}=require('./engine.cjs');
 const {MIN_STARS,MAX_CATALOG,TARGET_CATALOG}=require('./catalog-policy.cjs');const pages=new Map();
 async function fetchCatalog(previous=[],fetchImpl=fetch,{delayMs=fetchImpl===fetch?6500:0,cachePages=fetchImpl===fetch,wait=ms=>new Promise(resolve=>setTimeout(resolve,ms))}={}){
- const found=new Map();let requests=0,available=0,expected=null,freshPages=0;
+ const found=new Map(),freshRepos=new Map();let requests=0,available=0,expected=null,freshPages=0;
  async function read(low,high,page=1){
   if(requests++&&delayMs)await wait(delayMs);
   const stars=high==null?'>='+low:low+'..'+high,query='stars:'+stars+' archived:false fork:false is:public';
@@ -12,6 +12,7 @@ async function fetchCatalog(previous=[],fetchImpl=fetch,{delayMs=fetchImpl===fet
   if(!response.ok){const reset=response.headers?.get('x-ratelimit-reset');if([403,429].includes(response.status))throw Error('GitHub rate limit reached. Cached projects remain available.'+(reset?' Retry after '+new Date(Number(reset)*1000).toLocaleTimeString()+'.':''));throw Error('GitHub returned '+response.status+'. Cached projects remain available.');}
   freshPages++;
   const data=await response.json();if(!data||!Array.isArray(data.items)||data.incomplete_results===true||data.total_count!=null&&(!Number.isSafeInteger(data.total_count)||data.total_count<0||data.items.length>data.total_count))throw Error('GitHub returned an incomplete or unexpected response. Cached projects remain available.');
+  for(const raw of data.items){const repo=normalizeRepo(raw);if(repo&&eligible(repo))freshRepos.set(repo.id,repo);}
   if(cachePages){pages.set(url,{etag:response.headers?.get('etag'),data});while(pages.size>256)pages.delete(pages.keys().next().value);}
   return data;
  }
@@ -29,6 +30,7 @@ async function fetchCatalog(previous=[],fetchImpl=fetch,{delayMs=fetchImpl===fet
  if(expected!=null&&found.size<expected)throw Error('GitHub returned fewer unique results across search partitions. Cached projects remain available.');
  const repos=[...found.values()].sort((a,b)=>b.stargazers_count-a.stargazers_count||a.id-b.id);
  fetchCatalog.info={loaded:repos.length,available:expected??repos.length,target:TARGET_CATALOG,capacity:MAX_CATALOG,minStars:MIN_STARS,complete:true,freshPages,checkedAt:new Date().toISOString()};
+ fetchCatalog.observations=repos.flatMap(repo=>freshRepos.has(repo.id)?[freshRepos.get(repo.id)]:[]);
  return repos;
 }
 module.exports={fetchCatalog,MIN_STARS,MAX_CATALOG};
