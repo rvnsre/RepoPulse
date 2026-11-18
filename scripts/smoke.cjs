@@ -18,7 +18,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
   for(let attempt=0;attempt<12;attempt++){
    await new Promise(resolve=>setTimeout(resolve,400));const bounds=window.getBounds();
    const image=await window.webContents.capturePage({x:0,y:0,width:bounds.width,height:bounds.height},{stayHidden:false,stayAwake:true});
-   if(!image.isEmpty()){const bytes=image.toPNG();if(bytes.length>5000){png=bytes;break;}}
+   if(!image.isEmpty()){const bytes=image.toPNG();if(bytes.length>(name==='edge-hidden-preview.png'?100:5000)){png=bytes;break;}}
   }
   assert.ok(png,'The compositor must produce a visible native preview within five seconds.');fs.writeFileSync(path.join(root,name),png);
   if(name==='idle-insight-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_INSIGHT:'+encoded.slice(n,n+4096));}
@@ -100,25 +100,22 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await movePointer(-20,-20);
  await until(()=>evaluate("document.body.classList.contains('collapsed')&&document.getElementById('expanded').hidden"));
  await capture('collapsed-preview.png');
- const dock=await evaluate(`(()=>{const b=document.getElementById('dockOpen'),r=b.getBoundingClientRect(),t=document.querySelector('.toolbar').getBoundingClientRect();return{id:Number(b.dataset.repoId),summary:document.getElementById('dockSummary').textContent,clickable:getComputedStyle(b).pointerEvents,overlap:t.width>0&&r.right>t.left+1,x:r.x+r.width/2,y:r.y+r.height/2};})()`);
- assert.ok(dock.id>0&&dock.summary.length>0);assert.equal(dock.clickable,'auto');assert.equal(dock.overlap,false);
- await movePointer(dock.x,dock.y);
- await new Promise(r=>setTimeout(r,120));assert.equal(await evaluate("document.body.classList.contains('collapsed')"),true,'Hover over the compact link must keep its click target stable');
- const compactBefore=store.state.history.length,compactRepo=store.state.daily.repos.find(r=>r.id===dock.id);
- await evaluate("document.getElementById('dockOpen').click()");
- await until(()=>store.state.history.length===compactBefore+1);
- assert.equal(snapshot().lastExternal.url,'https://github.com/'+compactRepo.full_name);
- assert.equal(await evaluate("document.body.classList.contains('collapsed')"),true,'Compact link must not also expand the panel');
- await evaluate("document.getElementById('dockOpen').dispatchEvent(new MouseEvent('click',{bubbles:true,detail:2}))");
- await new Promise(r=>setTimeout(r,100));assert.equal(store.state.history.length,compactBefore+1,'Double clicks must not open a second replacement');
- await evaluate("document.querySelector('.topbar').dispatchEvent(new MouseEvent('click',{bubbles:true,detail:1}))");
+
+ assert.ok(window.getBounds().width<=120&&window.getBounds().height<=16,JSON.stringify(window.getBounds()));
+ const edge=await evaluate("({bar:getComputedStyle(document.getElementById('edgeReveal')).display,header:getComputedStyle(document.querySelector('.topbar')).display,line:document.querySelector('#edgeReveal span').getBoundingClientRect().height})");
+ assert.equal(edge.header,'none');assert.notEqual(edge.bar,'none');assert.equal(edge.line,3);
+ await capture('edge-hidden-preview.png');
+ const edgeHistory=store.state.history.length;
+ await evaluate("document.getElementById('edgeReveal').click()");
  await until(()=>evaluate("!document.getElementById('expanded').hidden"));
+ assert.equal(store.state.history.length,edgeHistory,'Reveal handle opens the panel, never a repository');
  await evaluate("document.getElementById('collapse').click()");
  await until(()=>evaluate("document.getElementById('expanded').hidden"));
- console.log('Compact action checks passed: short explanation, non-overlapping hit area, stable hover, direct GitHub click, no duplicate open and blank-header expansion.');
+ console.log('11.6 hidden handle passed: 120x16 native footprint, 3px indicator, no header and accessible click reveal.');
+
 
  await movePointer(-20,-20);
- await movePointer(30,30);
+ await movePointer(60,4);
  await until(()=>evaluate("!document.getElementById('expanded').hidden"));
  await new Promise(r=>setTimeout(r,500));
  const growth=await evaluate("getComputedStyle(document.getElementById('island')).transform");
@@ -132,7 +129,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  const work=require('electron').screen.getDisplayMatching(window.getBounds()).workArea;
  // The dock owns its top-center anchor; verify entry there rather than a user-dragged bottom edge.
  await new Promise(r=>setTimeout(r,450));
- const dockAnchor=window.getBounds(),point={x:dockAnchor.x+30,y:dockAnchor.y+30};
+ const dockAnchor=window.getBounds(),point={x:dockAnchor.x+dockAnchor.width/2,y:dockAnchor.y+4};
  await moveScreen(work.x-20,work.y-20);
  await evaluate("window.hoverModes=[];window.stopHoverTrace=window.pulse.onMode(m=>window.hoverModes.push(m));window.pulse.settings({autoHide:true,collapseOnLeave:true,hideDelay:0,hoverDelay:0,keepOnFocus:false})");
  await moveScreen(point.x,point.y);
@@ -272,6 +269,25 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  assert.ok((await evaluate("document.getElementById('libraryStat').textContent")).includes('50K+'));
  await capture('50k-catalog-preview.png');
  console.log('11.5 native passed: verified 50K–70K repository renders through real state IPC and visible policy label.');
+
+ // Reproduce the reported defect: a pending sync and stale keyboard focus must not pin the feed.
+ await evaluate("window.pulse.settings({autoHide:true,collapseOnLeave:true,hideDelay:80,hoverDelay:0,keepOnFocus:true,motion:'full',windowMotionDuration:160})");
+ await moveScreen(0,100);await until(()=>window.getBounds().height<=16);
+ const activation=window.getBounds(),center=activation.x+activation.width/2;
+ await moveScreen(center+activation.width,activation.y+4);await new Promise(r=>setTimeout(r,150));
+ assert.ok(window.getBounds().height<=16,'Neighboring browser tabs must not reveal the island');
+ await moveScreen(center,activation.y+4);await until(()=>evaluate("!document.getElementById('expanded').hidden"));
+ await evaluate("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Control'}));window.actualRefresh=api.refresh;api.refresh=()=>new Promise(resolve=>window.finishPendingRefresh=resolve);document.getElementById('refresh').click()");
+ await until(()=>evaluate("busy===true"));
+ await moveScreen(0,100);await until(()=>window.getBounds().height<=16);
+ assert.equal(await evaluate("islandController.status().held"),false,'Background sync cannot hold hiding');
+ await evaluate("api.refresh=window.actualRefresh;window.finishPendingRefresh({state,error:null})");
+ await until(()=>evaluate("busy===false"));
+ assert.ok(window.getBounds().height<=16);
+ await moveScreen(center,activation.y+4);await until(()=>evaluate("!document.getElementById('expanded').hidden"));
+ await new Promise(r=>setTimeout(r,200));assert.equal(await evaluate("document.body.classList.contains('collapsed')"),false);
+ await moveScreen(0,100);await until(()=>window.getBounds().height<=16);
+ console.log('11.6 native regression passed: background sync and stale keyboard focus cannot prevent hiding; only top-center entry reveals; physical leave hides again.');
  assert.deepEqual(errors,[]);console.log('Native UI passed: readable fonts, stable row DOM, direct Learn URL, verified Releases URL, independent replacement, undo, native screenshots, settings, 150% text, three rows, rapid toggle and collection.');app.exit(0);
 }
 module.exports={smoke};

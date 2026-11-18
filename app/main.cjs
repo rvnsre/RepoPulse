@@ -29,7 +29,7 @@ function resize(next='panel',anchor=false,requestId=null,height=null){
  if(anchor||!windowAnchor)windowAnchor=defaultAnchor(area,store.state.settings);
  const rect=layoutBounds(area,store.state.settings,mode,windowAnchor);if(Number.isFinite(height)&&mode==='panel'){rect.height=fittedHeight(height,area.height,false);rect.y=Math.round(Math.max(area.y,Math.min(windowAnchor.y,area.y+area.height-rect.height)));}
  if(['x','y','width','height'].some(k=>rect[k]!==current[k])){clearTimeout(moveTimer);lastProgrammaticPosition={x:rect.x,y:rect.y};window.setBounds(rect,false);}
- applyWindowShape();
+ try{window.setHasShadow(mode!=='collapsed'&&process.platform!=='linux');}catch{}applyWindowShape();
  window.webContents.send('window:mode',{mode,requestId,bounds:window.getBounds(),...(mode==='insight'?{insight}:{})});
 }
 function samplePointer(){
@@ -72,11 +72,11 @@ async function openRepo(id,kind='repository'){
  opening.set(key,task);try{return await task;}finally{opening.delete(key);}
 }
 function createWindow(){
- const display=activeDisplay(screen),area=display.workArea;windowAnchor=topAnchor(display);const rect=layoutBounds(area,store.state.settings,'panel',windowAnchor);
+ const display=activeDisplay(screen),area=display.workArea;windowAnchor=topAnchor(display);const initialMode=store.state.settings.startCollapsed&&!smokeMode?'collapsed':'panel';mode=initialMode;const rect=layoutBounds(area,store.state.settings,initialMode,windowAnchor);
  window=new BrowserWindow({...rect,...windowPolicy.options,alwaysOnTop:store.state.settings.pinned,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
  if(process.platform==='darwin'){app.dock?.hide();window.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:false});}window.setAlwaysOnTop(store.state.settings.pinned,'floating');
- window.once('ready-to-show',()=>{if(store.state.settings.startCollapsed&&!smokeMode)resize('collapsed');window.showInactive();});window.on('resize',applyWindowShape);
- window.setOpacity(store.state.settings.opacity/100);resize('panel');
+ window.once('ready-to-show',()=>window.showInactive());window.on('resize',applyWindowShape);
+ window.setOpacity(store.state.settings.opacity/100);resize(initialMode);
  window.loadFile(path.join(__dirname,'index.html'));
  window.webContents.setWindowOpenHandler(()=>({action:'deny'}));window.webContents.on('will-navigate',event=>event.preventDefault());window.webContents.session.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
  screen.on('display-metrics-changed',()=>{windowAnchor=topAnchor(screen.getDisplayMatching(window.getBounds()));resize(mode);});

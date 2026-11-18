@@ -19,10 +19,10 @@ function applyMode(){
  if(insightOpen){clearTimeout(toastTimer);$('toast').hidden=true;}
  $('expanded').hidden=!expanded||insightOpen;$('idleInsight').hidden=!insightOpen;$('drawer').hidden=!drawer;
  document.body.classList.toggle('collapsed',!expanded&&!insightOpen);document.body.classList.toggle('insight-open',insightOpen);document.body.classList.toggle('workspace-open',expanded&&drawer&&!insightOpen);
- $('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));
+ $('edgeReveal').setAttribute('aria-expanded',String(expanded));$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));
 }
 function desiredHeight(){
- if(!expanded)return 64;
+ if(!expanded)return state.windowPolicy?.reveal?.height??16;
  if(drawer||insightOpen)return undefined;
  const feed=$('feed'),nodes=[...feed.querySelectorAll('.repo-slot')],style=getComputedStyle(feed);
  return IslandMorph.panelHeight({header:document.querySelector('.topbar').offsetHeight,
@@ -41,7 +41,7 @@ async function windowMode(){
   if(mode==='collapsed'&&before&&canAnimate()&&api.previewBounds){
    const target=await api.previewBounds(mode);if(serial!==transition)return;
    rootAnimation=node.animate([{transform:currentTransform==='none'?'none':currentTransform,opacity:1},
-    {transform:IslandMorph.transform(before,target,state.windowPolicy?.padding??8),opacity:.9}],
+    {transform:IslandMorph.transform(before,target,state.windowPolicy?.padding??8,0),opacity:.15}],
     {duration:Math.min(160,duration),easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'});
    try{await rootAnimation.finished;}catch{}if(serial!==transition)return;
   }
@@ -49,7 +49,7 @@ async function windowMode(){
   const reply=await api?.expand({mode,requestId:serial,height:desiredHeight()});if(serial!==transition)return;
   updatePointerBounds(reply?.bounds);rootAnimation?.cancel();if(drawer)renderDrawer(false);
   if(mode!=='collapsed'&&before&&reply?.bounds&&canAnimate()){
-   rootAnimation=node.animate([{transform:IslandMorph.transform(reply.bounds,before,state.windowPolicy?.padding??8),opacity:.85},
+   rootAnimation=node.animate([{transform:IslandMorph.transform(reply.bounds,before,state.windowPolicy?.padding??8,before.height<=16?0:state.windowPolicy?.padding??8),opacity:.85},
     {transform:'none',opacity:1}],{duration,easing:'cubic-bezier(.16,1,.3,1)'});
    try{await rootAnimation.finished;}catch{}if(serial!==transition)return;rootAnimation.cancel();
   }
@@ -226,7 +226,7 @@ function renderDrawer(force=true){
  root.replaceChildren();({details:overview,saved:r=>collectionView(r,false),history:r=>collectionView(r,true),tune,settings:settingsView,exclusions:exclusionsView,library:ultimateLibrary,collections:ultimateCollections,compare:ultimateCompare,insights:ultimateInsights,commands:ultimateCommands})[section](root);
  if(key){const replacement=Array.from(root.querySelectorAll('[data-focus-key],input[id]')).find(n=>(n.dataset.focusKey||n.id)===key);if(replacement){replacement.focus({preventScroll:true});if(cursor)try{replacement.setSelectionRange(...cursor);}catch{}}}root.scrollTop=scroll;
 }
-async function refresh(force=false){if(busy)return;islandController?.hold('refresh',true);busy=true;$('refresh').disabled=true;try{const result=await api.refresh(force);adopt(result.state);render();if(result.error)toast(result.error);else if(force)toast('Catalog refreshed. Unseen projects remain ready for your next click.');}finally{busy=false;islandController?.hold('refresh',false);$('refresh').disabled=false;}}
+async function refresh(force=false){if(busy)return;busy=true;$('refresh').disabled=true;try{const result=await api.refresh(force);adopt(result.state);render();if(result.error)toast(result.error);else if(force)toast('Catalog refreshed. Unseen projects remain ready for your next click.');}finally{busy=false;$('refresh').disabled=false;}}
 $('browseLibrary').addEventListener('click',()=>run(()=>openDrawer('library')));
 $('toggle').addEventListener('click',()=>run(async()=>{insightOpen=false;expanded=!expanded;if(!expanded)drawer=false;await windowMode();}));
 $('collapse').addEventListener('click',()=>run(async()=>{insightOpen=false;expanded=false;drawer=false;await windowMode();}));
@@ -262,8 +262,8 @@ window.addEventListener('keydown',e=>{
  if(!api){$('feed').append(empty('RepoPulse desktop','Open this interface in the desktop app.'));return;}
  adopt(await api.state());draft={...state.profile.weights};selectedId=repos()[0]?.id??null;
  api.onState(next=>{adopt(next);render();});
- api.onMode?.(message=>{const next=UI.externalMode(message);if(!next)return;if(message?.insight){state={...state,insight:message.insight};renderInsight();}if(message?.bounds)pointerBounds=message.bounds;const nextExpanded=next!=='collapsed',nextDrawer=next==='workspace',nextInsight=next==='insight';if(nextExpanded===expanded&&nextDrawer===drawer&&nextInsight===insightOpen)return;transition++;rootAnimation?.cancel();hoverAnimation?.cancel();morphing=false;expanded=nextExpanded;drawer=nextDrawer;insightOpen=nextInsight;applyMode();if(nextInsight&&canAnimate())$('idleInsight').animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:200,easing:'cubic-bezier(.16,1,.3,1)'});document.body.classList.toggle('collapsed',!expanded);document.body.classList.toggle('workspace-open',expanded&&drawer);$('expanded').hidden=!expanded||insightOpen;$('drawer').hidden=!drawer;$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));islandController?.configure(state.settings,next);ultimateStatus();updatePointerBounds(pointerBounds);requestFit();if(drawer)renderDrawer(false);});
- new ResizeObserver(()=>{requestFit();updatePickRange();}).observe($('island'));$('feed').addEventListener('scroll',()=>{updatePickRange();dynamicHoldUntil=Date.now()+1000;},{passive:true});setInterval(renderSync,30000);if(state.windowMode==='collapsed'){expanded=false;drawer=false;$('expanded').hidden=true;document.body.classList.add('collapsed');}ultimateInit();render();if(state.recoveryNotice)toast(state.recoveryNotice);await refresh();
+ api.onMode?.(message=>{const next=UI.externalMode(message);if(!next)return;if(message?.insight){state={...state,insight:message.insight};renderInsight();}if(message?.bounds)pointerBounds=message.bounds;const nextExpanded=next!=='collapsed',nextDrawer=next==='workspace',nextInsight=next==='insight';if(nextExpanded===expanded&&nextDrawer===drawer&&nextInsight===insightOpen)return;transition++;rootAnimation?.cancel();hoverAnimation?.cancel();morphing=false;expanded=nextExpanded;drawer=nextDrawer;insightOpen=nextInsight;applyMode();if(nextInsight&&canAnimate())$('idleInsight').animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:200,easing:'cubic-bezier(.16,1,.3,1)'});document.body.classList.toggle('collapsed',!expanded);document.body.classList.toggle('workspace-open',expanded&&drawer);$('expanded').hidden=!expanded||insightOpen;$('drawer').hidden=!drawer;$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));islandController?.configure(state.settings,next);if(next==='panel')islandController?.pause(1200);ultimateStatus();updatePointerBounds(pointerBounds);requestFit();if(drawer)renderDrawer(false);});
+ new ResizeObserver(()=>{requestFit();updatePickRange();}).observe($('island'));$('feed').addEventListener('scroll',()=>{updatePickRange();dynamicHoldUntil=Date.now()+1000;},{passive:true});setInterval(renderSync,30000);expanded=state.windowMode!=='collapsed';drawer=state.windowMode==='workspace';applyMode();ultimateInit();render();if(state.recoveryNotice)toast(state.recoveryNotice);await refresh();
 })().catch(e=>toast(e.message));
 
 

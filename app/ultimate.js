@@ -15,7 +15,7 @@ function ultimateStatus(){
  $('autoHideLabel').textContent=state.settings.autoHide?'Auto hide on':'Auto hide off';$('autoHideButton').setAttribute('aria-checked',String(state.settings.autoHide));$('autoHideButton').title='Toggle automatic collapse';
  $('queueCount').textContent=String(state.analytics?.queued||0);if($('editionLabel'))$('editionLabel').textContent=new Date().toLocaleDateString('en',{weekday:'long',month:'short',day:'numeric'});if($('libraryStat'))$('libraryStat').textContent=state.catalogSize+' projects · 50K+';$('queueButton').hidden=!state.settings.showQueueCount;
  document.body.classList.toggle('workspace-open',expanded&&drawer);$('dockHint').hidden=expanded;const dock=UI.dockModel(repos(),selectedId),open=$('dockOpen');if($('dockText').textContent!==dock.title)$('dockText').textContent=dock.title;if($('dockSummary').textContent!==dock.summary)$('dockSummary').textContent=dock.summary;open.disabled=!dock.repo||pending.has(dock.repo.id);open.dataset.repoId=dock.repo?.id||'';open.title=dock.repo?dock.title+'\n'+dock.repo.description:'Open the panel to find a repository';open.setAttribute('aria-label',dock.repo?'Open '+dock.title+' on GitHub':'No repository available');document.body.classList.toggle('focus-session',remaining>0);
- $('island').setAttribute('aria-label',expanded?'RepoPulse discovery panel':'RepoPulse collapsed island. Hover or activate the header to expand.');
+ $('island').setAttribute('aria-label',expanded?'RepoPulse discovery panel':'RepoPulse hidden. Move to the top-center screen edge or activate the reveal handle.');
 }
 function ultimateRender(){
  const p=state.settings;document.body.classList.toggle('workspace-open',expanded&&drawer);document.body.classList.toggle('offline',!!state.lastError);document.body.dataset.accent=p.accent;document.body.dataset.card=p.cardStyle;document.body.dataset.roundness=String(p.roundness);document.body.classList.toggle('no-glow',!p.glow);document.body.classList.toggle('hide-hints',!p.showHints);$('status').hidden=!p.showStatus;
@@ -31,6 +31,9 @@ function ultimateFocus(){
  uFocusUntil=Date.now()+state.settings.focusMinutes*60000;islandController.hold('focus session',true);toast('Focus session started. Automatic hiding is paused.');
  clearInterval(uFocusTimer);uFocusTimer=setInterval(()=>{if(Date.now()>=uFocusUntil){clearInterval(uFocusTimer);uFocusUntil=0;islandController.hold('focus session',false);$('announcer').textContent='Focus session complete.';toast('Focus session complete.');}ultimateStatus();},1000);ultimateStatus();
 }
+function leaveSurface(){
+ compactProtectedEntry=false;uKeyboardFocus=false;islandController.focus(false);islandController.leave();
+}
 function ultimateInit(){
  uFilters.pinnedFirst=state.settings.pinnedFirst;installIcons();dynamicInit();
  islandController=new IslandMotion.Controller({onExpand:()=>run(async()=>{expanded=true;await windowMode();}),onCollapse:()=>run(async()=>{expanded=false;drawer=false;await windowMode();}),onChange:ultimateStatus});
@@ -38,13 +41,13 @@ function ultimateInit(){
  // Native pointer samples are independent of animated DOM hit boundaries.
  pointerBounds=state.windowBounds||null;
  if(state.windowPolicy?.pointer!==false&&api.onPointer&&api.pointerState){
-  const acceptPointer=value=>{if(!value)return;const before=islandController.pointer;if(value.inside){const x=value.point.x-value.bounds.x,y=value.point.y-value.bounds.y,target=document.elementFromPoint(x,y),protectedTarget=!expanded&&!!target?.closest('#dockOpen,.toolbar');const force=value.moved&&compactProtectedEntry&&!protectedTarget;compactProtectedEntry=protectedTarget;islandController.enter(value.entered&&value.moved&&!protectedTarget,force);if(value.moved)islandController.activity();}else if(before){compactProtectedEntry=false;islandController.leave();}if(before!==value.inside)ultimateMagnify(value.inside);};
+  const acceptPointer=value=>{if(!value)return;const before=islandController.pointer;if(value.inside){const x=value.point.x-value.bounds.x,y=value.point.y-value.bounds.y,target=document.elementFromPoint(x,y),protectedTarget=!expanded&&!!target?.closest('#dockOpen,.toolbar');const force=value.moved&&compactProtectedEntry&&!protectedTarget;compactProtectedEntry=protectedTarget;islandController.enter(value.entered&&value.moved&&!protectedTarget,force);if(value.moved)islandController.activity();}else if(before){leaveSurface();}if(before!==value.inside)ultimateMagnify(value.inside);};
   const stopPointer=api.onPointer(acceptPointer);run(async()=>acceptPointer(await api.pointerState()));window.addEventListener('beforeunload',stopPointer);
  }else{
   // Browser fixture has no native window; its viewport never resizes for island modes.
   const surface=document.documentElement;
   surface.addEventListener('pointerenter',e=>{if(e.pointerType!=='touch'){const target=document.elementFromPoint(e.clientX,e.clientY);compactProtectedEntry=!expanded&&!!target?.closest('#dockOpen,.toolbar');islandController.enter(!compactProtectedEntry);ultimateMagnify(true);}});
-  surface.addEventListener('pointerleave',e=>{if(e.pointerType!=='touch'){compactProtectedEntry=false;islandController.leave();ultimateMagnify(false);}});
+  surface.addEventListener('pointerleave',e=>{if(e.pointerType!=='touch'){leaveSurface();ultimateMagnify(false);}});
   surface.addEventListener('pointermove',e=>{if(compactProtectedEntry&&!expanded&&!e.target.closest('#dockOpen,.toolbar')){compactProtectedEntry=false;islandController.enter(true,true);}});
  }
  $('island').addEventListener('pointerdown',()=>{uKeyboardFocus=false;islandController.focus(false);islandController.activity();});$('island').addEventListener('wheel',()=>islandController.activity(),{passive:true});
@@ -54,8 +57,9 @@ function ultimateInit(){
  window.addEventListener('blur',()=>{uKeyboardFocus=false;islandController.focus(false);islandController.hold('editing',false);});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)hoverAnimation?.cancel();});
  matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',()=>{if(state.settings.motion!=='full'||state.settings.reducedMotion){hoverAnimation?.cancel();document.body.classList.remove('pointer-near');}});
+ $('edgeReveal').addEventListener('click',()=>run(async()=>{insightOpen=false;expanded=true;drawer=false;await windowMode();}));
  $('commandButton').addEventListener('click',()=>run(()=>openDrawer('commands')));$('focusButton').addEventListener('click',()=>run(ultimateFocus));
- $('autoHideButton').addEventListener('click',()=>run(()=>changeSettings({autoHide:!state.settings.autoHide})));$('historyButton').addEventListener('click',()=>run(()=>openDrawer('history')));
+ $('autoHideButton').addEventListener('click',()=>run(()=>{const enabled=!state.settings.autoHide;if(enabled)islandController.pause(0);return changeSettings({autoHide:enabled,...(enabled?{collapseOnLeave:true,hoverExpand:true}:{})});}));$('historyButton').addEventListener('click',()=>run(()=>openDrawer('history')));
  $('queueButton').addEventListener('click',()=>run(async()=>{uFilters.scope='queued';await openDrawer('library');}));
  window.addEventListener('beforeunload',()=>{islandController.destroy();clearInterval(uFocusTimer);clearTimeout(releaseTimer);clearTimeout(toastTimer);hoverAnimation?.cancel();});
 }
