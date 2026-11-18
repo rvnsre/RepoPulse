@@ -1,6 +1,6 @@
 {
   "name": "repopulse",
-  "version": "11.7.0",
+  "version": "11.7.1",
   "description": "Your daily open-source signal. A private, personalized GitHub discovery island.",
   "main": "app/main.cjs",
   "license": "UNLICENSED",
@@ -18,8 +18,8 @@
     "preview": "node scripts/preview.cjs"
   },
   "devDependencies": {
-    "electron": "40.0.0",
-    "electron-builder": "26.0.12"
+    "electron": "45.3.4",
+    "electron-builder": "26.18.0"
   },
   "build": {
     "appId": "dev.rvnsre.repopulse",
@@ -100,5 +100,8 @@
       "artifactName": "RepoPulse-${version}-Windows-${arch}-Portable.${ext}"
     }
   },
-  "homepage": "https://github.com/rvnsre/RepoPulse"
+  "homepage": "https://github.com/rvnsre/RepoPulse",
+  "overrides": {
+    "minimatch": "11.0.9"
+  }
 }

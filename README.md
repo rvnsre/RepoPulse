@@ -1,4 +1,4 @@
-# RepoPulse 11.7.0
+# RepoPulse 11.7.1
 
 A personalized GitHub discovery island for Windows, macOS and Linux, focused on **50,000+ star** public projects.
 
@@ -155,8 +155,8 @@ Letter shortcuts can be disabled in Settings.
 Copyright 2026 Ravan Sariyev. Distribution license is not yet selected. Signing, automatic updates, browser-store publication and native OS acceptance testing remain release work.
 
 
-## Final release audit — v11.7.0
+## Final release audit — v11.7.1
 
-The final release includes the camera-edge auto-hide and discovery fixes from v11.6, plus atomic full-data reset, removal of unsaved private drafts and focus holds after reset, locked dependency installation, explicit OS/CPU installer names, and a gated tag-only upload of actual installers and SHA-256 checksums. See [the final audit](docs/FINAL-v11.7.md).
+The final release includes the camera-edge auto-hide and discovery fixes from v11.6, plus atomic full-data reset, removal of unsaved private drafts and focus holds after reset, locked dependency installation, explicit OS/CPU installer names, and a gated tag-only upload of actual installers and SHA-256 checksums. See [the final audit](docs/FINAL-v11.7.1.md).
 
 Download from [Releases](https://github.com/rvnsre/RepoPulse/releases/latest). Quit any old running version from the tray before starting the new executable.

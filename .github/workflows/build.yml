@@ -40,6 +40,9 @@ jobs:
           node-version: '24'
       - name: Install build dependencies
         run: npm ci --no-audit --no-fund
+      - name: Audit dependency critical vulnerabilities
+        if: runner.os == 'Linux'
+        run: npm audit --audit-level=critical
       - name: Install Linux packaging tools
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y rpm xvfb xdotool libgtk-3-0 libnss3 libasound2t64 libgbm1
