@@ -10,7 +10,7 @@ const {ReleaseClient,destination,repositoryUrl}=require('../src/navigation.cjs')
 const {bounds:layoutBounds,fittedHeight,defaultAnchor}=require('../src/layout.cjs');
 const {PointerTracker}=require('../src/pointer.cjs');
 const advisor=require('../src/advisor.cjs');const idleGate=new advisor.IdleGate();let insight=null,context={topic:null,status:'off'},advisorTimer,contextTimer,screenLocked=false,contextBusy=false;
-const {policy,activeDisplay,topAnchor,dockShape,registerShortcuts}=require('../src/window-policy.cjs');const windowPolicy=policy(process.platform,process.env,smokeFlag());function smokeFlag(){return !app.isPackaged&&process.argv.includes('--smoke-test');}
+const {policy,activeDisplay,topAnchor,dockShape,registerShortcuts,bindInitialVisibility}=require('../src/window-policy.cjs');const windowPolicy=policy(process.platform,process.env,smokeFlag());function smokeFlag(){return !app.isPackaged&&process.argv.includes('--smoke-test');}
 const {ActivityClient,observe,velocity}=require('../src/activity.cjs');const install=require('../src/install.cjs');let activityClient,lastSyncAttempt=0,shortcutAvailable=false,trayAvailable=false;
 if(process.platform==='linux'&&process.env.WAYLAND_DISPLAY){if(process.env.DISPLAY)app.commandLine.appendSwitch('ozone-platform','x11');else app.commandLine.appendSwitch('enable-features','GlobalShortcutsPortal');}
 const pointerTracker=new PointerTracker();let pointerTimer;
@@ -73,9 +73,9 @@ async function openRepo(id,kind='repository'){
 }
 function createWindow(){
  const display=activeDisplay(screen),area=display.workArea;windowAnchor=topAnchor(display);const initialMode=store.state.settings.startCollapsed&&!smokeMode?'collapsed':'panel';mode=initialMode;const rect=layoutBounds(area,store.state.settings,initialMode,windowAnchor);
- window=new BrowserWindow({...rect,...windowPolicy.options,alwaysOnTop:store.state.settings.pinned,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
+ window=new BrowserWindow({...rect,...windowPolicy.options,paintWhenInitiallyHidden:true,alwaysOnTop:store.state.settings.pinned,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
  if(process.platform==='darwin'){app.dock?.hide();window.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:false});}window.setAlwaysOnTop(store.state.settings.pinned,'floating');
- window.once('ready-to-show',()=>window.showInactive());window.on('resize',applyWindowShape);
+ bindInitialVisibility(window);window.on('resize',applyWindowShape);
  window.setOpacity(store.state.settings.opacity/100);resize(initialMode);
  window.loadFile(path.join(__dirname,'index.html'));
  window.webContents.setWindowOpenHandler(()=>({action:'deny'}));window.webContents.on('will-navigate',event=>event.preventDefault());window.webContents.session.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
