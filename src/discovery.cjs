@@ -68,7 +68,10 @@ function feedPools(state,visible,now,pool=filteredCatalog(state.cache,state,now)
 }
 function hydrate(pool,repos) {
  const byId=new Map(pool.map(repo=>[repo.id,repo])),byName=new Map(pool.map(repo=>[canonicalKey(repo),repo]));
- return distinct(repos.map(repo=>byId.get(repo.id)||byName.get(canonicalKey(repo))).filter(Boolean));
+ return distinct(repos.flatMap(repo=>{
+  const current=byId.get(repo.id)||byName.get(canonicalKey(repo));
+  return current?[{...repo,...current}]:[];
+ }));
 }
 function selectFeed(pool,state,day=localDay(),now=Date.now()) {
  const filtered=filteredCatalog(pool,state,now);
