@@ -5,7 +5,7 @@ async function fetchCatalog(previous=[],fetchImpl=fetch,{delayMs=fetchImpl===fet
  const found=new Map();let requests=0,available=0,expected=null,freshPages=0;
  async function read(low,high,page=1){
   if(requests++&&delayMs)await wait(delayMs);
-  const stars=high==null?'>='+low:low+'..'+high,query='stars:'+stars+' archived:false fork:false';
+  const stars=high==null?'>='+low:low+'..'+high,query='stars:'+stars+' archived:false fork:false is:public';
   const url='https://api.github.com/search/repositories?q='+encodeURIComponent(query)+'&sort=stars&order=desc&per_page=100&page='+page;
   const cached=pages.get(url),response=await fetchImpl(url,{headers:{Accept:'application/vnd.github+json','User-Agent':'RepoPulse/11.5',...(cached?.etag?{'If-None-Match':cached.etag}:{})},signal:AbortSignal.timeout(20000)});
   if(response.status===304&&cached)return cached.data;

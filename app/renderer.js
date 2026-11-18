@@ -106,7 +106,7 @@ function smartCode(repo){const block=el('div',{class:'code-block smart-code'}),t
  const copyButton=btn('Copy',async()=>{const plan=installPlan(repo);await copy(repo,current==='clone'?'clone':'package');},'copy-command','Copy full command for '+repo.full_name);
  const download=btn('Check GitHub releases',()=>checkRelease(repo,true),'download-link','Check releases for '+repo.full_name);
  const assets=el('div',{class:'release-assets'});
- function draw(tab=current){current=tab;commandTabs.set(repo.id,tab);const plan=installPlan(repo);installTab.textContent=plan.label;installTab.setAttribute('aria-selected',String(tab==='install'));cloneTab.setAttribute('aria-selected',String(tab==='clone'));installTab.tabIndex=tab==='install'?0:-1;cloneTab.tabIndex=tab==='clone'?0:-1;pre.setAttribute('aria-labelledby','tab-'+tab+'-'+repo.id);pre.textContent=tab==='clone'?plan.clone:plan.command||'GitHub release assets';pre.title=pre.textContent;copyButton.hidden=tab==='install'&&!plan.command;download.hidden=tab==='clone'||!!plan.command;const release=releaseStates.get(repo.id),matches=release?.assets||[];
+ function draw(tab=current){current=tab;commandTabs.delete(repo.id);commandTabs.set(repo.id,tab);if(commandTabs.size>256)commandTabs.delete(commandTabs.keys().next().value);const plan=installPlan(repo);installTab.textContent=plan.label;installTab.setAttribute('aria-selected',String(tab==='install'));cloneTab.setAttribute('aria-selected',String(tab==='clone'));installTab.tabIndex=tab==='install'?0:-1;cloneTab.tabIndex=tab==='clone'?0:-1;pre.setAttribute('aria-labelledby','tab-'+tab+'-'+repo.id);pre.textContent=tab==='clone'?plan.clone:plan.command||'GitHub release assets';pre.title=pre.textContent;copyButton.hidden=tab==='install'&&!plan.command;download.hidden=tab==='clone'||!!plan.command;const release=releaseStates.get(repo.id),matches=release?.assets||[];
   assets.replaceChildren();
   const showAssets=tab==='install'&&!plan.command;
   assets.hidden=!showAssets;
@@ -134,7 +134,9 @@ function row(repo,index){
 function empty(title,body,action,label){const box=el('div',{class:'empty'});box.append(el('h2',{},title),el('p',{},body));if(action)box.append(btn(label,action,'secondary'));return box;}
 function rowKey(repo){return JSON.stringify([repo.full_name,repo.description,repo.stargazers_count,repo.language,repo.reason,state.settings.showCommands,state.settings.showDescriptions,state.settings.showOwners,state.settings.showReasons,state.settings.exactStars,state.settings.showQuickActions,state.settings.showBadges,state.workspace?.records?.[repo.id]]);}
 function reconcile(){
- const desired=visible();$('feed').querySelector('.empty')?.remove();
+ const desired=visible();
+ const batchSwap=slots.filter((slot,index)=>slot.id!==null&&desired[index]&&slot.id!==desired[index].id).length>1;
+ $('feed').querySelector('.empty')?.remove();
  if(!desired.length){for(const slot of slots){slot.version++;slot.effect?.cancel();slot.element.remove();}slots.length=0;$('feed').append(empty('No 50K+ projects match these filters.','Seen projects are reused automatically. Change language filters or restore hidden projects in Settings.',()=>changeSettings({minStars:50000,languages:[],topics:[]}), 'Reset feed filters'));return;}
  for(let i=0;i<desired.length;i++){
   const repo=desired[i],key=rowKey(repo);let slot=slots[i];
@@ -144,11 +146,11 @@ function reconcile(){
   const rowMotion=canAnimate()&&expanded&&!drawer;
   const scene=DynamicFeed.transition(state.settings.transitionStyle,repo.id+i,{...IslandMotion.config(state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches),duration:canAnimate()?IslandMorph.tempo(state.settings.cycleMotion,sceneSequence++):0});
   (async()=>{
-   if(changed&&rowMotion&&old){slot.effect=old.animate(scene.exit,{...scene.options,duration:Math.round(scene.options.duration*.4)});try{await slot.effect.finished;}catch{}}
+   if(changed&&rowMotion&&old&&!batchSwap){slot.effect=old.animate(scene.exit,{...scene.options,duration:Math.round(scene.options.duration*.4)});try{await slot.effect.finished;}catch{}}
    if(serial!==slot.version)return;
    const node=row(repo,i);slot.element.replaceChildren(node);slot.id=repo.id;slot.key=key;slot.desired=null;
    if(hadFocus)node.querySelector('.repo-name').focus({preventScroll:true});
-   if(changed&&rowMotion){slot.effect=node.animate(scene.enter,{...scene.options,delay:state.settings.stagger?i*20:0});try{await slot.effect.finished;}catch{}}
+   if(changed&&rowMotion){const frames=batchSwap?scene.enter.map(frame=>({opacity:Math.max(.75,frame.opacity??1),transform:frame.transform})):scene.enter;slot.effect=node.animate(frames,{...scene.options,delay:state.settings.stagger?i*20:0});try{await slot.effect.finished;}catch{}}
    if(serial!==slot.version)return;
    if(changed&&rowMotion&&state.settings.cycleAccent)node.animate([{outline:'1px solid #e8c89888',outlineOffset:'-2px'},{outline:'1px solid transparent',outlineOffset:'-2px'}],{duration:Math.min(400,scene.options.duration*3),easing:'ease-out'});
    requestFit();updateActions();
