@@ -1,0 +1,63 @@
+name: Publish verified release assets
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag, for example v11.7.1
+        required: true
+        type: string
+      run_id:
+        description: Build run for this exact tag and source commit
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm test
+      - run: npm run check
+      - name: Verify exact tag source and all required build jobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          BUILD_RUN: ${{ inputs.run_id }}
+        run: |
+          node <<'JS'
+          const fs=require('node:fs'),{execFileSync}=require('node:child_process');
+          const tag=process.env.RELEASE_TAG,id=process.env.BUILD_RUN,repo=process.env.GITHUB_REPOSITORY;
+          if(!/^v\d+\.\d+\.\d+$/.test(tag)||!/^\d+$/.test(id))throw Error('Invalid release inputs');
+          const api=url=>JSON.parse(execFileSync('gh',['api',url],{encoding:'utf8'}));
+          const sha=execFileSync('git',['rev-parse',tag+'^{commit}'],{encoding:'utf8'}).trim();
+          const run=api('repos/'+repo+'/actions/runs/'+id);
+          if(run.head_sha!==sha||run.path!=='.github/workflows/build.yml')throw Error('Build does not match the tagged source');
+          const jobs=api('repos/'+repo+'/actions/runs/'+id+'/jobs?filter=latest&per_page=100').jobs;
+          for(const name of ['verify','package (windows-latest)','package (macos-15)','package (ubuntu-24.04)'])if(!jobs.some(j=>j.name===name&&j.conclusion==='success'))throw Error('Required build has not passed: '+name);
+          const source=JSON.parse(execFileSync('git',['show',tag+':package.json'],{encoding:'utf8'}));
+          if('v'+source.version!==tag)throw Error('Tagged package version mismatch');
+          fs.appendFileSync(process.env.GITHUB_ENV,'RELEASE_VERSION='+source.version+'\n');
+          console.log('Verified tagged source '+sha+' and every platform build.');
+          JS
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id }}
+          pattern: RepoPulse-*
+          path: release-artifacts
+      - name: Attach installers and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: node scripts/release.cjs release-artifacts

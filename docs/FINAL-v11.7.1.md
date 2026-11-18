@@ -23,3 +23,7 @@ Primary references: [Electron 45.3.4](https://releases.electronjs.org/release/v4
 Builds are unsigned and macOS is not notarized. Physical Windows/macOS installation, 125%/150% real-device DPI and native Wayland compositor acceptance remain unverified by the Linux/Xvfb check. The bundled snapshot contains 531 genuine 50K+ star repositories.
 
 Before upgrading, use the old app's tray **Quit** action, then launch 11.7.1. Closing the window alone keeps the older single-instance process running.
+
+## Release upload correction
+
+Actions artifacts include a root lockfile and a nested `dist/` folder. The upload helper now supports that actual layout as well as flat artifacts; the added regression brings the current source suite to 423 passing tests. The manual delivery workflow can reuse a completed build without rebuilding the application. It checks the exact tag commit, package version and successful verification plus all three packaging jobs before accepting its artifacts, then repeats the source tests and attaches all validated formats and checksums. The verified application source for this version remains the existing v11.7.1 tag.

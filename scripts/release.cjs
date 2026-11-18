@@ -9,7 +9,7 @@ function prepare(root,version,tag){
  if(!/^\d+\.\d+\.\d+$/.test(version)||tag!=='v'+version)throw Error('Release tag must match package.json version.');
  const files=[],names=new Set();
  for(const [group,{suffixes,minimum}]of Object.entries(groups)){
-  const directory=path.join(root,group),entries=fs.readdirSync(directory).filter(name=>suffixes.some(ext=>name.endsWith(ext)));
+  const artifact=path.join(root,group),directory=fs.existsSync(path.join(artifact,'dist'))?path.join(artifact,'dist'):artifact,entries=fs.readdirSync(directory).filter(name=>suffixes.some(ext=>name.endsWith(ext)));
   if(entries.length<minimum||suffixes.some(ext=>!entries.some(name=>name.endsWith(ext))))throw Error('Missing installers for '+group);
   for(const name of entries){
    if(!name.includes('-'+version+'-')||names.has(name))throw Error('Incorrect version or duplicate asset: '+name);
@@ -24,7 +24,7 @@ function prepare(root,version,tag){
  return [...files,checksumFile];
 }
 if(require.main===module){
- const tag=process.env.RELEASE_TAG,version=require('../package.json').version,files=prepare(process.argv[2]||'release-artifacts',version,tag);
+ const tag=process.env.RELEASE_TAG,version=process.env.RELEASE_VERSION||require('../package.json').version,files=prepare(process.argv[2]||'release-artifacts',version,tag);
  const {spawnSync}=require('node:child_process');
  const result=spawnSync('gh',['release','upload',tag,...files,'--repo',process.env.GITHUB_REPOSITORY],{stdio:'inherit'});
  if(result.error)throw result.error;process.exitCode=result.status??1;
