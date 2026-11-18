@@ -1,7 +1,14 @@
 'use strict';
 let uKeyboardFocus=false,uMotionSignature='',compactProtectedEntry=false,pointerBounds=null;
 let islandController=null,hoverAnimation=null,uFocusUntil=0,uFocusTimer=null,uQueryVersion=0,uLimit=60,uLastTab='details';
+let uResetRevision=0;
 const uDrafts=new Map(),uCompare=new Set(),uSelected=new Set();
+function resetWorkspaceView(){
+ uResetRevision++;uDrafts.clear();uCompare.clear();uSelected.clear();uResults=[];uQueryVersion++;uLimit=60;
+ Object.assign(uFilters,{query:'',scope:'all',sort:'stars',language:'',topic:'',license:'',collection:'',pinnedFirst:true});
+ clearInterval(uFocusTimer);uFocusUntil=0;islandController?.hold('focus session',false);islandController?.pause(0);drawerStamp='';draft={};
+}
+
 const uFilters={query:'',scope:'all',sort:'stars',language:'',topic:'',license:'',collection:'',pinnedFirst:true};
 let uResults=[];
 function ultimateMeta(repo){return state.workspace?.records?.[repo.id]||{notes:'',tags:[],rating:0,pinned:false,queued:false,read:false,priority:'normal'};}
@@ -76,7 +83,7 @@ function ultimateDetails(root,repo){
  const count=el('span',{class:'field-hint'},draft.notes.length+' / 20000 characters');
  notes.addEventListener('input',()=>{draft.notes=notes.value;uDrafts.set(repo.id,draft);count.textContent=notes.value.length+' / 20000 characters / unsaved';islandController.activity();});
  const labels=el('input',{class:'search',maxlength:'400','aria-label':'Personal repository tags',placeholder:'Personal tags, separated by commas'});labels.value=draft.tags;labels.addEventListener('input',()=>{draft.tags=labels.value;uDrafts.set(repo.id,draft);});
- const noteActions=el('div',{class:'stack'});noteActions.append(btn('Save notes and tags',async()=>{const saved={notes:draft.notes,tags:draft.tags};await ultimatePatch(repo,{notes:saved.notes,tags:saved.tags.split(',')});if(draft.notes===saved.notes&&draft.tags===saved.tags){uDrafts.delete(repo.id);toast('Notes and tags saved locally.');}else{uDrafts.set(repo.id,draft);toast('Saved. Newer edits are still unsaved.');}drawerStamp='';renderDrawer();},'primary'),btn('Discard unsaved edits',()=>{uDrafts.delete(repo.id);drawerStamp='';renderDrawer();},'secondary'));
+ const noteActions=el('div',{class:'stack'});noteActions.append(btn('Save notes and tags',async()=>{const generation=uResetRevision,saved={notes:draft.notes,tags:draft.tags};await ultimatePatch(repo,{notes:saved.notes,tags:saved.tags.split(',')});if(generation!==uResetRevision)return;if(draft.notes===saved.notes&&draft.tags===saved.tags){uDrafts.delete(repo.id);toast('Notes and tags saved locally.');}else{uDrafts.set(repo.id,draft);toast('Saved. Newer edits are still unsaved.');}drawerStamp='';renderDrawer();},'primary'),btn('Discard unsaved edits',()=>{uDrafts.delete(repo.id);drawerStamp='';renderDrawer();},'secondary'));
  root.append(notes,count,labels,noteActions);
  const collections=state.workspace.collections;
  if(collections.length){let collectionId=collections[0].id;const picker=ultimateSelect('Add repository to collection',collections.map(c=>[c.id,c.name]),collectionId,v=>{collectionId=v;});const membership=el('div',{class:'stack'});membership.append(picker,btn('Add to collection',async()=>{const next=await api.workspaceCollection('add',{id:collectionId,repos:[repo.id]});if(next)adopt(next);render();},'secondary'));for(const c of collections.filter(c=>c.repos.includes(repo.id)))membership.append(btn('Remove from '+c.name,async()=>{const next=await api.workspaceCollection('remove',{id:c.id,repos:[repo.id]});if(next)adopt(next);render();},'secondary'));root.append(membership);}

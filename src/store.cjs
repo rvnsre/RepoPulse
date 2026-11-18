@@ -23,11 +23,19 @@ class Store{
   try{fs.writeFileSync(temp,content,{mode:0o600});fs.renameSync(temp,this.file);}
   catch(error){try{fs.unlinkSync(temp);}catch{}throw error;}
  }
+ replace(value){
+  if(!value||Array.isArray(value)||value.version!==1)throw Error('Invalid replacement state.');
+  return this.commit(structuredClone(value));
+ }
+ commit(next){
+  const previous=this.state;this.state=next;
+  try{this.save();}catch(error){this.state=previous;throw error;}return this.state;
+ }
  update(fn){
   if(typeof fn!=='function'||fn.constructor?.name==='AsyncFunction')throw Error('State updates must be synchronous.');
-  const previous=this.state,next=structuredClone(previous),result=fn(next);
+  const next=structuredClone(this.state),result=fn(next);
   if(result&&typeof result.then==='function')throw Error('State updates must be synchronous.');
-  this.state=next;try{this.save();}catch(error){this.state=previous;throw error;}return this.state;
+  return this.commit(next);
  }
 }
 module.exports={Store,MAX_STATE_BYTES};
