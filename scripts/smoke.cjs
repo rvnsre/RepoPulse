@@ -21,7 +21,9 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
   window.show();window.focus();window.webContents.focus();let png=null;
   for(let attempt=0;attempt<12;attempt++){
    await new Promise(resolve=>setTimeout(resolve,400));const bounds=window.getBounds();
-   const image=await window.webContents.capturePage({x:0,y:0,width:bounds.width,height:bounds.height},{stayHidden:false,stayAwake:true});
+   let image;
+   try{image=await window.webContents.capturePage({x:0,y:0,width:bounds.width,height:bounds.height},{stayHidden:false,stayAwake:true});}
+   catch(error){if(error.message!=='UnknownVizError'||attempt===11)throw new Error('Native preview capture failed for '+name,{cause:error});continue;}
    if(!image.isEmpty()){
     const bytes=image.toPNG(),tiny=name==='edge-hidden-preview.png'||name==='collapsed-preview.png';
     const bitmap=tiny?image.toBitmap():null;
