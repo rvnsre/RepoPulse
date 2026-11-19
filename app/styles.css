@@ -281,7 +281,7 @@ button:not(:disabled):is(.row-extra button, .row-actions button, .foot-actions b
   background: var(--accent);
   content: "";
 }
-.code-block pre { margin: 0; min-width: 0; max-height: 5em; padding: 3px 5px; overflow: auto; scrollbar-width: thin; font: calc(12px * var(--s))/1.5 "Cascadia Mono", Consolas, monospace; white-space: pre; }
+.code-block pre { margin: 0; min-width: 0; max-height: 5em; padding: 3px 5px; overflow: auto; scrollbar-width: thin; font: calc(13px * var(--s))/1.5 "Cascadia Mono", Consolas, monospace; white-space: pre; }
 .wrap-code .detail-columns pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .command-hint { color: var(--muted); font-size: calc(11px * var(--s)); overflow-wrap: anywhere; }
 .download-link { align-self: flex-start; margin-top: auto; }

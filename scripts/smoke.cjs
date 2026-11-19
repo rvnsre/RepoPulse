@@ -59,6 +59,12 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
 
  await evaluate(`document.querySelector('[data-tab="tune"]').click()`);await until(()=>evaluate(`document.querySelectorAll('.topic').length===8`));
  await evaluate(`document.querySelector('[data-tab="settings"]').click()`);await until(()=>evaluate(`document.querySelectorAll('.setting').length>=12`));
+ for(const [theme,tone] of [['light','light'],['graphite','dark'],['contrast','dark']]){
+  await evaluate('window.pulse.settings({theme:'+JSON.stringify(theme)+'})');
+  await until(()=>evaluate('getComputedStyle(document.body).colorScheme==='+JSON.stringify(tone)+'&&document.body.classList.contains("contrast")==='+(theme==='contrast')));
+ }
+ await evaluate('window.pulse.settings({theme:"reference"})');
+ await until(()=>evaluate('!document.body.classList.contains("contrast")'));
  await evaluate(`document.querySelector('[data-tab="saved"]').click()`);await until(()=>evaluate(`document.querySelectorAll('.list-row').length===1`));
  await evaluate(`window.pulse.settings({textScale:150,motion:'none',visibleRows:3})`);await until(()=>evaluate(`document.body.dataset.scale==='150'&&document.querySelectorAll('.repo-row').length===3`));
  assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true,'Large text must fit');
