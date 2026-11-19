@@ -31,7 +31,7 @@ function desiredHeight(){
  const feed=$('feed'),nodes=[...feed.querySelectorAll('.repo-slot')],style=getComputedStyle(feed);
  return IslandMorph.panelHeight({header:document.querySelector('.topbar').offsetHeight,
  heading:document.querySelector('.feed-heading').offsetHeight,
- footer:document.querySelector('footer').offsetHeight,padding:state.windowPolicy?.padding??8,
+ footer:document.querySelector('footer').offsetHeight+$('notifications').offsetHeight,padding:state.windowPolicy?.padding??8,
  gap:parseFloat(style.rowGap)||12,count:state.settings.visibleRows||2,
  rows:nodes.map(n=>n.offsetHeight),empty:feed.querySelector('.empty')?.offsetHeight||210});
 }
@@ -309,7 +309,7 @@ window.addEventListener('keydown',e=>{
  adopt(await api.state());draft={...state.profile.weights};selectedId=repos()[0]?.id??null;
  const stopState=api.onState(next=>{adopt(next);render();});
  const stopMode=api.onMode?.(message=>{const next=UI.externalMode(message);if(!next)return;if(message?.insight){state={...state,insight:message.insight};renderInsight();}if(message?.bounds)pointerBounds=message.bounds;const nextExpanded=next!=='collapsed',nextDrawer=next==='workspace',nextInsight=next==='insight';if(nextExpanded===expanded&&nextDrawer===drawer&&nextInsight===insightOpen)return;transition++;rootAnimation?.cancel();hoverAnimation?.cancel();morphing=false;expanded=nextExpanded;drawer=nextDrawer;insightOpen=nextInsight;applyMode();if(nextInsight&&canAnimate())$('idleInsight').animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:200,easing:'cubic-bezier(.16,1,.3,1)'});document.body.classList.toggle('collapsed',!expanded);document.body.classList.toggle('workspace-open',expanded&&drawer);$('expanded').hidden=!expanded||insightOpen;$('drawer').hidden=!drawer;$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));islandController?.configure(state.settings,next);if(next==='panel')islandController?.pause(1200);ultimateStatus();updatePointerBounds(pointerBounds);requestFit();if(drawer)renderDrawer(false);});
- const observer=new ResizeObserver(()=>{requestFit();updatePickRange();});observer.observe($('island'));$('feed').addEventListener('scroll',()=>{updatePickRange();dynamicHoldUntil=Date.now()+1000;},{passive:true});const syncTimer=setInterval(renderSync,30000);window.addEventListener('beforeunload',()=>{observer.disconnect();clearInterval(syncTimer);clearTimeout(toastTimer);clearTimeout(releaseTimer);if(typeof stopState==='function')stopState();if(typeof stopMode==='function')stopMode();},{once:true});expanded=state.windowMode!=='collapsed';drawer=state.windowMode==='workspace';applyMode();ultimateInit();render();if(state.recoveryNotice)toast(state.recoveryNotice);await refresh();
+ const observer=new ResizeObserver(()=>{requestFit();updatePickRange();});observer.observe($('island'));observer.observe($('notifications'));$('feed').addEventListener('scroll',()=>{updatePickRange();dynamicHoldUntil=Date.now()+1000;},{passive:true});const syncTimer=setInterval(renderSync,30000);window.addEventListener('beforeunload',()=>{observer.disconnect();clearInterval(syncTimer);clearTimeout(toastTimer);clearTimeout(releaseTimer);if(typeof stopState==='function')stopState();if(typeof stopMode==='function')stopMode();},{once:true});expanded=state.windowMode!=='collapsed';drawer=state.windowMode==='workspace';applyMode();ultimateInit();render();if(state.recoveryNotice)toast(state.recoveryNotice);await refresh();
 })().catch(e=>toast(e.message));
 
 
