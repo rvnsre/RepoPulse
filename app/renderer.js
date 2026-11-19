@@ -8,11 +8,33 @@ function adopt(next){state=UI.accept(state,next);return state;}
 if(api)for(const name of ['state','open','react','undo','settings','profile','importProfile','importData','clear','clearHistory','resetControls','removeHistory','removeExclusion','workspacePatch','workspaceBulk','workspaceCollection'])if(raw[name])api[name]=async(...args)=>{const value=await raw[name](...args);return value?.settings&&value?.profile?adopt(value):value;};
 function el(tag,props={},text){const e=document.createElement(tag);for(const [k,v]of Object.entries(props))e.setAttribute(k,v);if(text!==undefined)e.textContent=text;if(props['aria-label'])e.dataset.focusKey=props['aria-label'];return e;}
 function btn(text,action,cls='',label){const e=el('button',{class:cls},text);e.dataset.focusKey=label||text;if(label){e.setAttribute('aria-label',label);e.title=label;}e.addEventListener('click',()=>run(action));return e;}
-let toastDeadline=0,toastRemaining=0;
-function resumeToast(){clearTimeout(toastTimer);toastDeadline=Date.now()+toastRemaining;toastTimer=setTimeout(()=>$('toast').hidden=true,toastRemaining);}
-$('toast').addEventListener('pointerenter',()=>{clearTimeout(toastTimer);toastRemaining=Math.max(0,toastDeadline-Date.now());});
-$('toast').addEventListener('pointerleave',resumeToast);
-function toast(message){if(insightOpen){clearTimeout(toastTimer);$('toast').hidden=true;$('insightReason').textContent=message;$('announcer').textContent=message;return;}clearTimeout(toastTimer);$('toast').textContent=message;$('toast').hidden=false;toastRemaining=(state?.settings.toastSeconds||5)*1000;resumeToast();}
+let toastDeadline=0,toastRemaining=0,toastHovered=false;
+const toastNotice=$('toast');
+function dismissToast(){
+ clearTimeout(toastTimer);toastTimer=null;toastNotice.hidden=true;toastHovered=false;
+}
+function scheduleToast(){
+ if(toastNotice.hidden)return;
+ if(toastTimer!=null){
+  clearTimeout(toastTimer);toastTimer=null;
+  toastRemaining=Math.max(0,toastDeadline-Date.now());
+ }
+ if(toastHovered||toastNotice.contains(document.activeElement))return;
+ toastDeadline=Date.now()+toastRemaining;
+ toastTimer=setTimeout(dismissToast,toastRemaining);
+}
+toastNotice.addEventListener('pointerenter',()=>{toastHovered=true;scheduleToast();});
+toastNotice.addEventListener('pointerleave',()=>{toastHovered=false;scheduleToast();});
+toastNotice.addEventListener('focusin',scheduleToast);
+toastNotice.addEventListener('focusout',()=>queueMicrotask(scheduleToast));
+function toast(message){
+ if(insightOpen){dismissToast();$('insightReason').textContent=message;$('announcer').textContent=message;return;}
+ clearTimeout(toastTimer);toastTimer=null;
+ toastNotice.replaceChildren(el('span',{class:'toast-message'},message),btn('×',dismissToast,'toast-close','Dismiss message'));
+ toastNotice.hidden=false;
+ toastRemaining=(state?.settings.toastSeconds||5)*1000;
+ scheduleToast();
+}
 async function run(fn){try{await fn();}catch(error){toast(error.message||'Unable to complete this action.');}}
 function repos(){return state?.daily?.repos||[];}
 function selected(){return [...repos(),...(state?.saved||[]),...(state?.history||[]).map(h=>h.repo),...(state?.catalog||[])].find(r=>r.id===selectedId)||repos()[0]||null;}
@@ -20,7 +42,7 @@ function visible(){return repos();}
 function canAnimate(){return UI.motion(state?.settings,matchMedia('(prefers-reduced-motion: reduce)').matches,document.hidden);}
 async function effect(node,frames,duration){if(!node||!canAnimate())return;const a=node.animate(frames,{duration:duration||state.settings.motionDuration||220,easing:'cubic-bezier(.2,.8,.2,1)'});try{await a.finished;}catch{}}
 function applyMode(){
- if(insightOpen){clearTimeout(toastTimer);$('toast').hidden=true;}
+ if(insightOpen||!expanded)dismissToast();
  $('expanded').hidden=!expanded||insightOpen;$('idleInsight').hidden=!insightOpen;$('drawer').hidden=!drawer;
  document.body.classList.toggle('collapsed',!expanded&&!insightOpen);document.body.classList.toggle('insight-open',insightOpen);document.body.classList.toggle('workspace-open',expanded&&drawer&&!insightOpen);
  $('edgeReveal').setAttribute('aria-expanded',String(expanded));$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));
@@ -81,7 +103,7 @@ function updateActions(){
  updatePickRange();
 }
 async function undoLast(){if(!state.canUndo)return;dynamicHoldUntil=Date.now()+1000;adopt(await api.undo());selectedId=repos()[0]?.id??null;render();toast('Previous picks restored.');}
-function undoToast(message){toast(message);if(!insightOpen&&state.canUndo)$('toast').append(btn('Undo',undoLast,'toast-undo','Undo last replacement'));}
+function undoToast(message){toast(message);if(!insightOpen&&state.canUndo)toastNotice.insertBefore(btn('Undo',undoLast,'toast-undo','Undo last replacement'),toastNotice.lastElementChild);}
 function updatePickRange(){const feed=$('feed'),rows=[...feed.querySelectorAll('.repo-row')],box=feed.getBoundingClientRect(),inView=rows.map((node,i)=>({i,r:node.getBoundingClientRect()})).filter(({r})=>r.bottom>box.top+12&&r.top<box.bottom-12);const more=feed.scrollHeight>feed.clientHeight+2;$('pickRange').textContent=inView.length?'Picks '+(inView[0].i+1)+'–'+(inView.at(-1).i+1)+' of '+repos().length+(more?' · scroll':''):repos().length+' picks';feed.classList.toggle('has-more',more&&feed.scrollTop+feed.clientHeight<feed.scrollHeight-3);}
 async function openRepo(repo,kind='repository'){
  if(pending.has(repo.id))return;pending.add(repo.id);islandController?.hold('opening',true);const index=repos().findIndex(r=>r.id===repo.id);
@@ -95,7 +117,7 @@ async function openRepo(repo,kind='repository'){
   render();
  }finally{pending.delete(repo.id);islandController?.hold('opening',pending.size>0);document.querySelectorAll('[data-repo-id="'+repo.id+'"]').forEach(n=>n.removeAttribute('aria-busy'));}
 }
-async function react(repo,action){const key='reaction:'+repo.id;if(pending.has(key))return;pending.add(key);try{const before=state.revision;adopt(await api.react(repo.id,action,state.feed?.epoch));render();if(state.revision===before)return;if(action==='skip'){undoToast('Skipped '+repo.full_name+'.');return;}toast(({save:'Collection updated.',like:'Preference recorded.',hide:'Repository hidden.',snooze:'Snoozed for 7 days.',block:'Owner excluded.'})[action]);}finally{pending.delete(key);}}
+async function react(repo,action){const key='reaction:'+repo.id;if(pending.has(key))return;pending.add(key);try{const before=state.revision;adopt(await api.react(repo.id,action,state.feed?.epoch));render();if(state.revision===before)return;if(action==='skip'){if(repos().some(item=>item.id===repo.id))toast('No replacement is available for this pick.');else undoToast('Skipped '+repo.full_name+'.');return;}toast(({save:'Collection updated.',like:'Preference recorded.',hide:'Repository hidden.',snooze:'Snoozed for 7 days.',block:'Owner excluded.'})[action]);}finally{pending.delete(key);}}
 async function copy(repo,kind){await api.copy(repo.id,kind);toast(kind==='markdown'?'Markdown link copied.':kind==='url'?'Repository link copied.':'Command copied for '+repo.full_name+'.');}
 function codeBlock(repo,kind,label,cls=''){const block=el('div',{class:'code-block '+cls}),top=el('div',{class:'code-top'});top.append(el('span',{},label),btn('Copy',()=>copy(repo,kind),'', 'Copy '+kind+' command for '+repo.full_name));block.append(top,el('pre',{},commands(repo)[kind]));return block;}
 const activityStates=new Map(),activityPending=new Set(),commandTabs=new Map();
@@ -181,6 +203,8 @@ function renderNow(){
  document.body.classList.toggle('contrast',prefs.theme==='contrast');
  for(const [name,value]of Object.entries({compact:prefs.density==='compact',reduced:!canAnimate(),'no-commands':!prefs.showCommands,'wrap-names':prefs.wrapNames,'wrap-code':prefs.codeWrap}))document.body.classList.toggle(name,value);
  document.body.dataset.scale=String(UI.textScale(prefs.textScale));
+ $('pinButton').setAttribute('aria-pressed',String(prefs.pinned));
+ $('pinButton').title=prefs.pinned?'Turn off Always on top':'Turn on Always on top';
  if(!drawer&&!repos().some(r=>r.id===selectedId))selectedId=repos()[0]?.id??null;
  renderSync();if(expanded&&!drawer)for(const repo of repos())void requestActivity(repo);$('next').disabled=!state.catalogSize;
  dynamicSync();if(!canAnimate()){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}reconcile();updateActions();if(drawer)renderDrawer(false);requestFit();
@@ -235,6 +259,10 @@ setting(grid,'density','Density','','select',[['comfortable','Comfortable'],['co
  root.append(el('h3',{class:'subheading'},'Appearance'),display,el('h3',{class:'subheading'},'Discovery and startup'),grid);
  const resets=el('div',{class:'stack'});resets.append(btn('Reset appearance',()=>changeSettings({textScale:100,motion:'system',motionDuration:80,visibleRows:2,panelWidth:960,showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,theme:'reference',density:'compact',opacity:100,reducedMotion:false}),'secondary'),btn('Reset feed filters',()=>changeSettings({minStars:50000,languages:[]}),'secondary'));root.append(resets);
  ultimateSettings(root);
+ if(api.testNotification){
+  const messages={shown:'Test notification sent.',requested:'Notification requested. Check your system notification center.',failed:'System notification failed. Check OS permissions for RepoPulse.',unavailable:'System notifications are unavailable.'};
+  root.append(el('h3',{class:'subheading'},'Notifications'),btn('Send test notification',async()=>toast(messages[await api.testNotification()]),'secondary'));
+ }
  if(api.githubToken){
   const credential=el('input',{type:'password',autocomplete:'off','aria-label':'GitHub API token',placeholder:'Optional GitHub API token'});
   const security=el('div',{class:'stack'});
@@ -279,7 +307,8 @@ $('collapse').addEventListener('click',()=>run(async()=>{insightOpen=false;expan
 $('menu').addEventListener('click',()=>run(()=>drawer?closeDrawer():openDrawer('settings')));
 $('closeDrawer').addEventListener('click',()=>run(closeDrawer));
 $('refresh').addEventListener('click',()=>run(()=>refresh(true)));
-$('next').addEventListener('click',()=>run(async()=>{if(pending.has('next'))return;pending.add('next');dynamicHoldUntil=Date.now()+1000;islandController?.hold('next picks',true);try{const result=await api.next(state.feed?.epoch);if(result.state)adopt(result.state);pair=0;selectedId=repos()[0]?.id??null;render();if(result.changed)undoToast(result.revisited?'Showing earlier picks.':'New picks are ready.');else if(result.reason!=='stale')toast(repos().length&&state.feed?.matchingCount<=repos().length?'All matching projects are on screen.':'No other picks match your filters and exclusions.');}finally{pending.delete('next');islandController?.hold('next picks',false);}}));
+$('pinButton').addEventListener('click',()=>run(()=>changeSettings({pinned:!state.settings.pinned})));
+$('next').addEventListener('click',()=>run(async()=>{if(pending.has('next'))return;pending.add('next');dynamicHoldUntil=Date.now()+1000;islandController?.hold('next picks',true);try{let result=await api.next(state.feed?.epoch);if(result.state)adopt(result.state);if(result.reason==='stale'){result=await api.next(state.feed?.epoch);if(result.state)adopt(result.state);}pair=0;selectedId=repos()[0]?.id??null;render();if(result.changed)undoToast(result.revisited?'Showing earlier picks.':'New picks are ready.');else if(result.reason!=='stale')toast(repos().length&&state.feed?.matchingCount<=repos().length?'All matching projects are on screen.':'No other picks match your filters and exclusions.');}finally{pending.delete('next');islandController?.hold('next picks',false);}}));
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>run(()=>openDrawer(b.dataset.tab))));
 document.addEventListener('visibilitychange',()=>{if(document.hidden){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}});
 for(const query of ['(prefers-reduced-motion: reduce)','(prefers-color-scheme: dark)'])matchMedia(query).addEventListener('change',render);

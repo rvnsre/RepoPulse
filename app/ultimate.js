@@ -250,7 +250,7 @@ document.querySelector('.topbar').addEventListener('click',e=>{
 function updatePointerBounds(bounds){if(bounds&&['x','y','width','height'].every(k=>Number.isFinite(bounds[k])))pointerBounds=bounds;}
 
 function iconSVG(name){
- const paths={history:'<path d="M3 11a9 9 0 1 1 3 7M3 4v7h7m2-4v5l3 2"/>',settings:'<path d="m9 3-.5 3-2 1-3-.5-1 3 2.5 2v2L2.5 16l1.5 2.5 3-.5 2 1 .5 3h4l.5-3 2-1 3 .5 1.5-2.5-2.5-2.5v-2L21 9l-1-3-3 .5-2-1-.5-3Z"/><circle cx="11.5" cy="12" r="3"/>',chevron:'<path d="m6 14 6-6 6 6"/>',clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',command:'<rect x="8" y="8" width="8" height="8" rx="1"/><path d="M8 8H5.5A2.5 2.5 0 1 1 8 5.5V8Zm8 0h2.5A2.5 2.5 0 1 0 16 5.5V8ZM8 16H5.5A2.5 2.5 0 1 0 8 18.5V16Zm8 0h2.5a2.5 2.5 0 1 1-2.5 2.5V16Z"/>',undo:'<path d="m8 5-5 5 5 5M3 10h11a6 6 0 0 1 6 6v3"/>',refresh:'<path d="M20 8a8.5 8.5 0 0 0-15-2L3 9m0-6v6h6m-5 7a8.5 8.5 0 0 0 15 2l2-3m0 6v-6h-6"/>',menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',minus:'<path d="M5 12h14"/>',
+ const paths={pin:'<path d="m15 4 5 5-2 1-3 4v2l-2 2-3-3-5 5m5-5-4-4 2-2h2l4-3 1-2Z"/>',history:'<path d="M3 11a9 9 0 1 1 3 7M3 4v7h7m2-4v5l3 2"/>',settings:'<path d="m9 3-.5 3-2 1-3-.5-1 3 2.5 2v2L2.5 16l1.5 2.5 3-.5 2 1 .5 3h4l.5-3 2-1 3 .5 1.5-2.5-2.5-2.5v-2L21 9l-1-3-3 .5-2-1-.5-3Z"/><circle cx="11.5" cy="12" r="3"/>',chevron:'<path d="m6 14 6-6 6 6"/>',clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',command:'<rect x="8" y="8" width="8" height="8" rx="1"/><path d="M8 8H5.5A2.5 2.5 0 1 1 8 5.5V8Zm8 0h2.5A2.5 2.5 0 1 0 16 5.5V8ZM8 16H5.5A2.5 2.5 0 1 0 8 18.5V16Zm8 0h2.5a2.5 2.5 0 1 1-2.5 2.5V16Z"/>',undo:'<path d="m8 5-5 5 5 5M3 10h11a6 6 0 0 1 6 6v3"/>',refresh:'<path d="M20 8a8.5 8.5 0 0 0-15-2L3 9m0-6v6h6m-5 7a8.5 8.5 0 0 0 15 2l2-3m0 6v-6h-6"/>',menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',minus:'<path d="M5 12h14"/>',
   overview:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M10 9v11"/>',
   library:'<path d="M4 5h4v14H4zM10 5h4v14h-4zM16 6l3-1 3 13-3 1z"/>',
   collections:'<path d="M3.5 8V6A1.5 1.5 0 0 1 5 4.5h5l2 2h7a1.5 1.5 0 0 1 1.5 1.5v10A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18V8Z"/><path d="M4 9h16"/>',
@@ -264,7 +264,7 @@ function iconSVG(name){
 }
 function installIcons(){
  initInsightButtons();
- for(const [id,name] of [['focusButton','clock'],['historyButton','history'],['refresh','refresh'],['menu','settings'],['collapse','chevron']])$(id).innerHTML=iconSVG(name);
+ for(const [id,name] of [['pinButton','pin'],['focusButton','clock'],['historyButton','history'],['refresh','refresh'],['menu','settings'],['collapse','chevron']])$(id).innerHTML=iconSVG(name);
  for(const button of document.querySelectorAll('nav [data-tab]'))button.insertAdjacentHTML('afterbegin',iconSVG(button.dataset.tab==='details'?'overview':button.dataset.tab));
  $('closeDrawer').insertAdjacentHTML('afterbegin',iconSVG('back'));
  $('browseLibrary').insertAdjacentHTML('afterbegin',iconSVG('library'));
