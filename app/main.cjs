@@ -244,7 +244,7 @@ if(singleton)app.whenReady().then(()=>{
  if(!smokeMode){
   store.state.notificationDay=store.state.notificationDay||store.state.daily?.day||localDay();
   discovery.bootstrap(store.state);
-  if(process.platform==='win32')app.setAppUserModelId(require('../package.json').build.appId);
+  if(process.platform==='win32')app.setAppUserModelId(require('./identity.cjs').appId);
   notifier=require('../src/notifications.cjs').createNotifier(Notification,show);
  }
  github=require('../src/github-session.cjs').createGitHubSession({safeStorage,tokenPath:path.join(app.getPath('userData'),'github-token.enc')});
