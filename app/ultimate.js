@@ -19,7 +19,7 @@ function ultimateBadges(repo){if(!state.settings.showBadges)return null;const m=
 function ultimateStatus(){
  if(!state)return;const status=islandController?.status(),remaining=Math.max(0,Math.ceil((uFocusUntil-Date.now())/1000)),f=$('focusButton');
  f.textContent=remaining?Math.floor(remaining/60)+':'+String(remaining%60).padStart(2,'0'):'';if(!remaining)f.innerHTML=iconSVG('clock');f.title=remaining?'Stop focus session':'Start '+state.settings.focusMinutes+' minute focus session';f.setAttribute('aria-label',f.title);f.setAttribute('aria-pressed',String(remaining>0));
- $('autoHideLabel').textContent=state.settings.autoHide?'Auto hide on':'Auto hide off';$('autoHideButton').setAttribute('aria-checked',String(state.settings.autoHide));$('autoHideButton').title='Toggle automatic collapse';
+ $('autoHideButton').setAttribute('aria-checked',String(state.settings.autoHide));$('autoHideButton').title='Toggle automatic collapse';
  $('queueCount').textContent=String(state.feed?.queueIds.length||0);if($('editionLabel'))$('editionLabel').textContent=new Date().toLocaleDateString('en',{weekday:'long',month:'short',day:'numeric'});if($('libraryStat'))$('libraryStat').textContent=(state.feed?.matchingCount??state.catalogSize)+' projects · '+compact(state.settings.minStars)+'+';$('queueButton').hidden=!state.settings.showQueueCount;
  document.body.classList.toggle('workspace-open',expanded&&drawer);$('dockHint').hidden=expanded;const dock=UI.dockModel(repos(),selectedId),open=$('dockOpen');if($('dockText').textContent!==dock.title)$('dockText').textContent=dock.title;if($('dockSummary').textContent!==dock.summary)$('dockSummary').textContent=dock.summary;open.disabled=!dock.repo||pending.has(dock.repo.id);open.dataset.repoId=dock.repo?.id||'';open.title=dock.repo?dock.title+'\n'+dock.repo.description:'Open the panel to find a repository';open.setAttribute('aria-label',dock.repo?'Open '+dock.title+' on GitHub':'No repository available');document.body.classList.toggle('focus-session',remaining>0);
  $('island').setAttribute('aria-label',expanded?'RepoPulse discovery panel':'RepoPulse hidden. Move to the top-center screen edge or activate the reveal handle.');
@@ -122,11 +122,11 @@ function ultimateLibrary(root){
 function ultimateCollections(root){
  heading(root,'Personal collections',[btn('Import workspace',async()=>{const next=await api.importData('workspace');if(next){adopt(next);render();}},'secondary'),btn('Export workspace',()=>api.exportData('workspace'),'secondary')]);
  root.append(el('p',{class:'intro'},'Create up to 50 collections. Collection membership, notes and tags stay on this device. Export a workspace backup before transferring to another computer.'));
- const form=el('div',{class:'stack'}),name=el('input',{class:'search',maxlength:'80','aria-label':'New collection name',placeholder:'Collection name'});let color='sand';form.append(name,ultimateSelect('New collection color',[['sand','Sand'],['ocean','Ocean'],['violet','Violet'],['mint','Mint'],['rose','Rose']],color,v=>{color=v;}),btn('Create collection',async()=>{if(!name.value.trim())return toast('Enter a collection name.');const next=await api.workspaceCollection('create',{name:name.value,color});if(next)adopt(next);render();},'primary'));root.append(form);
+ const form=el('div',{class:'stack'}),name=el('input',{class:'search',maxlength:'80','aria-label':'New collection name',placeholder:'Collection name'});let color='sand';form.append(name,ultimateSelect('New collection color',[['sand','Blue'],['ocean','Teal'],['violet','Violet'],['mint','Mint'],['rose','Rose']],color,v=>{color=v;}),btn('Create collection',async()=>{if(!name.value.trim())return toast('Enter a collection name.');const next=await api.workspaceCollection('create',{name:name.value,color});if(next)adopt(next);render();},'primary'));root.append(form);
  if(!state.workspace.collections.length)root.append(empty('Organize your discoveries.','Add projects from Overview or use bulk selection in Library.'));
  const grid=el('div',{class:'collection-grid'});
  for(const c of state.workspace.collections){const card=el('article',{class:'collection-card','data-color':c.color}),title=el('input',{maxlength:'80','aria-label':'Rename '+c.name});title.value=c.name;card.append(el('h3',{},c.name),el('p',{class:'intro'},c.repos.length+' projects'),title);
- const actions=el('div',{class:'stack'});actions.append(btn('Browse',()=>{uFilters.collection=c.id;uFilters.scope='all';return openDrawer('library');},'primary','Browse '+c.name),btn('Rename',async()=>{const next=await api.workspaceCollection('rename',{id:c.id,name:title.value});if(next)adopt(next);render();},'secondary','Save name '+c.name),ultimateSelect('Color '+c.name,[['sand','Sand'],['ocean','Ocean'],['violet','Violet'],['mint','Mint'],['rose','Rose']],c.color,async value=>{const next=await api.workspaceCollection('color',{id:c.id,color:value});if(next)adopt(next);render();}),btn('Clear',async()=>{const next=await api.workspaceCollection('clear',{id:c.id});if(next)adopt(next);render();},'secondary','Clear collection '+c.name),btn('Delete',async()=>{const next=await api.workspaceCollection('delete',{id:c.id});if(next)adopt(next);render();},'secondary danger','Delete collection '+c.name));card.append(actions);grid.append(card);}root.append(grid);
+ const actions=el('div',{class:'stack'});actions.append(btn('Browse',()=>{uFilters.collection=c.id;uFilters.scope='all';return openDrawer('library');},'primary','Browse '+c.name),btn('Rename',async()=>{const next=await api.workspaceCollection('rename',{id:c.id,name:title.value});if(next)adopt(next);render();},'secondary','Save name '+c.name),ultimateSelect('Color '+c.name,[['sand','Blue'],['ocean','Teal'],['violet','Violet'],['mint','Mint'],['rose','Rose']],c.color,async value=>{const next=await api.workspaceCollection('color',{id:c.id,color:value});if(next)adopt(next);render();}),btn('Clear',async()=>{const next=await api.workspaceCollection('clear',{id:c.id});if(next)adopt(next);render();},'secondary','Clear collection '+c.name),btn('Delete',async()=>{const next=await api.workspaceCollection('delete',{id:c.id});if(next)adopt(next);render();},'secondary danger','Delete collection '+c.name));card.append(actions);grid.append(card);}root.append(grid);
 }
 function ultimateCompare(root){
  heading(root,'Compare projects',[btn('Choose in Library',()=>openDrawer('library'),'secondary'),btn('Clear comparison',()=>{uCompare.clear();renderDrawer();},'secondary')]);const repos=[...uCompare].map(ultimateRepo).filter(Boolean);
@@ -166,7 +166,7 @@ function ultimateSettings(root){
  setting(grid,'hoverScale','Hover growth','','select',[[100,'No growth'],[101,'1%'],[102,'2%'],[103,'3%']]);
  setting(grid,'motionPreset','Motion character','','select',[['fluid','Fluid'],['snappy','Snappy'],['calm','Calm'],['spring','Soft spring']]);
  setting(grid,'focusMinutes','Focus session length','','select',[[5,'5 minutes'],[15,'15 minutes'],[25,'25 minutes'],[45,'45 minutes'],[60,'60 minutes']]);
- setting(grid,'accent','Accent color','','select',[['sand','Sand'],['ocean','Ocean'],['violet','Violet'],['mint','Mint'],['rose','Rose']]);
+ setting(grid,'accent','Accent color','','select',[['sand','Blue'],['ocean','Teal'],['violet','Violet'],['mint','Mint'],['rose','Rose']]);
  setting(grid,'cardStyle','Card appearance','','select',[['soft','Soft'],['outlined','Outlined'],['flat','Flat']]);
  setting(grid,'roundness','Corner shape','','select',[[12,'Tight'],[20,'Balanced'],[28,'Rounded']]);root.append(grid);
  const presets=el('div',{class:'stack'});
@@ -250,10 +250,25 @@ document.querySelector('.topbar').addEventListener('click',e=>{
 function updatePointerBounds(bounds){if(bounds&&['x','y','width','height'].every(k=>Number.isFinite(bounds[k])))pointerBounds=bounds;}
 
 function iconSVG(name){
- const paths={history:'<path d="M3 11a9 9 0 1 1 3 7M3 4v7h7m2-4v5l3 2"/>',settings:'<path d="m9 3-.5 3-2 1-3-.5-1 3 2.5 2v2L2.5 16l1.5 2.5 3-.5 2 1 .5 3h4l.5-3 2-1 3 .5 1.5-2.5-2.5-2.5v-2L21 9l-1-3-3 .5-2-1-.5-3Z"/><circle cx="11.5" cy="12" r="3"/>',chevron:'<path d="m6 14 6-6 6 6"/>',clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',command:'<rect x="8" y="8" width="8" height="8" rx="1"/><path d="M8 8H5.5A2.5 2.5 0 1 1 8 5.5V8Zm8 0h2.5A2.5 2.5 0 1 0 16 5.5V8ZM8 16H5.5A2.5 2.5 0 1 0 8 18.5V16Zm8 0h2.5a2.5 2.5 0 1 1-2.5 2.5V16Z"/>',undo:'<path d="m8 5-5 5 5 5M3 10h11a6 6 0 0 1 6 6v3"/>',refresh:'<path d="M20 8a8.5 8.5 0 0 0-15-2L3 9m0-6v6h6m-5 7a8.5 8.5 0 0 0 15 2l2-3m0 6v-6h-6"/>',menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',minus:'<path d="M5 12h14"/>'};
+ const paths={history:'<path d="M3 11a9 9 0 1 1 3 7M3 4v7h7m2-4v5l3 2"/>',settings:'<path d="m9 3-.5 3-2 1-3-.5-1 3 2.5 2v2L2.5 16l1.5 2.5 3-.5 2 1 .5 3h4l.5-3 2-1 3 .5 1.5-2.5-2.5-2.5v-2L21 9l-1-3-3 .5-2-1-.5-3Z"/><circle cx="11.5" cy="12" r="3"/>',chevron:'<path d="m6 14 6-6 6 6"/>',clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',command:'<rect x="8" y="8" width="8" height="8" rx="1"/><path d="M8 8H5.5A2.5 2.5 0 1 1 8 5.5V8Zm8 0h2.5A2.5 2.5 0 1 0 16 5.5V8ZM8 16H5.5A2.5 2.5 0 1 0 8 18.5V16Zm8 0h2.5a2.5 2.5 0 1 1-2.5 2.5V16Z"/>',undo:'<path d="m8 5-5 5 5 5M3 10h11a6 6 0 0 1 6 6v3"/>',refresh:'<path d="M20 8a8.5 8.5 0 0 0-15-2L3 9m0-6v6h6m-5 7a8.5 8.5 0 0 0 15 2l2-3m0 6v-6h-6"/>',menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',minus:'<path d="M5 12h14"/>',
+  overview:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M10 9v11"/>',
+  library:'<path d="M4 5h4v14H4zM10 5h4v14h-4zM16 6l3-1 3 13-3 1z"/>',
+  collections:'<path d="M3.5 8V6A1.5 1.5 0 0 1 5 4.5h5l2 2h7a1.5 1.5 0 0 1 1.5 1.5v10A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18V8Z"/><path d="M4 9h16"/>',
+  compare:'<rect x="3.5" y="5" width="7" height="14" rx="1.5"/><rect x="13.5" y="5" width="7" height="14" rx="1.5"/>',
+  insights:'<path d="M4 5v14h16M8 16v-4m4 4V8m4 8v-6m4 6V6"/>',
+  saved:'<path d="M7 4.5h10a1 1 0 0 1 1 1v14l-6-4-6 4v-14a1 1 0 0 1 1-1Z"/>',
+  tune:'<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="2" fill="var(--panel)"/><circle cx="15" cy="12" r="2" fill="var(--panel)"/><circle cx="10" cy="17" r="2" fill="var(--panel)"/>',
+  exclusions:'<circle cx="12" cy="12" r="8"/><path d="m6.5 17.5 11-11"/>',
+  back:'<path d="M20 12H4m6-6-6 6 6 6"/>'};
  return '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(paths[name]||paths.clock)+'</svg>';
 }
-function installIcons(){initInsightButtons();for(const[id,name]of [['focusButton','clock'],['historyButton','history'],['refresh','refresh'],['menu','settings'],['collapse','chevron']])$(id).innerHTML=iconSVG(name);}
+function installIcons(){
+ initInsightButtons();
+ for(const [id,name] of [['focusButton','clock'],['historyButton','history'],['refresh','refresh'],['menu','settings'],['collapse','chevron']])$(id).innerHTML=iconSVG(name);
+ for(const button of document.querySelectorAll('nav [data-tab]'))button.insertAdjacentHTML('afterbegin',iconSVG(button.dataset.tab==='details'?'overview':button.dataset.tab));
+ $('closeDrawer').insertAdjacentHTML('afterbegin',iconSVG('back'));
+ $('browseLibrary').insertAdjacentHTML('afterbegin',iconSVG('library'));
+}
 function renderInsight(){
  const value=state.insight;if(!value)return;
  $('insightName').textContent=value.repo.full_name;$('insightDescription').textContent=UI.brief(value.repo.description,100);

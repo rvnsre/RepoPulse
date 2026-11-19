@@ -126,7 +126,7 @@ function smartCode(repo){const block=el('div',{class:'code-block smart-code'}),t
  tabs.append(selector,copyButton);block.append(tabs,pre,info,assets,download);block.refresh=draw;draw();return block;}
 async function requestActivity(repo){if(!api.activity||activityPending.size>0||(activityStates.get(repo.id)?.expires||0)>Date.now())return;activityPending.add(repo.id);try{const entry=await api.activity(repo.id);activityStates.set(repo.id,{...entry,expires:Date.now()+(entry.status==='ready'?900000:60000)});if(activityStates.size>512)activityStates.delete(activityStates.keys().next().value);for(const node of document.querySelectorAll('[data-repo-id="'+repo.id+'"] .feed-activity'))fillActivity(repo,node);for(const code of document.querySelectorAll('[data-repo-id="'+repo.id+'"] .smart-code'))code.refresh?.();const row=document.querySelector('.repo-row[data-repo-id="'+repo.id+'"]');if(row){row.querySelector('.star-velocity').textContent=starTrend(repo);const action=row.querySelector('.row-install');if(action&&entry.install?.command)action.textContent='Copy install';}}catch(error){activityStates.set(repo.id,{status:'unavailable',error:error.message,expires:Date.now()+60000});}finally{activityPending.delete(repo.id);queueMicrotask(()=>{const next=repos().find(r=>(activityStates.get(r.id)?.expires||0)<=Date.now());if(next&&expanded&&!drawer)void requestActivity(next);});}}
 function row(repo,index){
- const article=el('article',{class:'repo-row','data-repo-id':String(repo.id),'aria-label':repo.full_name,tabindex:'-1'}),identity=el('div',{class:'repo-identity'}),title=el('div',{class:'identity-title'}),avatar=el('img',{class:'owner-avatar',src:state.fixture?'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32"%3E%3Ccircle cx="16" cy="16" r="16" fill="%23527a76"/%3E%3C/svg%3E':repo.avatar_url||'https://github.com/'+encodeURIComponent(repo.full_name.split('/')[0])+'.png?size=64',alt:'','aria-hidden':'true',loading:'lazy',decoding:'async',referrerpolicy:'no-referrer'}),initial=el('span',{class:'avatar-fallback','aria-hidden':'true'},repo.full_name[0].toUpperCase());avatar.addEventListener('error',()=>{avatar.hidden=true;});
+ const article=el('article',{class:'repo-row','data-repo-id':String(repo.id),'aria-label':repo.full_name,tabindex:'-1'}),identity=el('div',{class:'repo-identity'}),title=el('div',{class:'identity-title'}),avatar=el('img',{class:'owner-avatar',src:state.fixture?'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32"%3E%3Ccircle cx="16" cy="16" r="16" fill="%23687285"/%3E%3C/svg%3E':repo.avatar_url||'https://github.com/'+encodeURIComponent(repo.full_name.split('/')[0])+'.png?size=64',alt:'','aria-hidden':'true',loading:'lazy',decoding:'async',referrerpolicy:'no-referrer'}),initial=el('span',{class:'avatar-fallback','aria-hidden':'true'},repo.full_name[0].toUpperCase());avatar.addEventListener('error',()=>{avatar.hidden=true;});
  const name=el('h2',{class:'repo-name',tabindex:'-1'},repo.full_name);name.textContent=state.settings.showOwners?repo.full_name:repo.full_name.split('/')[1];name.title=repo.full_name;avatar.hidden=!state.settings.showOwners;initial.hidden=!state.settings.showOwners;title.append(initial,avatar,name);identity.append(title);
  const meta=el('div',{class:'repo-meta'});meta.append(el('span',{title:Intl.NumberFormat('en').format(repo.stargazers_count)+' stars'},compact(repo.stargazers_count)+' stars'),el('span',{},repo.language||'Open source'));identity.append(meta);
  const activity=el('p',{class:'feed-activity'});fillActivity(repo,activity);identity.append(activity);
@@ -134,7 +134,7 @@ function row(repo,index){
  const feedLink=btn('Release RSS ↗',()=>openRepo(repo,'feed'),'rss-link','Open official GitHub release Atom feed for '+repo.full_name);identity.append(feedLink);
  const extra=el('div',{class:'row-extra'}),save=btn(state.saved.some(r=>r.id===repo.id)?'Bookmarked':'Bookmark',()=>react(repo,'save'),'','Bookmark '+repo.full_name);save.dataset.action='save';extra.append(save,btn('Skip',()=>react(repo,'skip'),'','Skip this pick; Undo is available'));const badges=ultimateBadges(repo);if(badges)identity.append(badges);if(state.settings.showQuickActions!==false)identity.append(extra);
  const text=el('div',{class:'repo-copy'});if(state.settings.showDescriptions)text.append(el('p',{class:'repo-description'},repo.description));if(state.settings.showReasons)text.append(el('p',{class:'repo-reason'},repo.reason||'A widely adopted project.'));
- const actions=el('div',{class:'row-actions'});actions.append(btn('Open Repo ↗',()=>{choose(repo.id);return openRepo(repo,'learn');},'row-learn','Open '+repo.full_name+' in browser'));if(!state.settings.showCommands)actions.append(btn(installPlan(repo).command?'Copy install':'Downloads',async()=>{if(installPlan(repo).command)return copy(repo,'package');const release=await checkRelease(repo);return openRepo(repo,release.available===false?'readme':'releases');},'row-install'));text.append(actions);article.append(identity,text);if(state.settings.showCommands)article.append(smartCode(repo));
+ const actions=el('div',{class:'row-actions'});actions.append(btn('Open on GitHub ↗',()=>{choose(repo.id);return openRepo(repo,'learn');},'row-learn','Open '+repo.full_name+' in browser'));if(!state.settings.showCommands)actions.append(btn(installPlan(repo).command?'Copy install':'Downloads',async()=>{if(installPlan(repo).command)return copy(repo,'package');const release=await checkRelease(repo);return openRepo(repo,release.available===false?'readme':'releases');},'row-install'));text.append(actions);article.append(identity,text);if(state.settings.showCommands)article.append(smartCode(repo));
  article.addEventListener('focusin',()=>choose(repo.id));article.addEventListener('pointerdown',()=>choose(repo.id));article.classList.toggle('selected',selectedId===repo.id);queueMicrotask(()=>void requestActivity(repo));return article;
 }
 function empty(title,body,action,label){const box=el('div',{class:'empty'});box.append(el('h2',{},title),el('p',{},body));if(action)box.append(btn(label,action,'secondary'));return box;}
@@ -158,7 +158,7 @@ function reconcile(){
    if(hadFocus)node.querySelector('.repo-name').focus({preventScroll:true});
    if(changed&&rowMotion){const frames=batchSwap?scene.enter.map(frame=>({opacity:Math.max(.75,frame.opacity??1),transform:frame.transform})):scene.enter;slot.effect=node.animate(frames,{...scene.options,delay:state.settings.stagger?i*20:0});try{await slot.effect.finished;}catch{}}
    if(serial!==slot.version)return;
-   if(changed&&rowMotion&&state.settings.cycleAccent)node.animate([{outline:'1px solid #e8c89888',outlineOffset:'-2px'},{outline:'1px solid transparent',outlineOffset:'-2px'}],{duration:Math.min(400,scene.options.duration*3),easing:'ease-out'});
+   if(changed&&rowMotion&&state.settings.cycleAccent)node.animate([{outline:'1px solid '+getComputedStyle(node).getPropertyValue('--accent-border').trim(),outlineOffset:'-2px'},{outline:'1px solid transparent',outlineOffset:'-2px'}],{duration:Math.min(400,scene.options.duration*3),easing:'ease-out'});
    requestFit();updateActions();
   })().catch(e=>toast(e.message));
  }
@@ -177,7 +177,8 @@ function render(){queueRender();}
 window.addEventListener('beforeunload',()=>{queueFit.cancel();queueRender.cancel();});
 function renderNow(){
  if(!state)return;fitKey='';const prefs=state.settings;renderInsight();ultimateRender();
- for(const theme of ['graphite','contrast'])document.body.classList.toggle(theme,prefs.theme===theme);
+ document.body.classList.toggle('graphite',prefs.theme==='graphite'||prefs.theme==='reference'&&matchMedia('(prefers-color-scheme: dark)').matches);
+ document.body.classList.toggle('contrast',prefs.theme==='contrast');
  for(const [name,value]of Object.entries({compact:prefs.density==='compact',reduced:!canAnimate(),'no-commands':!prefs.showCommands,'wrap-names':prefs.wrapNames,'wrap-code':prefs.codeWrap}))document.body.classList.toggle(name,value);
  document.body.dataset.scale=String(UI.textScale(prefs.textScale));
  if(!drawer&&!repos().some(r=>r.id===selectedId))selectedId=repos()[0]?.id??null;
@@ -209,10 +210,31 @@ function tune(root){heading(root,'A feed shaped around you',[btn('Import browser
 async function changeSettings(update){adopt(await api.settings(update));render();}
 function setting(root,key,title,detail,kind='checkbox',options){const label=el('label',{class:'setting'}),text=el('div');text.append(el('span',{},title));if(detail)text.append(el('small',{},detail));let input;
  if(kind==='select'){input=el('select',{'aria-label':title});for(const [value,name]of options)input.append(el('option',{value},name));input.value=String(state.settings[key]);}
- else{input=el('input',{type:kind,'aria-label':title});if(kind==='checkbox')input.checked=!!state.settings[key];else{input.min='65';input.max='100';input.value=String(state.settings[key]);}}
+ else{input=el('input',{type:kind,'aria-label':title});if(kind==='checkbox'){input.setAttribute('role','switch');input.checked=!!state.settings[key];}else{input.min='65';input.max='100';input.value=String(state.settings[key]);}}
  input.addEventListener('change',()=>run(async()=>{try{await changeSettings({[key]:kind==='checkbox'?input.checked:kind==='range'||key==='minStars'?Number(input.value):input.value});}catch(e){renderDrawer();throw e;}}));label.append(text,input);root.append(label);
 }
-function settingsView(root){heading(root,`Your workspace / v${state.version}`,[btn('Export RSS',()=>api.exportRss(),'secondary'),btn('Hide panel',()=>api.hide(),'secondary'),btn('Quit',()=>api.quit(),'secondary')]);
+function settingsView(root){heading(root,'Settings',[btn('Export RSS',()=>api.exportRss(),'secondary'),btn('Hide panel',()=>api.hide(),'secondary'),btn('Quit',()=>api.quit(),'secondary')]);
+ const grid=el('div',{class:'settings-grid'});
+ const topicLabel=el('label',{class:'setting'}),topicInput=el('input',{type:'text',placeholder:'e.g. cli, rust','aria-label':'Discovery topics'});
+ topicInput.value=(state.settings.topics||[]).join(', ');
+ topicInput.addEventListener('change',()=>run(()=>changeSettings({topics:topicInput.value.split(',').map(value=>value.trim()).filter(Boolean)})));
+ topicLabel.append(el('span',{},'Discovery topics'),topicInput);grid.append(topicLabel);
+ setting(grid,'cooldownWindowMs','Replay cooldown','','select',[[1800000,'30 minutes'],[43200000,'12 hours'],[86400000,'24 hours']]);
+ for(const [key,title,detail]of [['autoReplace','Replace after opening','The clicked row is replaced with a new unseen project.'],['pinned','Always on top','Keep the panel above other windows.'],['hoverExpand','Expand on hover','Reveal a collapsed panel when the pointer enters.'],['reducedMotion','Reduced motion','Disable entry animations.'],['pausedLearning','Pause reaction learning','Keep manual interests without learning from opens and likes.'],['notifications','New-day notification','Notify when a new day of discoveries is ready.'],['launchAtLogin','Launch at login','Start RepoPulse when you sign in.']])setting(grid,key,title,detail);
+
+setting(grid,'density','Density','','select',[['comfortable','Comfortable'],['compact','Compact']]);setting(grid,'minStars','Minimum stars','','select',[[50000,'50K+'],[70000,'70K+'],[75000,'75K+'],[100000,'100K+'],[200000,'200K+']]);
+ const display=el('div',{class:'settings-grid'});
+ setting(display,'theme','Panel theme','','select',[['reference','Use system setting'],['light','Light'],['graphite','Dark'],['contrast','High contrast']]);
+ setting(display,'textScale','Text size','Readable sizes across the entire interface.','select',[[100,'100%'],[115,'115%'],[130,'130%'],[150,'150%']]);
+ setting(display,'motion','Animation preference','System mode respects reduced motion.','select',[['system','Follow system'],['full','Animate'],['none','No animation']]);
+ setting(display,'motionDuration','Animation speed','','select',[[80,'Instant'],[140,'Quick'],[220,'Balanced'],[320,'Relaxed']]);
+ setting(display,'visibleRows','Panel height','','select',[[1,'Compact'],[2,'Balanced'],[3,'Roomy']]);
+ setting(display,'panelWidth','Preferred panel width','Clamped to your monitor.','select',[[960,'960 px'],[1080,'1080 px'],[1280,'1280 px'],[1440,'1440 px']]);
+ setting(display,'toastSeconds','Message duration','','select',[[3,'3 seconds'],[5,'5 seconds'],[8,'8 seconds']]);
+ for(const [key,title,description]of [['showCommands','Show source commands','Hide code blocks for a calmer feed.'],['showDescriptions','Show descriptions','Keep or hide project summaries.'],['showReasons','Show relevance explanations','Explain why a project is recommended.'],['shortcuts','Keyboard shortcuts','Disable letter shortcuts if preferred.'],['exactStars','Exact star counts','Display full cached counts instead of compact notation.'],['uniqueHistory','Unique history view','Show only the newest visit per project.']])setting(display,key,title,description);
+ root.append(el('h3',{class:'subheading'},'Appearance'),display,el('h3',{class:'subheading'},'Discovery and startup'),grid);
+ const resets=el('div',{class:'stack'});resets.append(btn('Reset appearance',()=>changeSettings({textScale:100,motion:'system',motionDuration:80,visibleRows:2,panelWidth:960,showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,theme:'reference',density:'compact',opacity:100,reducedMotion:false}),'secondary'),btn('Reset feed filters',()=>changeSettings({minStars:50000,languages:[]}),'secondary'));root.append(resets);
+ ultimateSettings(root);
  if(api.githubToken){
   const credential=el('input',{type:'password',autocomplete:'off','aria-label':'GitHub API token',placeholder:'Optional GitHub API token'});
   const security=el('div',{class:'stack'});
@@ -222,36 +244,15 @@ function settingsView(root){heading(root,`Your workspace / v${state.version}`,[b
    toast(result.error||'GitHub credential settings updated.');
   }
   security.append(credential,btn('Save token',()=>updateToken(credential.value),'secondary'),btn('Remove token',()=>updateToken(''),'secondary'));
-  root.append(el('h3',{},'GitHub authentication'),el('p',{class:'intro'},state.githubTokenConfigured?'Token protected by the OS keychain.':'Public GitHub API access.'),security);
+  root.append(el('h3',{class:'subheading'},'GitHub authentication'),el('p',{class:'intro'},state.githubTokenConfigured?'Token protected by the OS keychain.':'Public GitHub API access.'),security);
  }
  if(api.recover){
   const recovery=el('div',{class:'stack'});
   for(const [kind,label] of [['diagnostics','Export diagnostics'],['rebuild','Clear queue and rebuild'],['cache','Reset catalog cache']]){
    recovery.append(btn(label,async()=>{const result=await api.recover(kind);if(result?.settings){adopt(result);render();}},'secondary'));
   }
-  root.append(el('h3',{},'Diagnostics and data hygiene'),recovery);
+  root.append(el('h3',{class:'subheading'},'Diagnostics'),recovery);
  }
- const stats=el('div',{class:'stat-row'});for(const [value,label]of [[state.catalogSize,'catalog projects'],[state.saved.length,'saved projects'],[state.history.length,'recorded opens'],[Object.keys(state.profile.weights).length,'active interests']]){const box=el('div',{class:'stat'});box.append(el('b',{},String(value)),el('span',{},label));stats.append(box);}root.append(stats);
- const grid=el('div',{class:'settings-grid'});
- const topicLabel=el('label',{class:'setting'}),topicInput=el('input',{type:'text',placeholder:'e.g. cli, rust','aria-label':'Discovery topics'});
- topicInput.value=(state.settings.topics||[]).join(', ');
- topicInput.addEventListener('change',()=>run(()=>changeSettings({topics:topicInput.value.split(',').map(value=>value.trim()).filter(Boolean)})));
- topicLabel.append(el('span',{},'Discovery topics'),topicInput);grid.append(topicLabel);
- setting(grid,'cooldownWindowMs','Replay cooldown','','select',[[1800000,'30 minutes'],[43200000,'12 hours'],[86400000,'24 hours']]);
- for(const [key,title,detail]of [['autoReplace','Replace after opening','The clicked row is replaced with a new unseen project.'],['pinned','Always on top','Keep the panel above other windows.'],['hoverExpand','Expand on hover','Reveal a collapsed panel when the pointer enters.'],['reducedMotion','Reduced motion','Disable entry animations.'],['pausedLearning','Pause reaction learning','Keep manual interests without learning from opens and likes.'],['notifications','New-day notification','Notify when a new day of discoveries is ready.'],['launchAtLogin','Launch at login','Start RepoPulse when you sign in.']])setting(grid,key,title,detail);
-
- setting(grid,'theme','Panel theme','','select',[['reference','Warm / ocean'],['graphite','Graphite'],['contrast','High contrast']]);setting(grid,'density','Density','','select',[['comfortable','Comfortable'],['compact','Compact']]);setting(grid,'minStars','Minimum stars','','select',[[50000,'50K+'],[70000,'70K+'],[75000,'75K+'],[100000,'100K+'],[200000,'200K+']]);root.append(grid);
- const display=el('div',{class:'settings-grid'});
- setting(display,'textScale','Text size','Readable sizes across the entire interface.','select',[[100,'100%'],[115,'115%'],[130,'130%'],[150,'150%']]);
- setting(display,'motion','Animation preference','System mode respects reduced motion.','select',[['system','Follow system'],['full','Animate'],['none','No animation']]);
- setting(display,'motionDuration','Animation speed','','select',[[80,'Instant'],[140,'Quick'],[220,'Balanced'],[320,'Relaxed']]);
- setting(display,'visibleRows','Panel height','','select',[[1,'Compact'],[2,'Balanced'],[3,'Roomy']]);
- setting(display,'panelWidth','Preferred panel width','Clamped to your monitor.','select',[[960,'960 px'],[1080,'1080 px'],[1280,'1280 px'],[1440,'1440 px']]);
- setting(display,'toastSeconds','Message duration','','select',[[3,'3 seconds'],[5,'5 seconds'],[8,'8 seconds']]);
- for(const [key,title,description]of [['showCommands','Show source commands','Hide code blocks for a calmer feed.'],['showDescriptions','Show descriptions','Keep or hide project summaries.'],['showReasons','Show relevance explanations','Explain why a project is recommended.'],['shortcuts','Keyboard shortcuts','Disable letter shortcuts if preferred.'],['exactStars','Exact star counts','Display full cached counts instead of compact notation.'],['uniqueHistory','Unique history view','Show only the newest visit per project.']])setting(display,key,title,description);
- root.append(el('h3',{class:'subheading'},'Readability and interaction'),display);
- const resets=el('div',{class:'stack'});resets.append(btn('Reset appearance',()=>changeSettings({textScale:100,motion:'system',motionDuration:80,visibleRows:2,panelWidth:960,showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,theme:'reference',density:'compact',opacity:100,reducedMotion:false}),'secondary'),btn('Reset feed filters',()=>changeSettings({minStars:50000,languages:[]}),'secondary'));root.append(resets);
- ultimateSettings(root);
  root.append(el('p',{class:'intro'},'Language filters - leave all unchecked for every language. Changes refill only projects that no longer match.'));
  const languages=el('div',{class:'stack'});(state.languages||[]).forEach(language=>{const selected=state.settings.languages.includes(language),b=btn(language,()=>changeSettings({languages:selected?state.settings.languages.filter(l=>l!==language):[...state.settings.languages,language]}),`secondary ${selected?'primary':''}`);b.setAttribute('aria-pressed',String(selected));languages.append(b);});root.append(languages);
  const controls=el('div',{class:'stack'});controls.append(btn(`Restore exclusions (${state.blockedOwners.length} owners / ${state.snoozedCount} snoozed)`,async()=>{const next=await api.resetControls();if(next){state=next;render();}},'secondary'),btn('Reset local data',async()=>{const next=await api.clear();if(next){resetWorkspaceView();state=next;selectedId=null;search='';savedLanguage='';render();toast('Local data and unsaved drafts reset.');}},'secondary danger'));root.append(el('p',{class:'intro'},'Shortcuts: J/K select row, Enter open, S save, U undo replacement, R refresh, / search, Escape close. Ctrl/Cmd+Shift+Space toggles the island. Summon with Ctrl/Cmd+Shift+P to dock on the active display.'),controls);
@@ -281,7 +282,7 @@ $('refresh').addEventListener('click',()=>run(()=>refresh(true)));
 $('next').addEventListener('click',()=>run(async()=>{if(pending.has('next'))return;pending.add('next');dynamicHoldUntil=Date.now()+1000;islandController?.hold('next picks',true);try{const result=await api.next(state.feed?.epoch);if(result.state)adopt(result.state);pair=0;selectedId=repos()[0]?.id??null;render();if(result.changed)undoToast(result.revisited?'Showing earlier picks.':'New picks are ready.');else if(result.reason!=='stale')toast(repos().length&&state.feed?.matchingCount<=repos().length?'All matching projects are on screen.':'No other picks match your filters and exclusions.');}finally{pending.delete('next');islandController?.hold('next picks',false);}}));
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>run(()=>openDrawer(b.dataset.tab))));
 document.addEventListener('visibilitychange',()=>{if(document.hidden){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}});
-matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',()=>render());
+for(const query of ['(prefers-reduced-motion: reduce)','(prefers-color-scheme: dark)'])matchMedia(query).addEventListener('change',render);
 window.addEventListener('keydown',e=>{
  if(!state)return;
  const key=e.key.toLowerCase(),typing=e.target.isContentEditable||['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName);
