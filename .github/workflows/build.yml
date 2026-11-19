@@ -65,6 +65,10 @@ jobs:
           if-no-files-found: error
       - name: Package desktop app
         run: npm run dist
+      - name: Start the packaged Windows app
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/windows-startup.ps1
       - name: Upload installers and dependency lock
         uses: actions/upload-artifact@v4
         with:
@@ -91,7 +95,7 @@ jobs:
           path: extension/
           retention-days: 30
   release:
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'Release RepoPulse v11.9.1')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'Release RepoPulse v11.9.2')
     needs: [verify, package]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -115,7 +119,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             test "$tag" = "$REF_NAME"
           else
-            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "RepoPulse $tag" --notes-file docs/RELEASE-v11.9.1.md
+            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "RepoPulse $tag" --notes-file docs/RELEASE-v11.9.2.md
           fi
           echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
       - name: Attach verified installers and SHA-256 checksums to the tagged release
