@@ -1,12 +1,12 @@
-# RepoPulse 12.0.4
+# RepoPulse 12.1.0
 
-A personalized GitHub discovery island for Windows, macOS and Linux, focused on **50,000+ star** public projects.
+A personalized GitHub discovery island for Windows, macOS and Linux, focused on **5,000+ star** public projects.
 
 ## Browsing and catalog
 
 Click **Next** in the Advanced footer to open the next page. Previously displayed projects are remembered across app restarts. The button stops at the end, and newly synced projects become available as they qualify.
 
-The bundled GitHub snapshot contains 531 public repositories with at least 50,000 stars, excluding archived repositories and forks. The fetcher supports up to 12,000 entries and is tested against a 10,105-entry fixture. The application shows the actual number of eligible repositories.
+Release builds include a validated GitHub catalog of over 10,000 public projects with at least 5,000 stars. Archived repositories and forks are excluded. Settings still includes the 50K+ filter. Source checkouts retain a smaller offline fallback.
 
 ## Camera-edge auto-hide / 11.6
 

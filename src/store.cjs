@@ -17,7 +17,7 @@ class Store{
   }
  }
  save(){
-  const content=JSON.stringify(this.state,null,2);
+  const content=JSON.stringify(this.state);
   if(Buffer.byteLength(content)>MAX_STATE_BYTES)throw Error('State exceeds 32 MB; changes were not saved.');
   fs.mkdirSync(path.dirname(this.file),{recursive:true});const temp=this.file+'.tmp';
   try{fs.writeFileSync(temp,content,{mode:0o600});fs.renameSync(temp,this.file);}

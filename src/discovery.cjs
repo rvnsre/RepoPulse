@@ -206,7 +206,7 @@ function initialize(state) {
  for(const key of ['seen','hidden','liked'])state[key]=[...new Set((Array.isArray(state[key])?state[key]:[]).filter(id=>Number.isSafeInteger(id)&&id>0))];
  if(state.daily)state.daily={day:typeof state.daily.day==='string'?state.daily.day:'',repos:unique(state.daily.repos)};
  if(state.lastRotation)state.lastRotation={day:typeof state.lastRotation.day==='string'?state.lastRotation.day:'',repos:unique(state.lastRotation.repos)};
- if(state.settings?.catalogRevision!==CATALOG_REVISION){const old=state.settings?.catalogRevision;state.catalogUpgradePending=state.catalogUpgradePending===true||old===2;state.settings={...state.settings,catalogRevision:CATALOG_REVISION,...(old===2&&state.settings.minStars===70000?{minStars:MIN_STARS}:{})};state.cacheAt=null;}
+ if(state.settings?.catalogRevision!==CATALOG_REVISION){const old=state.settings?.catalogRevision;state.catalogUpgradePending=state.catalogUpgradePending===true||(old===2||old===3);state.settings={...state.settings,catalogRevision:CATALOG_REVISION,...((old===2&&state.settings.minStars===70000||old===3&&state.settings.minStars===50000)?{minStars:MIN_STARS}:{})};state.cacheAt=null;}
  if(state.settings?.dockRevision!==1)state.settings={...state.settings,hideDelay:140,anchor:'center'};
  if(state.settings?.compactRevision!==1)state.settings={...state.settings,panelWidth:920,density:'compact',motionDuration:80,motionPreset:'snappy',hoverDelay:0,hideDelay:140,autoHide:true,collapseOnLeave:true,hoverExpand:true};
  if(state.settings?.liveRevision!==2)state.settings={...state.settings,dynamicRefresh:true,cyclePauseHover:false};
@@ -217,12 +217,13 @@ function initialize(state) {
  state.snoozed=Object.fromEntries(Object.entries(state.snoozed&&typeof state.snoozed==='object'&&!Array.isArray(state.snoozed)?state.snoozed:{}).filter(([id,time])=>Number.isSafeInteger(Number(id))&&Number(id)>0&&Number.isFinite(time)&&time>Date.now()));
  return state;
 }
-function bootstrap(state,seed=require('./catalog-seed.json').repos){
+const bundledCatalog=require('./catalog-seed.json');
+function bootstrap(state,seed=bundledCatalog.repos){
  const clean=items=>[...new Map((Array.isArray(items)?items:[]).map(normalizeRepo).filter(r=>r&&eligible(r)).map(r=>[r.id,r])).values()];
  const cached=distinct(clean(state.cache)),upgrade=state.catalogUpgradePending===true,bundled=distinct(clean(seed));
  if(!cached.length||upgrade){
-  state.cache=distinct([...cached,...bundled]).sort((a,b)=>b.stargazers_count-a.stargazers_count||a.id-b.id).slice(0,MAX_CATALOG);
-  state.cacheAt=null;state.catalogInfo={source:cached.length?'bundled-upgrade':'bundled',loaded:state.cache.length,minStars:MIN_STARS,target:TARGET_CATALOG,capacity:MAX_CATALOG};
+  state.cache=distinct([...bundled,...cached]).sort((a,b)=>b.stargazers_count-a.stargazers_count||a.id-b.id).slice(0,MAX_CATALOG);
+  state.cacheAt=null;state.catalogInfo={source:cached.length?'bundled-upgrade':'bundled',loaded:state.cache.length,minStars:MIN_STARS,target:TARGET_CATALOG,capacity:MAX_CATALOG,...(bundled.length>=TARGET_CATALOG?{checkedAt:bundledCatalog.verifiedAt}:{})};
  }else state.cache=cached;
  state.catalogUpgradePending=false;present(state);return state;
 }
