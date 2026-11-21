@@ -10,6 +10,14 @@
 <body class="collapsed">
   <section id="island" class="island">
     <button id="edgeReveal" aria-label="Reveal RepoPulse" aria-expanded="false"><span aria-hidden="true"></span></button>
+    <section id="miniIsland" aria-label="Dynamic Island" hidden>
+      <button id="miniExpand" title="Open advanced view" aria-label="Open advanced view">
+        <span id="miniAvatar" aria-hidden="true"></span>
+        <span class="mini-copy"><strong id="miniTitle"></strong><span id="miniSummary"></span></span>
+        <span class="mini-arrow" aria-hidden="true">↗</span>
+      </button>
+      <button id="miniHide" title="Hide island" aria-label="Hide island">−</button>
+    </section>
     <header class="topbar">
       <button id="toggle" class="brand" title="Expand or collapse RepoPulse" aria-label="Toggle repository panel" aria-expanded="true">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -27,6 +35,8 @@
         </button>
       </div>
       <div class="toolbar" role="group" aria-label="Panel commands">
+        <button id="miniButton" title="Switch to Dynamic Island" aria-label="Switch to Dynamic Island">Island</button>
+        <button id="plusButton" title="Manage RSS+ membership">RSS+</button>
         <button id="commandButton" title="Command palette" aria-label="Open command palette">Commands</button>
         <button id="pinButton" title="Always on top" aria-label="Always on top" aria-pressed="false"></button>
         <button id="focusButton" title="Focus session (F)" aria-label="Start focus session"></button>
@@ -67,6 +77,7 @@
           <button data-tab="saved">Saved</button>
           <button data-tab="history">History</button>
           <button data-tab="tune">Interests</button>
+          <button data-tab="plus">RSS+</button>
           <button data-tab="settings">Settings</button>
           <button data-tab="exclusions">Exclusions</button>
           <button id="closeDrawer" aria-label="Close workspace">Discover</button>

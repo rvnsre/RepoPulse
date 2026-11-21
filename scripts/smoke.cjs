@@ -43,6 +43,13 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  assert.match(await evaluate("updatePickRange();document.getElementById('pickRange').textContent"),/3 of 3/);
  await evaluate("document.getElementById('feed').scrollTop=0;updatePickRange()");
  await capture('desktop-preview.png');
+ await evaluate("document.getElementById('miniButton').click()");
+ await until(()=>evaluate("document.body.classList.contains('mini-open')&&!document.getElementById('miniIsland').hidden"));
+ assert.equal(window.getBounds().height,86);
+ await capture('dynamic-island-preview.png');
+ await evaluate("document.getElementById('miniExpand').click()");
+ await until(()=>evaluate("!document.body.classList.contains('mini-open')&&!document.getElementById('expanded').hidden"));
+
  const first=store.state.daily.repos[0],second=store.state.daily.repos[1];
  await evaluate(`window.originalRow=document.querySelector('.repo-row');document.querySelector('.row-extra button').focus();document.querySelector('.row-extra button').click()`);await until(()=>store.state.saved.length===1);await new Promise(r=>setTimeout(r,100));
  assert.equal(await evaluate(`window.originalRow===document.querySelector('.repo-row')`),true,'Saving must retain the row DOM');
