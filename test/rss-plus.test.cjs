@@ -12,17 +12,22 @@ function purchase(overrides={}){
 const response=data=>({ok:true,json:async()=>data});
 test('Only the monthly RSS+ tier of the intended product can activate',()=>{
  assert.equal(assess(purchase(),now).status,'active');
- for(const data of [{product_id:'elsewhere'},{variants:'Free'},{recurrence:'yearly'},{subscription_id:null}])
-  assert.equal(assess(purchase(data),now).status,'invalid');
+ assert.equal(assess(purchase({product_id:'elsewhere'}),now).status,'wrong-product');
+ for(const data of [{variants:'Free'},{recurrence:'yearly'},{subscription_id:null}])
+  assert.equal(assess(purchase(data),now).status,'wrong-plan');
+ assert.equal(assess(purchase({variants:{Tier:'RSS+'}}),now).status,'active');
+ assert.equal(assess(purchase({variants:'',price:500,currency:'usd'}),now).status,'active');
+ assert.equal(assess(purchase({variants:'Free',price:500,currency:'usd'}),now).status,'wrong-plan');
  for(const data of [{refunded:true},{chargebacked:true},{disputed:true},{test:true},{subscription_ended_at:new Date(now).toISOString()}])
   assert.equal(assess(purchase(data),now).status,'inactive');
  assert.deepEqual(assess(purchase({subscription_cancelled_at:new Date(now+1000).toISOString()}),now),{status:'active',endsAt:now+1000});
 });
 test('Verification uses POST and never counts a recheck as another use',async()=>{
- const status=await verify(key,async(url,opts)=>{
+ const status=await verify(key.toLowerCase().replaceAll('-','–')+'\n',async(url,opts)=>{
   assert.equal(url,'https://api.gumroad.com/v2/licenses/verify');
   assert.equal(opts.method,'POST');
   assert.equal(opts.body.get('product_id'),PRODUCT_ID);
+  assert.equal(opts.body.get('license_key'),key);
   assert.equal(opts.body.get('increment_uses_count'),'false');
   return response(purchase());
  },()=>now);

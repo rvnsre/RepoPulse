@@ -55,10 +55,10 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  assert.equal(await evaluate(`window.originalRow===document.querySelector('.repo-row')`),true,'Saving must retain the row DOM');
  const fonts=await evaluate(`({description:parseFloat(getComputedStyle(document.querySelector('.repo-description')).fontSize),code:parseFloat(getComputedStyle(document.querySelector('pre')).fontSize),overflow:document.documentElement.scrollWidth>innerWidth})`);
  assert.ok(fonts.description>=14);assert.ok(fonts.code>=13);assert.equal(fonts.overflow,false);
- await evaluate(`document.querySelector('.repo-row .row-learn').click()`);await until(()=>store.state.history.length===1);
+ await evaluate(`document.querySelector('#learnSelected').click()`);await until(()=>store.state.history.length===1);
  assert.equal(snapshot().lastExternal.url,'https://github.com/'+first.full_name);assert.equal(snapshot().lastExternal.kind,'learn');assert.notEqual(store.state.daily.repos[0].id,first.id);assert.equal(store.state.daily.repos[1].id,second.id);
  await until(()=>evaluate(`!!document.querySelector('.toast-undo')`));await evaluate(`document.querySelector('.toast-undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
- await until(()=>evaluate(`document.querySelector('.repo-row').dataset.repoId==='${first.id}'&&!!document.querySelector('.repo-row .download-link')`));await evaluate(`document.querySelector('.repo-row .download-link').click()`);await until(()=>evaluate(`!!document.querySelector('.repo-row .release-assets button:last-child')`));await evaluate(`document.querySelector('.repo-row .release-assets button:last-child').click()`);await until(()=>snapshot().lastExternal?.kind==='releases');assert.equal(snapshot().lastExternal.url,'https://github.com/'+first.full_name+'/releases');
+ await until(()=>evaluate(`document.querySelector('.repo-row').dataset.repoId==='${first.id}'&&!!document.querySelector('#advancedCommand .download-link')`));await evaluate(`document.querySelector('#advancedCommand .download-link').click()`);await until(()=>evaluate(`!!document.querySelector('#advancedCommand .release-assets button:last-child')`));await evaluate(`document.querySelector('#advancedCommand .release-assets button:last-child').click()`);await until(()=>snapshot().lastExternal?.kind==='releases');assert.equal(snapshot().lastExternal.url,'https://github.com/'+first.full_name+'/releases');
  await until(()=>evaluate(`!!document.querySelector('.toast-undo')`));await evaluate(`document.querySelector('.toast-undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
  await until(()=>evaluate(`document.querySelector('.repo-row').dataset.repoId==='${first.id}'`));
  await evaluate(`document.getElementById('menu').click();document.querySelector('[data-tab=details]').click()`);await until(()=>evaluate(`!document.getElementById('drawer').hidden`));await capture('workspace-preview.png');
@@ -224,19 +224,21 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  store.state.cache.push(axios);store.state.daily.repos[0]=axios;
  console.log('AXIOS_IPC_METADATA',JSON.stringify(await evaluate("window.pulse.activity(9001)")));
  await evaluate("window.pulse.settings({})");await evaluate("document.getElementById('toggle').click()");
- await until(()=>evaluate("!!document.querySelector('.repo-row[data-repo-id=\"9001\"] .smart-code')&&document.querySelector('.repo-row[data-repo-id=\"9001\"] pre').textContent==='npm install axios'"));
- await evaluate("document.querySelector('.repo-row[data-repo-id=\"9001\"] .copy-command').click()");
+ await until(()=>evaluate("!!document.querySelector('.repo-row[data-repo-id=\"9001\"] .repo-name')"));
+ await evaluate("document.querySelector('.repo-row[data-repo-id=\"9001\"] .repo-name').click()");
+ await until(()=>evaluate("!!document.querySelector('#advancedCommand[data-repo-id=\"9001\"] .smart-code')&&document.querySelector('#advancedCommand[data-repo-id=\"9001\"] pre').textContent==='npm install axios'"));
+ await evaluate("document.querySelector('#advancedCommand[data-repo-id=\"9001\"] .copy-command').click()");
  await until(async()=>await require('electron').clipboard.readText()==='npm install axios');
- const baseline=await evaluate("(()=>{const row=document.querySelector('.repo-row[data-repo-id=\"9001\"]');return{left:row.querySelector('.row-extra').getBoundingClientRect().bottom,right:row.querySelector('.row-actions').getBoundingClientRect().bottom,wrap:getComputedStyle(row.querySelector('pre')).whiteSpace};})()");
- assert.ok(Math.abs(baseline.left-baseline.right)<=1,JSON.stringify(baseline));assert.equal(baseline.wrap,'pre');
- await evaluate("document.querySelector('.repo-row[data-repo-id=\"9001\"] .command-tab[aria-selected=true]').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));document.querySelector('.repo-row[data-repo-id=\"9001\"] .copy-command').click()");
+ const commandSurface=await evaluate("({panes:document.querySelectorAll('#discoveryPanel .smart-code').length,rowPanes:document.querySelectorAll('.repo-row .smart-code').length,wrap:getComputedStyle(document.querySelector('#advancedCommand pre')).whiteSpace})");
+ assert.deepEqual(commandSurface,{panes:1,rowPanes:0,wrap:'pre'});
+ await evaluate("document.querySelector('#advancedCommand[data-repo-id=\"9001\"] .command-tab[aria-selected=true]').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));document.querySelector('#advancedCommand[data-repo-id=\"9001\"] .copy-command').click()");
  await until(async()=>await require('electron').clipboard.readText()==='git clone https://github.com/axios/axios.git');
  await evaluate("state.cacheAt=new Date(Date.now()-78*60000).toISOString();state.lastError=null;renderSync();dynamicStatus({enabled:true,remaining:3000,period:3000,reason:'exhausted'})");
  assert.match(await evaluate("document.getElementById('status').textContent"),/Last synced 78m ago/);
  assert.ok(!(await evaluate("document.getElementById('liveToggle').textContent")).includes('Live'));
  assert.equal(await evaluate("document.getElementById('connectionDot').dataset.status"),'stale');
  await evaluate("window.pulse.settings({})");await capture('audit-preview.png');
- console.log('11.1 audit native checks passed: all three picks reachable, no duplicated footer actions, exact button baselines, npm/clone copy, nowrap code and stale sync consistency.');
+ console.log('11.1 audit native checks passed: all three picks reachable, no duplicated footer actions, single command surface, npm/clone copy, nowrap code and stale sync consistency.');
 
  // Reproduce the reported 0-pick state with a fully seen catalog on a new day.
  const recoveryHistory=store.state.history.length,recoveryWeights=JSON.stringify(store.state.profile.weights);
