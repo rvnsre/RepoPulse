@@ -37,6 +37,8 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
   if(name==='desktop-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_PREVIEW:'+encoded.slice(n,n+4096));}
  }
 
+ const nextButton=await evaluate(`(()=>{const n=document.querySelector('#next'),r=n.getBoundingClientRect();return r.width>=48&&r.height>=32&&r.bottom<=innerHeight&&n.closest('.feed-pagination')!==null&&!n.disabled;})()`);
+ assert.equal(nextButton,true,'Next is visible and actionable from Advanced');
  const grid=await evaluate(`(()=>{const f=document.getElementById('feed'),rows=[...f.querySelectorAll('.repo-row')],boxes=rows.map(r=>r.getBoundingClientRect());return {
   distinct:new Set(rows.map(r=>r.dataset.repoId)).size,columns:getComputedStyle(f).gridTemplateColumns.split(' ').length,
   rowGap:getComputedStyle(f).rowGap,columnGap:getComputedStyle(f).columnGap,
@@ -339,6 +341,18 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await new Promise(r=>setTimeout(r,200));assert.equal(await evaluate("document.body.classList.contains('collapsed')"),false);
  await moveScreen(0,100);await until(()=>window.getBounds().height<=16);
  console.log('11.6 native regression passed: background sync and stale keyboard focus cannot prevent hiding; only top-center entry reveals; physical leave hides again.');
+ await evaluate("window.pulse.settings({autoHide:false,dynamicRefresh:false})");
+ await evaluate("miniOpen=false;expanded=true;windowMode()");
+ await until(()=>evaluate("!document.getElementById('expanded').hidden"));
+ const manualSeen=new Set(store.state.daily.repos.map(repo=>repo.id));
+ for(let i=0;i<5;i++){
+  const before=store.state.feed.epoch;
+  await evaluate("document.getElementById('next').click()");
+  await until(()=>store.state.feed.epoch>before);
+  for(const repo of store.state.daily.repos){assert.ok(!manualSeen.has(repo.id),'Next must not repeat a prior page');manualSeen.add(repo.id);}
+  await until(()=>evaluate("!document.getElementById('next').disabled"));
+ }
+ console.log('Native Next button passed: five consecutive clicks produce disjoint repository pages.');
  assert.deepEqual(errors,[]);console.log('Native UI passed: readable fonts, stable row DOM, direct Learn URL, verified Releases URL, independent replacement, undo, native screenshots, settings, 150% text, three rows, rapid toggle and collection.');app.exit(0);
 }
 module.exports={smoke};

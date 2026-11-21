@@ -49,14 +49,12 @@ function identityIndex(repos) {
  const ids=new Set(repos.map(repo=>repo.id)),names=new Set(repos.map(canonicalKey));
  return repo=>ids.has(repo.id)||names.has(canonicalKey(repo));
 }
-function feedPools(state,visible,now,pool=filteredCatalog(state.cache,state,now),day=state.daily?.day||localDay(),manualBrowse=false) {
+function feedPools(state,visible,now,pool=filteredCatalog(state.cache,state,now),day=state.daily?.day||localDay()) {
  const isVisible=identityIndex(visible),isBookmarked=identityIndex(state.saved||[]);
  const seen=new Set(state.seen||[]),recentIds=new Map(),recentNames=new Map();
- const skippedIds=new Set(),skippedNames=new Set();
  for(const entry of state.seenHistory||[]){
   recentIds.set(entry.id,Math.max(recentIds.get(entry.id)||0,entry.timestamp));
   recentNames.set(entry.key,Math.max(recentNames.get(entry.key)||0,entry.timestamp));
-  if(manualBrowse&&entry.action==='skipped'){skippedIds.add(entry.id);skippedNames.add(entry.key);}
  }
  const prefs=settings(state.settings);
  const lastSeen=repo=>Math.max(recentIds.get(repo.id)||0,recentNames.get(canonicalKey(repo))||0,Number(state.presentedAt?.[repo.id])||0);
@@ -66,10 +64,19 @@ function feedPools(state,visible,now,pool=filteredCatalog(state.cache,state,now)
   const last=lastSeen(repo);
   return last>0?now-last>=prefs.cooldownWindowMs:!seen.has(repo.id);
  }).sort((a,b)=>lastSeen(a)-lastSeen(b)||b.score-a.score);
- const browse=manualBrowse&&!unseen.length&&!replay.length?available.filter(repo=>
-  !isBookmarked(repo)&&!skippedIds.has(repo.id)&&!skippedNames.has(canonicalKey(repo))
- ).sort((a,b)=>lastSeen(a)-lastSeen(b)||b.score-a.score):[];
- return {unseen,replay,browse};
+ return {available,unseen,replay};
+}
+function manualPool(state,pool,visible) {
+ const skipped=(state.seenHistory||[]).filter(entry=>entry.action==='skipped');
+ const excluded=identityIndex([...(state.saved||[]),...skipped.map(entry=>({id:entry.id,full_name:entry.key}))]);
+ const visited=identityIndex([...(state.manualVisited||[]),...visible]);
+ return pool.filter(repo=>!excluded(repo)&&!visited(repo));
+}
+function recordManualVisits(state,repos) {
+ if(!state.manualVisited||!repos.length)return;
+ const visited=identityIndex(state.manualVisited);
+ state.manualVisited.push(...repos.filter(repo=>!visited(repo)).map(repo=>({id:repo.id,full_name:canonicalKey(repo)})));
+ if(state.manualVisited.length>MAX_CATALOG*2)state.manualVisited.splice(0,state.manualVisited.length-MAX_CATALOG*2);
 }
 function hydrate(pool,repos) {
  const byId=new Map(pool.map(repo=>[repo.id,repo])),byName=new Map(pool.map(repo=>[canonicalKey(repo),repo]));
@@ -81,6 +88,7 @@ function hydrate(pool,repos) {
 function selectFeed(pool,state,day=localDay(),now=Date.now()) {
  const filtered=filteredCatalog(pool,state,now);
  const visible=hydrate(filtered,state.daily?.repos||[]).slice(0,3);
+ if(state.manualVisited&&visible.length&&visible.length===state.daily?.repos?.length)return {day,repos:visible};
  const {unseen,replay}=feedPools(state,visible,now,filtered,day);
  return {day,repos:[...visible,...(unseen.length?unseen:replay)].slice(0,3)};
 }
@@ -88,6 +96,7 @@ function recordAction(state,repo,action,now=Date.now()) {
  state.seenHistory=[...(state.seenHistory||[]),{id:repo.id,key:canonicalKey(repo),timestamp:now,action}].slice(-20000);
 }
 function markPresented(state,repos,now) {
+ recordManualVisits(state,repos);
  state.presentedAt=state.presentedAt||{};
  state.seen=[...new Set([...(state.seen||[]),...repos.map(repo=>repo.id)])];
  for(const repo of repos){
@@ -98,7 +107,7 @@ function markPresented(state,repos,now) {
 function saveFeed(state,now,phase='ready',bump=true) {
  const pool=filteredCatalog(state.cache,state,now);
  const {unseen,replay}=feedPools(state,state.daily?.repos||[],now,pool);
- state.feed={schemaVersion:1,phase,epoch:(state.feed?.epoch||0)+Number(bump),visibleIds:(state.daily?.repos||[]).map(repo=>repo.id),queueIds:unseen.map(repo=>repo.id),hasReplay:replay.length>0,matchingCount:pool.length};
+ state.feed={schemaVersion:1,phase,epoch:(state.feed?.epoch||0)+Number(bump),visibleIds:(state.daily?.repos||[]).map(repo=>repo.id),queueIds:unseen.map(repo=>repo.id),hasReplay:replay.length>0,matchingCount:pool.length,manualRemaining:manualPool(state,pool,state.daily?.repos||[]).length};
  return state.feed;
 }
 function present(state,now=Date.now()) {
@@ -112,14 +121,13 @@ function candidates(state,now=Date.now()) {
  const {unseen,replay}=feedPools(state,state.daily?.repos||[],now);
  return unseen.length?unseen:replay;
 }
-function advance(state,index,now,manualBrowse=false) {
+function advance(state,index,now) {
  const before=state.daily;
  const filtered=filteredCatalog(state.cache,state,now);
  const previous=hydrate(filtered,before?.repos||[]);
  const day=before?.day||localDay();
- const {unseen,replay,browse}=feedPools(state,previous,now,filtered,day,manualBrowse);
- const browsing=browse.length>0;
- const chosen=(unseen.length?unseen:replay.length?replay:browse).slice(0,index===null?3:1);
+ const {unseen,replay}=feedPools(state,previous,now,filtered,day);
+ const chosen=(unseen.length?unseen:replay).slice(0,index===null?3:1);
  if(!chosen.length){
   if(JSON.stringify(previous.map(repo=>repo.id))!==JSON.stringify(before?.repos?.map(repo=>repo.id))){
    state.daily={day,repos:previous};
@@ -135,11 +143,25 @@ function advance(state,index,now,manualBrowse=false) {
  state.lastRotation={day,repos:previous};
  state.daily={day,repos};
  markPresented(state,chosen,now);
- saveFeed(state,now,revisited&&!browsing?'rebuilding':'ready');
- return {changed:true,count:chosen.length,revisited,browsing,id:chosen[0].id,index};
+ saveFeed(state,now,revisited?'rebuilding':'ready');
+ return {changed:true,count:chosen.length,revisited,browsing:false,id:chosen[0].id,index};
 }
 function nextBatch(state,now=Date.now(),{manualBrowse=false}={}) {
- return advance(state,null,now,manualBrowse);
+ if(!manualBrowse)return advance(state,null,now);
+ const day=state.daily?.day||localDay(),pool=filteredCatalog(state.cache,state,now);
+ const previous=hydrate(pool,state.daily?.repos||[]);
+ const remaining=manualPool(state,pool,previous);
+ if(!remaining.length)return {changed:false,exhausted:true,reason:'exhausted'};
+ const {available,unseen}=feedPools(state,previous,now,remaining,day);
+ const newPick=identityIndex(unseen);
+ const chosen=[...unseen,...available.filter(repo=>!newPick(repo))].slice(0,3);
+ state.manualVisited??=[];
+ recordManualVisits(state,previous);
+ state.lastRotation={day,repos:previous};
+ state.daily={day,repos:chosen};
+ markPresented(state,chosen,now);
+ saveFeed(state,now);
+ return {changed:true,count:chosen.length,revisited:chosen.some(repo=>!newPick(repo)),browsing:true,id:chosen[0].id,index:null};
 }
 function rotate(state,id,now=Date.now()) {
  const index=state.daily?.repos.findIndex(repo=>repo.id===id)??-1;
@@ -174,6 +196,10 @@ function initialize(state) {
  const unique=input=>[...new Map((Array.isArray(input)?input:[]).map(raw=>{const r=normalizeRepo(raw);return r?{...r,...(typeof raw.reason==='string'?{reason:raw.reason.slice(0,200)}:{})}:null;}).filter(Boolean).map(r=>[r.id,r])).values()];
  state.cache=distinct(unique(state.cache)).filter(eligible);state.saved=distinct(unique(state.saved));
  state.seenHistory=(Array.isArray(state.seenHistory)?state.seenHistory:[]).filter(e=>e&&Number.isSafeInteger(e.id)&&typeof e.key==='string'&&Number.isFinite(e.timestamp)&&e.timestamp>0&&['shown','skipped','bookmarked'].includes(e.action)).slice(-20000);
+ if(Array.isArray(state.manualVisited)){
+  const valid=state.manualVisited.filter(entry=>Number.isSafeInteger(entry?.id)&&entry.id>0&&typeof entry.full_name==='string'&&entry.full_name.length<=140&&/^[\w.-]+\/[\w.-]+$/.test(entry.full_name));
+  state.manualVisited=distinct(valid).slice(-MAX_CATALOG*2).map(entry=>({id:entry.id,full_name:canonicalKey(entry)}));
+ }else delete state.manualVisited;
  state.feed={schemaVersion:1,phase:'hydrating',epoch:0,visibleIds:[],queueIds:[],hasReplay:false};state.profile={...(state.profile&&typeof state.profile==='object'?state.profile:{}),weights:require('./engine.cjs').validWeights(state.profile?.weights)};
  for(const key of ['seen','hidden','liked'])state[key]=[...new Set((Array.isArray(state[key])?state[key]:[]).filter(id=>Number.isSafeInteger(id)&&id>0))];
  if(state.daily)state.daily={day:typeof state.daily.day==='string'?state.daily.day:'',repos:unique(state.daily.repos)};

@@ -1,6 +1,6 @@
 'use strict';
 const UI=window.RepoPulseUI,raw=window.pulse,$=id=>document.getElementById(id);
-let miniOpen=false,insightOpen=false,morphing=false,sceneSequence=0;
+let miniOpen=false,insightOpen=false,morphing=false,sceneSequence=0,manualPaging=false;
 let state,section='details',expanded=true,drawer=false,selectedId=null,pair=0,draft={},toastTimer,busy=false,search='',sort='recent',savedLanguage='',transition=0,rootAnimation=null,drawerStamp='',releaseTimer;
 const pending=new Set(),slots=[],releaseStates=new Map(),releaseRequests=new Map();
 const api=raw?{...raw}:null;
@@ -42,6 +42,7 @@ function visible(){return repos();}
 function canAnimate(){return UI.motion(state?.settings,matchMedia('(prefers-reduced-motion: reduce)').matches,document.hidden);}
 async function effect(node,frames,duration){if(!node||!canAnimate())return;const a=node.animate(frames,{duration:duration||state.settings.motionDuration||220,easing:'cubic-bezier(.2,.8,.2,1)'});try{await a.finished;}catch{}}
 function applyMode(){
+ if(!expanded||miniOpen||insightOpen)manualPaging=false;
  if(insightOpen||miniOpen||!expanded)dismissToast();
  $('miniIsland').hidden=!miniOpen;document.body.classList.toggle('mini-open',miniOpen);
  $('expanded').hidden=!expanded||insightOpen||miniOpen;$('idleInsight').hidden=!insightOpen;$('drawer').hidden=!drawer;
@@ -245,7 +246,7 @@ function renderNow(){
  $('pinButton').title=prefs.pinned?'Turn off Always on top':'Turn on Always on top';
  if(!drawer&&!repos().some(r=>r.id===selectedId))selectedId=repos()[0]?.id??null;
  $('systemInfo').textContent='SYS: '+(state.systemLabel||({win32:'Windows',darwin:'macOS',linux:'Linux'})[state.platform]||'Unknown OS');
- renderSync();if(expanded&&!drawer)for(const repo of repos())void requestActivity(repo);$('next').disabled=!state.catalogSize;
+ renderSync();if(expanded&&!drawer)for(const repo of repos())void requestActivity(repo);renderPagination();
  dynamicSync();if(!canAnimate()){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}reconcile();updateActions();if(drawer)renderDrawer(false);requestFit();
  // Release checks are demand-driven: live rotation must not poll GitHub for every card.
  clearTimeout(releaseTimer);
@@ -401,7 +402,40 @@ $('menu').addEventListener('click',()=>run(()=>drawer?closeDrawer():openDrawer('
 $('closeDrawer').addEventListener('click',()=>run(closeDrawer));
 $('refresh').addEventListener('click',()=>run(()=>refresh(true)));
 $('pinButton').addEventListener('click',()=>run(()=>changeSettings({pinned:!state.settings.pinned})));
-$('next').addEventListener('click',()=>run(async()=>{if(pending.has('next'))return;pending.add('next');dynamicHoldUntil=Date.now()+1000;islandController?.hold('next picks',true);try{let result=await api.next(state.feed?.epoch);if(result.state)adopt(result.state);if(result.reason==='stale'){result=await api.next(state.feed?.epoch);if(result.state)adopt(result.state);}pair=0;selectedId=repos()[0]?.id??null;render();if(result.changed)undoToast(result.revisited?'Showing earlier picks.':'New picks are ready.');else if(result.reason!=='stale')toast(repos().length&&state.feed?.matchingCount<=repos().length?'All matching projects are on screen.':'No other picks match your filters and exclusions.');}finally{pending.delete('next');islandController?.hold('next picks',false);}}));
+function renderPagination(){
+ const remaining=state.feed?.manualRemaining;
+ const loading=pending.has('next');
+ $('next').disabled=loading||!state.catalogSize||remaining===0;
+ $('next').setAttribute('aria-busy',String(loading));
+ $('nextStatus').textContent=remaining===0&&state.catalogSize?(repos().length?'All matching picks shown':'No matching picks'):
+  remaining>0?Intl.NumberFormat().format(remaining)+' left':'';
+}
+$('next').addEventListener('click',()=>run(async()=>{
+ if(pending.has('next')||!state.catalogSize)return;
+ pending.add('next');
+ manualPaging=true;
+ renderPagination();
+ islandController?.hold('next picks',true);
+ try{
+  let result;
+  for(let attempt=0;attempt<2;attempt++){
+   result=await api.next(state.feed?.epoch);
+   if(result.state)adopt(result.state);
+   if(result.reason!=='stale')break;
+  }
+  if(!result.changed){render();return;}
+  $('feed').scrollTop=0;
+  pair=0;
+  selectedId=repos()[0]?.id??null;
+  render();
+  undoToast(result.count===1?'1 project shown.':result.count+' projects shown.');
+ }finally{
+  pending.delete('next');
+  renderPagination();
+  islandController?.hold('next picks',false);
+ }
+}));
+
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>run(()=>openDrawer(b.dataset.tab))));
 document.addEventListener('visibilitychange',()=>{if(document.hidden){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}});
 for(const query of ['(prefers-reduced-motion: reduce)','(prefers-color-scheme: dark)'])matchMedia(query).addEventListener('change',render);

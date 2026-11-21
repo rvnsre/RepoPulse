@@ -262,7 +262,7 @@ function attachIpc(){
   if(!await confirm(kind==='cache'?'Replace cached catalog?':'Clear discovery history and rebuild?','Your bookmarks and personal workspace will be preserved.'))return snapshot();
   store.update(s=>{
    if(kind==='cache'){s.cache=[];s.catalogInfo=null;s.starSamples={};s.releaseMetadata={};discovery.bootstrap(s);}
-   else{s.seen=[];s.seenHistory=[];s.presentedAt={};discovery.present(s);}
+   else{s.seen=[];s.seenHistory=[];s.presentedAt={};delete s.manualVisited;discovery.present(s);}
    s.lastRotation=null;
   });
   emit();return snapshot();

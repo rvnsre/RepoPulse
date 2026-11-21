@@ -124,3 +124,36 @@ test('Manual Next Picks preserves the existing page if every matching repo is vi
  assert.equal(D.nextBatch(s,now+1,{manualBrowse:true}).changed,false);
  assert.deepEqual(s.daily.repos.map(r=>r.id),before);
 });
+
+test('Manual paging consumes the whole eligible pool without repeats, including after restart',()=>{
+ let s=state(Array.from({length:22},(_,i)=>repo(i+1)));
+ const seen=new Set(s.daily.repos.map(r=>r.id));
+ for(let page=0;page<7;page++){
+  const result=D.nextBatch(s,now+page+1,{manualBrowse:true});
+  assert.equal(result.count,page===6?1:3);
+  for(const r of s.daily.repos){assert.ok(!seen.has(r.id));seen.add(r.id);}
+  if(page===2){s=D.initialize(JSON.parse(JSON.stringify(s)));D.present(s,now+page+1);}
+ }
+ assert.equal(seen.size,22);
+ assert.equal(s.feed.manualRemaining,0);
+ assert.equal(D.nextBatch(s,now+2*s.settings.cooldownWindowMs,{manualBrowse:true}).changed,false);
+ assert.equal(s.daily.repos.length,1);
+ D.present(s,now+2*s.settings.cooldownWindowMs);
+ assert.equal(s.daily.repos.length,1);
+ s.cache.push(repo(23));
+ D.present(s,now+2*s.settings.cooldownWindowMs);
+ assert.equal(s.feed.manualRemaining,1);
+ assert.equal(D.nextBatch(s,now+2*s.settings.cooldownWindowMs,{manualBrowse:true}).id,23);
+});
+
+test('Manual paging remembers prior picks through Undo and repository ID or name changes',()=>{
+ const s=state(Array.from({length:15},(_,i)=>repo(i+1)));
+ D.nextBatch(s,now+1,{manualBrowse:true});
+ const [first,second]=s.daily.repos;
+ assert.equal(D.undo(s,now+2),true);
+ s.cache=s.cache.map(r=>r.id===first.id?{...r,full_name:'owner/renamed'}:r.id===second.id?{...r,id:42}:r);
+ for(let i=0;i<6;i++){
+  if(!D.nextBatch(s,now+3+i,{manualBrowse:true}).changed)break;
+  assert.ok(s.daily.repos.every(r=>r.id!==first.id&&r.id!==42));
+ }
+});
