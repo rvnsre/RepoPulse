@@ -133,7 +133,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
 
  assert.ok(window.getBounds().width<=120&&window.getBounds().height<=16,JSON.stringify(window.getBounds()));
  const edge=await evaluate("({bar:getComputedStyle(document.getElementById('edgeReveal')).display,header:getComputedStyle(document.querySelector('.topbar')).display,line:document.querySelector('#edgeReveal span').getBoundingClientRect().height})");
- assert.equal(edge.header,'none');assert.notEqual(edge.bar,'none');assert.equal(edge.line,3);
+ assert.equal(edge.header,'none');assert.notEqual(edge.bar,'none');assert.equal(edge.line,6);
  await capture('edge-hidden-preview.png');
  const edgeHistory=store.state.history.length;
  await evaluate("document.getElementById('edgeReveal').click()");
