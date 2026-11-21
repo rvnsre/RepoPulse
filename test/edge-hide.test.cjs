@@ -22,7 +22,13 @@ test('The compact native pill rounds both ends while Advanced remains flush at t
  assert.equal(panel[0].width,920);
  assert.ok(panel.at(-1).width<920);
 });
-test('Morphs account separately for expanded padding and the edge handle zero padding',()=>{const area={x:0,y:0,width:1920,height:1080},panel=L.bounds(area,{},'panel'),small=L.bounds(area,{},'collapsed');for(const value of [M.transform(panel,small,8,0),M.transform(small,panel,0,8)])assert.ok(!/NaN|Infinity/.test(value));});
+test('The visible 68×5 indicator is the endpoint of the morph on the same center line',()=>{
+ const area={x:0,y:0,width:1920,height:1080};
+ const panel=L.bounds(area,{},'panel'),small=M.revealBounds(L.bounds(area,{},'collapsed'));
+ assert.deepEqual(small,{x:926,y:2,width:68,height:5});
+ assert.match(M.transform(panel,small,8,0),/^translate\(0px,2px\) scale\(/);
+ assert.match(M.transform(small,panel,0,8),/^translate\(0px,-2px\) scale\(/);
+});
 test('A delayed reveal is cancelled immediately on a real pointer exit',()=>{let task,expanded=0;const c=new Controller({setTimer:fn=>{task=fn;return 1;},clearTimer:()=>{task=null;},onExpand:()=>expanded++});c.configure({hoverExpand:true,hoverDelay:80},'collapsed');c.enter();c.leave();assert.equal(task,null);assert.equal(expanded,0);c.destroy();});
 
 for(const operation of ['refresh','opening','next picks'])test('Pending '+operation+' does not pin the panel after pointer exit',()=>{let next=0;const tasks=new Map(),events=[];const c=new Controller({setTimer:fn=>{tasks.set(++next,fn);return next;},clearTimer:id=>tasks.delete(id),onCollapse:r=>events.push(r)});c.configure({autoHide:true,collapseOnLeave:true,hideDelay:80,keepOnFocus:false});c.enter();c.hold(operation,true);c.leave();assert.ok(c.timers.leave!==undefined);tasks.get(c.timers.leave)();assert.deepEqual(events,['leave']);c.destroy();});

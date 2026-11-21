@@ -76,13 +76,14 @@ async function windowMode(){
  fitKey='';const serial=++transition,currentTransform=getComputedStyle($('island')).transform;
  rootAnimation?.cancel();hoverAnimation?.cancel();morphing=true;
  const node=$('island'),mode=miniOpen?'mini':insightOpen?'insight':expanded?(drawer?'workspace':'panel'):'collapsed',before=pointerBounds||state.windowBounds;
+ const surfacePadding=state.windowPolicy?.padding??8,fromHidden=before?.height<=16;
  const duration=IslandMorph.duration(state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches);
  islandController?.configure(state.settings,mode==='mini'?'panel':mode);
  try{
   if(mode==='collapsed'&&before&&canAnimate()&&api.previewBounds){
    const target=await api.previewBounds(mode);if(serial!==transition)return;
    rootAnimation=node.animate([{transform:currentTransform==='none'?'none':currentTransform,opacity:1},
-    {transform:IslandMorph.transform(before,target,state.windowPolicy?.padding??8,0),opacity:.15}],
+    {transform:IslandMorph.transform(before,IslandMorph.revealBounds(target),surfacePadding,0),opacity:.15}],
     {duration:Math.min(160,duration),easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'});
    try{await rootAnimation.finished;}catch{}if(serial!==transition)return;
   }
@@ -90,7 +91,7 @@ async function windowMode(){
   applyMode();ultimateStatus();if(!expanded)compactProtectedEntry=false;
   updatePointerBounds(reply?.bounds);rootAnimation?.cancel();if(drawer)renderDrawer(false);
   if(mode!=='collapsed'&&before&&reply?.bounds&&canAnimate()){
-   rootAnimation=node.animate([{transform:IslandMorph.transform(reply.bounds,before,state.windowPolicy?.padding??8,before.height<=16?0:state.windowPolicy?.padding??8),opacity:.85},
+   rootAnimation=node.animate([{transform:IslandMorph.transform(reply.bounds,fromHidden?IslandMorph.revealBounds(before):before,surfacePadding,fromHidden?0:surfacePadding),opacity:.85},
     {transform:'none',opacity:1}],{duration,easing:'cubic-bezier(.16,1,.3,1)'});
    try{await rootAnimation.finished;}catch{}if(serial!==transition)return;rootAnimation.cancel();
   }

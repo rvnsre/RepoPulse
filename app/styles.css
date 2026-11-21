@@ -282,7 +282,7 @@ button:not(:disabled):is(.row-extra button, .row-actions button, .foot-actions b
   content: "";
 }
 .code-block pre { margin: 0; min-width: 0; max-height: 5em; padding: 3px 5px; overflow: auto; scrollbar-width: thin; font: calc(13px * var(--s))/1.5 "Cascadia Mono", Consolas, monospace; white-space: pre; }
-.wrap-code .detail-columns pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.wrap-code .detail-columns .code-block:not(.smart-code) pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .command-hint { color: var(--muted); font-size: calc(11px * var(--s)); overflow-wrap: anywhere; }
 .download-link { align-self: flex-start; margin-top: auto; }
 .download-link, .copy-command { min-height: 26px; padding: 3px 6px; font-size: calc(11px * var(--s)); }
@@ -511,7 +511,7 @@ body.rss-dark {
 
 
 /* The three island surfaces share a fixed top-center transform origin. */
-body:not(.workspace-open):not(.insight-open) .island {
+body:not(.workspace-open):not(.insight-open):not(.collapsed) .island {
   color-scheme: dark;
   --ink: #fff;
   --accent: #fff;
@@ -597,6 +597,7 @@ body.mini-open:not(.workspace-open):not(.insight-open) .island {
   font-size: calc(11.5px * var(--s));
   line-height: 1.35;
 }
+body[data-scale="130"] #miniSummary, body[data-scale="150"] #miniSummary { -webkit-line-clamp: 2; }
 #miniLink {
   display: grid;
   place-items: center;

@@ -4,6 +4,12 @@ const {destination,ReleaseClient}=require('../src/navigation.cjs'),{bounds}=requ
 const repo=require('./fixtures.cjs')[0];
 test('Learn More opens the exact repository; Guide is explicit',()=>{assert.equal(destination(repo,'learn'),'https://github.com/'+repo.full_name);assert.equal(destination(repo,'readme'),'https://github.com/'+repo.full_name+'#readme');});
 test('Install requires verified public releases and never falls back to README',()=>{assert.equal(destination(repo,'releases'),null);assert.equal(destination(repo,'releases',{available:false}),null);assert.equal(destination(repo,'releases',{available:true}),'https://github.com/'+repo.full_name+'/releases');});
+test('The compact shortcut opens the verified tag or the appropriate Releases page',()=>{
+ const releases='https://github.com/'+repo.full_name+'/releases';
+ assert.equal(destination(repo,'latest-release',{tag:'release/v2.8'}),releases+'/tag/release%2Fv2.8');
+ assert.equal(destination(repo,'latest-release',{tag:null,checkedAt:'2026-11-21T00:00:00Z'}),releases);
+ assert.equal(destination(repo,'latest-release'),releases+'/latest');
+});
 test('Navigation rejects invalid repository and arbitrary action',()=>{assert.throws(()=>destination({full_name:'../evil'},'learn'));assert.throws(()=>destination(repo,'https://evil.test'));});
 const response=data=>({ok:true,json:async()=>data});
 test('Release metadata is cached, expires and can be refreshed',async()=>{let calls=0,time=0;const c=new ReleaseClient({fetchImpl:async url=>{calls++;assert.ok(url.endsWith('/releases?per_page=5'));return response([{tag_name:'v1',draft:false}]);},now:()=>time,ttl:20});assert.equal((await c.get(repo)).tag,'v1');await c.get(repo);assert.equal(calls,1);time=21;await c.get(repo);assert.equal(calls,2);await c.get(repo,true);assert.equal(calls,3);});
