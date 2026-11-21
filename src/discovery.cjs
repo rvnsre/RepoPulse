@@ -50,7 +50,7 @@ function identityIndex(repos) {
  const ids=new Set(repos.map(repo=>repo.id)),names=new Set(repos.map(canonicalKey));
  return repo=>ids.has(repo.id)||names.has(canonicalKey(repo));
 }
-function feedPools(state,visible,now,pool=filteredCatalog(state.cache,state,now),day=state.daily?.day||localDay()) {
+function feedPools(state,visible,now,pool=filteredCatalog(state.cache,state,now),day=state.daily?.day||localDay(),priorRanking) {
  const isVisible=identityIndex(visible),isBookmarked=identityIndex(state.saved||[]);
  const seen=new Set(state.seen||[]),recentIds=new Map(),recentNames=new Map();
  for(const entry of state.seenHistory||[]){
@@ -59,13 +59,14 @@ function feedPools(state,visible,now,pool=filteredCatalog(state.cache,state,now)
  }
  const prefs=settings(state.settings);
  const lastSeen=repo=>Math.max(recentIds.get(repo.id)||0,recentNames.get(canonicalKey(repo))||0,Number(state.presentedAt?.[repo.id])||0);
- const available=ranked(pool,state.profile?.weights||{},day).filter(repo=>!isVisible(repo));
+ const ranking=priorRanking||ranked(pool,state.profile?.weights||{},day);
+ const available=ranking.filter(repo=>!isVisible(repo));
  const unseen=available.filter(repo=>!seen.has(repo.id)&&!lastSeen(repo)&&!isBookmarked(repo));
  const replay=unseen.length?[]:available.filter(repo=>{
   const last=lastSeen(repo);
   return last>0?now-last>=prefs.cooldownWindowMs:!seen.has(repo.id);
  }).sort((a,b)=>lastSeen(a)-lastSeen(b)||b.score-a.score);
- return {available,unseen,replay};
+ return {ranking,available,unseen,replay};
 }
 function manualPool(state,pool,visible) {
  const skipped=(state.seenHistory||[]).filter(entry=>entry.action==='skipped');
@@ -105,9 +106,8 @@ function markPresented(state,repos,now) {
   recordAction(state,repo,'shown',now);
  }
 }
-function saveFeed(state,now,phase='ready',bump=true) {
- const pool=filteredCatalog(state.cache,state,now);
- const {unseen,replay}=feedPools(state,state.daily?.repos||[],now,pool);
+function saveFeed(state,now,phase='ready',bump=true,pool=filteredCatalog(state.cache,state,now),ranking) {
+ const {unseen,replay}=feedPools(state,state.daily?.repos||[],now,pool,state.daily?.day,ranking);
  state.feed={schemaVersion:1,phase,epoch:(state.feed?.epoch||0)+Number(bump),visibleIds:(state.daily?.repos||[]).map(repo=>repo.id),queueIds:unseen.map(repo=>repo.id),hasReplay:replay.length>0,matchingCount:pool.length,manualRemaining:manualPool(state,pool,state.daily?.repos||[]).length};
  return state.feed;
 }
@@ -127,7 +127,7 @@ function advance(state,index,now) {
  const filtered=filteredCatalog(state.cache,state,now);
  const previous=hydrate(filtered,before?.repos||[]);
  const day=before?.day||localDay();
- const {unseen,replay}=feedPools(state,previous,now,filtered,day);
+ const {ranking,unseen,replay}=feedPools(state,previous,now,filtered,day);
  const chosen=(unseen.length?unseen:replay).slice(0,index===null?PAGE_SIZE:1);
  if(!chosen.length){
   if(JSON.stringify(previous.map(repo=>repo.id))!==JSON.stringify(before?.repos?.map(repo=>repo.id))){
@@ -144,7 +144,7 @@ function advance(state,index,now) {
  state.lastRotation={day,repos:previous};
  state.daily={day,repos};
  markPresented(state,chosen,now);
- saveFeed(state,now,revisited?'rebuilding':'ready');
+ saveFeed(state,now,revisited?'rebuilding':'ready',true,filtered,ranking);
  return {changed:true,count:chosen.length,revisited,browsing:false,id:chosen[0].id,index};
 }
 function nextBatch(state,now=Date.now(),{manualBrowse=false}={}) {
@@ -153,7 +153,9 @@ function nextBatch(state,now=Date.now(),{manualBrowse=false}={}) {
  const previous=hydrate(pool,state.daily?.repos||[]);
  const remaining=manualPool(state,pool,previous);
  if(!remaining.length)return {changed:false,exhausted:true,reason:'exhausted'};
- const {available,unseen}=feedPools(state,previous,now,remaining,day);
+ const ordered=ranked(pool,state.profile?.weights||{},day);
+ const matches=identityIndex(remaining);
+ const {available,unseen}=feedPools(state,previous,now,remaining,day,ordered.filter(matches));
  const newPick=identityIndex(unseen);
  const chosen=[...unseen,...available.filter(repo=>!newPick(repo))].slice(0,PAGE_SIZE);
  state.manualVisited??=[];
@@ -162,7 +164,7 @@ function nextBatch(state,now=Date.now(),{manualBrowse=false}={}) {
  state.lastRotation={day,repos:previous};
  state.daily={day,repos:chosen};
  markPresented(state,chosen,now);
- saveFeed(state,now);
+ saveFeed(state,now,'ready',true,pool,ordered);
  return {changed:true,count:chosen.length,revisited:chosen.some(repo=>!newPick(repo)),browsing:true,id:chosen[0].id,index:null};
 }
 function rotate(state,id,now=Date.now()) {
