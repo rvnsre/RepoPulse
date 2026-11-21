@@ -77,6 +77,6 @@ test('Watchlist exports official release feed URLs and only matching release met
 test('Dynamic Island is wider and taller than the hidden edge handle and fits a small display',()=>{
  const area={x:20,y:30,width:400,height:260};
  const compact=bounds(area,{},'mini'),hidden=bounds(area,{},'collapsed');
- assert.equal(compact.height,86);
+ assert.equal(compact.height,74);
  assert.ok(compact.width>hidden.width&&compact.x>=area.x&&compact.x+compact.width<=area.x+area.width);
 });

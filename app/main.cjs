@@ -23,10 +23,20 @@ let window,store,tray,timer,refreshPromise,quitting=false,mode='panel',lastError
 const opening=new Map(),smokeMode=!app.isPackaged&&process.argv.includes('--smoke-test');
 if(smokeMode&&process.platform==='linux')app.disableHardwareAcceleration();
 const singleton=app.requestSingleInstanceLock();if(!singleton)app.quit();
-function snapshot(){const s=store.state;return {license:license?.snapshot()||{active:false,status:'free'},plusRepos:license?.snapshot().active?watchlist.list(s.plusRepos,s.cache):[],catalogPolicy:require('../src/catalog-policy.cjs'),windowPolicy:{...windowPolicy,options:undefined},shortcutAvailable,trayAvailable,insight,contextStatus:context.status,windowMode:mode,windowBounds:window?.getBounds(),workspace:s.workspace,catalog:[...new Map([...s.cache,...s.saved,...Object.values(s.workspace?.records||{}).map(r=>r.repo)].map(r=>[r.id,r])).values()],analytics:workspace.analytics(s.history,s.workspace),revision,rateLimitUntil:github?.retryAt()||0,githubTokenConfigured:github?.configured()||false,feed:s.feed,releaseMetadata:s.releaseMetadata,starTrends:Object.fromEntries((s.daily?.repos||[]).map(repo=>[repo.id,{velocity:velocity(s.starSamples?.[repo.id]),baseline:Array.isArray(s.starSamples?.[repo.id])?s.starSamples[repo.id].at(-1)?.dateUtc??null:null}])),daily:s.daily,saved:s.saved,history:s.history,settings:s.settings,profile:s.profile,topics:TOPICS,cacheAt:s.cacheAt,catalogSize:s.cache.length,catalogInfo:s.catalogInfo||null,languages:[...new Set(s.cache.map(r=>r.language).filter(Boolean))].sort(),blockedOwners:s.blockedOwners,snoozedCount:Object.values(s.snoozed).filter(t=>t>Date.now()).length,canUndo:!!s.lastRotation&&s.lastRotation.day===localDay(),lastError,version:app.getVersion(),platform:process.platform,arch:process.arch,recoveryNotice:s.recoveryNotice||null,...(smokeMode?{lastExternal,fixture:true}:{}),exclusions:{hidden:s.hidden.map(id=>({id,name:findRepo(id)?.full_name||String(id)})),snoozed:Object.entries(s.snoozed).filter(([,until])=>until>Date.now()).map(([id,until])=>({id:Number(id),name:findRepo(Number(id))?.full_name||id,until})),owners:s.blockedOwners}};}
+const {release:osRelease}=require('node:os');
+const systemLabel=(()=>{
+ const release=osRelease();
+ if(process.platform==='win32'){
+  const build=Number(release.split('.')[2]);
+  return 'Windows '+(build>=22000?'11':release.startsWith('10.')?'10':release)+(build?' (build '+build+')':'');
+ }
+ if(process.platform==='darwin')return 'macOS '+(process.getSystemVersion?.()||release);
+ return process.platform==='linux'?'Linux '+release:process.platform+' '+release;
+})();
+function snapshot(){const s=store.state;return {license:license?.snapshot()||{active:false,status:'free'},plusRepos:license?.snapshot().active?watchlist.list(s.plusRepos,s.cache):[],catalogPolicy:require('../src/catalog-policy.cjs'),windowPolicy:{...windowPolicy,options:undefined},shortcutAvailable,trayAvailable,insight,contextStatus:context.status,windowMode:mode,windowBounds:window?.getBounds(),workspace:s.workspace,catalog:[...new Map([...s.cache,...s.saved,...Object.values(s.workspace?.records||{}).map(r=>r.repo)].map(r=>[r.id,r])).values()],analytics:workspace.analytics(s.history,s.workspace),revision,rateLimitUntil:github?.retryAt()||0,githubTokenConfigured:github?.configured()||false,feed:s.feed,releaseMetadata:s.releaseMetadata,starTrends:Object.fromEntries((s.daily?.repos||[]).map(repo=>[repo.id,{velocity:velocity(s.starSamples?.[repo.id]),baseline:Array.isArray(s.starSamples?.[repo.id])?s.starSamples[repo.id].at(-1)?.dateUtc??null:null}])),daily:s.daily,saved:s.saved,history:s.history,settings:s.settings,profile:s.profile,topics:TOPICS,cacheAt:s.cacheAt,catalogSize:s.cache.length,catalogInfo:s.catalogInfo||null,languages:[...new Set(s.cache.map(r=>r.language).filter(Boolean))].sort(),blockedOwners:s.blockedOwners,snoozedCount:Object.values(s.snoozed).filter(t=>t>Date.now()).length,canUndo:!!s.lastRotation&&s.lastRotation.day===localDay(),lastError,version:app.getVersion(),platform:process.platform,arch:process.arch,systemLabel,recoveryNotice:s.recoveryNotice||null,...(smokeMode?{lastExternal,fixture:true}:{}),exclusions:{hidden:s.hidden.map(id=>({id,name:findRepo(id)?.full_name||String(id)})),snoozed:Object.entries(s.snoozed).filter(([,until])=>until>Date.now()).map(([id,until])=>({id:Number(id),name:findRepo(Number(id))?.full_name||id,until})),owners:s.blockedOwners}};}
 function emit(){revision++;if(window&&!window.isDestroyed())window.webContents.send('state:changed',snapshot());}
 function findRepo(id){return [...(store.state.daily?.repos||[]),...store.state.saved,...store.state.cache,...(store.state.plusRepos||[]),...store.state.history.map(h=>h.repo),...Object.values(store.state.workspace?.records||{}).map(r=>r.repo)].find(r=>r?.id===id);}
-let lastShape='';function applyWindowShape(){if(!window||window.isDestroyed())return;if(process.platform==='darwin')window.invalidateShadow();if(process.platform!=='linux'||windowPolicy.nativeWayland||windowPolicy.transparent)return;const b=window.getBounds(),key=b.width+':'+b.height+':'+mode;if(key===lastShape)return;try{window.setShape(dockShape(b.width,b.height,mode==='collapsed'||mode==='mini'));windowPolicy.shaped=true;lastShape=key;}catch{windowPolicy.shaped=false;}}
+let lastShape='';function applyWindowShape(){if(!window||window.isDestroyed())return;if(process.platform==='darwin')window.invalidateShadow();if(process.platform!=='linux'||windowPolicy.nativeWayland||windowPolicy.transparent)return;const b=window.getBounds(),key=b.width+':'+b.height+':'+mode;if(key===lastShape)return;try{window.setShape(dockShape(b.width,b.height,mode));windowPolicy.shaped=true;lastShape=key;}catch{windowPolicy.shaped=false;}}
 function resize(next='panel',anchor=false,requestId=null,height=null){
  mode=next===false||next==='collapsed'?'collapsed':next==='mini'?'mini':next==='insight'?'insight':next==='workspace'?'workspace':'panel';if(!window)return;
  const area=(windowAnchor?screen.getDisplayNearestPoint({x:Math.round(windowAnchor.cx),y:Math.round(windowAnchor.y)}):screen.getDisplayMatching(window.getBounds())).workArea,current=window.getBounds();
@@ -108,13 +118,14 @@ function recordOpen(id){
 async function openRepo(id,kind='repository'){
  if(!Number.isSafeInteger(id))throw new Error('Invalid repository');
  const repo=findRepo(id);if(!repo)throw new Error('Repository is no longer available.');
- if(!['repository','learn','releases','readme','issues','pulls','discussions','wiki','actions','contributors','license','commits','tags','forks','stargazers','feed'].includes(kind))throw new Error('Unsupported repository action.');
+ if(!['repository','learn','releases','readme','issues','pulls','discussions','wiki','actions','contributors','license','commits','tags','forks','stargazers','feed','latest-release'].includes(kind))throw new Error('Unsupported repository action.');
  const key=id+':'+kind;
  if(opening.has(key)){await opening.get(key);return snapshot();}
  const task=(async()=>{
   const release=kind==='releases'?await releaseClient.get(repo):null;
   if(kind==='releases'&&release.available!==true)throw new Error(release.available===false?'No public release is available for this repository. Use Guide for setup instructions.':release.error||'Release availability could not be checked. Try again.');
-  const url=destination(repo,kind,release);
+  const cached=store.state.releaseMetadata?.[id];
+  const url=destination(repo,kind,kind==='latest-release'&&cached?.fullName===repo.full_name?cached:release);
   if(!smokeMode)await shell.openExternal(url);else lastExternal={url,kind,id};
   if(['repository','learn','releases'].includes(kind))recordOpen(id);
   emit();return snapshot();
@@ -263,7 +274,7 @@ function attachIpc(){
  handle('settings:set',input=>{
   const previous=store.state.settings,next=discovery.settings({...previous,...input});
   if(next.launchAtLogin!==previous.launchAtLogin)configureLogin(app,next.launchAtLogin);
-  store.update(s=>{s.settings=next;discovery.present(s);});if(!next.screenContext)context={topic:null,status:'off'};else if(!previous.screenContext)void collectContext();keepOnTop();window.setOpacity(next.opacity/100);resize(mode,next.anchor!==previous.anchor);emit();return snapshot();
+  store.update(s=>{s.settings=next;discovery.present(s);});if(!next.screenContext)context={topic:null,status:'off'};else if(!previous.screenContext)void collectContext();keepOnTop();window.setOpacity(next.opacity/100);resize(mode,next.anchor!==previous.anchor,lastWindowRequest);emit();return snapshot();
  });
  handle('history:remove',(id,time)=>{if(!Number.isSafeInteger(id)||typeof time!=='string')throw new Error('Invalid history item');store.update(s=>{s.history=s.history.filter(h=>!(h.repo.id===id&&h.openedAt===time));});emit();return snapshot();});
  handle('exclusion:remove',(kind,value)=>{store.update(s=>{if(kind==='owner')s.blockedOwners=s.blockedOwners.filter(v=>v!==value);else if(kind==='hidden'&&Number.isSafeInteger(value)){s.hidden=s.hidden.filter(v=>v!==value);s.seen=s.seen.filter(v=>v!==value);}else if(kind==='snoozed'&&Number.isSafeInteger(value)){delete s.snoozed[value];s.seen=s.seen.filter(v=>v!==value);}else throw new Error('Invalid exclusion');discovery.present(s);});emit();return snapshot();});

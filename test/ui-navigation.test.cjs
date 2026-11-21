@@ -4,6 +4,12 @@ const {destination,ReleaseClient}=require('../src/navigation.cjs'),{bounds}=requ
 const repo=require('./fixtures.cjs')[0];
 test('Learn More opens the exact repository; Guide is explicit',()=>{assert.equal(destination(repo,'learn'),'https://github.com/'+repo.full_name);assert.equal(destination(repo,'readme'),'https://github.com/'+repo.full_name+'#readme');});
 test('Install requires verified public releases and never falls back to README',()=>{assert.equal(destination(repo,'releases'),null);assert.equal(destination(repo,'releases',{available:false}),null);assert.equal(destination(repo,'releases',{available:true}),'https://github.com/'+repo.full_name+'/releases');});
+test('The compact shortcut opens the verified tag or the appropriate Releases page',()=>{
+ const releases='https://github.com/'+repo.full_name+'/releases';
+ assert.equal(destination(repo,'latest-release',{tag:'release/v2.8'}),releases+'/tag/release%2Fv2.8');
+ assert.equal(destination(repo,'latest-release',{tag:null,checkedAt:'2026-11-21T00:00:00Z'}),releases);
+ assert.equal(destination(repo,'latest-release'),releases+'/latest');
+});
 test('Navigation rejects invalid repository and arbitrary action',()=>{assert.throws(()=>destination({full_name:'../evil'},'learn'));assert.throws(()=>destination(repo,'https://evil.test'));});
 const response=data=>({ok:true,json:async()=>data});
 test('Release metadata is cached, expires and can be refreshed',async()=>{let calls=0,time=0;const c=new ReleaseClient({fetchImpl:async url=>{calls++;assert.ok(url.endsWith('/releases?per_page=5'));return response([{tag_name:'v1',draft:false}]);},now:()=>time,ttl:20});assert.equal((await c.get(repo)).tag,'v1');await c.get(repo);assert.equal(calls,1);time=21;await c.get(repo);assert.equal(calls,2);await c.get(repo,true);assert.equal(calls,3);});
@@ -21,5 +27,5 @@ test('Text zoom clamps to readable supported presets',()=>{assert.equal(UI.textS
 test('Search combines words, language filters and deterministic sorting',()=>{const items=require('./fixtures.cjs');assert.equal(UI.search(items,'private ai','stars','Go')[0].id,1);assert.equal(UI.search(items,'private missing').length,0);const names=UI.search(items,'','name').map(r=>r.full_name);assert.deepEqual(names,[...names].sort((a,b)=>a.localeCompare(b)));assert.equal(items[0].id,1);});
 test('History can collapse duplicate visits and retains newest date',()=>{const items=[{repo,openedAt:'new'},{repo,openedAt:'old'}];assert.equal(UI.history(items).length,2);assert.equal(UI.history(items,true)[0].openedAt,'new');});
 test('Late IPC responses cannot roll back newer state',()=>{const current={revision:4};assert.equal(UI.accept(current,{revision:3}),current);assert.equal(UI.accept(current,{revision:5}).revision,5);});
-test('New appearance settings validate malformed persisted data',()=>{const s=settings({textScale:999,motion:'bad',visibleRows:99,panelWidth:12,shortcuts:'true'});assert.equal(s.textScale,100);assert.equal(s.motion,'system');assert.equal(s.visibleRows,2);assert.equal(s.panelWidth,960);assert.equal(s.shortcuts,true);});
+test('New appearance settings validate malformed persisted data',()=>{const s=settings({textScale:999,motion:'bad',visibleRows:99,panelWidth:12,shortcuts:'true'});assert.equal(s.textScale,100);assert.equal(s.motion,'system');assert.equal(s.visibleRows,2);assert.equal(s.panelWidth,920);assert.equal(s.shortcuts,true);});
 test('All supported appearance options survive settings migration',()=>{const input={textScale:150,motion:'none',visibleRows:3,panelWidth:1440,toastSeconds:8,showCommands:false,showDescriptions:false,showOwners:false,showReasons:true,wrapNames:false,codeWrap:false,shortcuts:false,exactStars:true,uniqueHistory:true,motionDuration:320};const s=settings(input);for(const [k,v]of Object.entries(input))assert.equal(s[k],v,k);});

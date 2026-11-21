@@ -46,49 +46,59 @@ function applyMode(){
  $('miniIsland').hidden=!miniOpen;document.body.classList.toggle('mini-open',miniOpen);
  $('expanded').hidden=!expanded||insightOpen||miniOpen;$('idleInsight').hidden=!insightOpen;$('drawer').hidden=!drawer;
  document.body.classList.toggle('collapsed',!expanded&&!insightOpen);document.body.classList.toggle('insight-open',insightOpen);document.body.classList.toggle('workspace-open',expanded&&drawer&&!insightOpen);
- $('edgeReveal').setAttribute('aria-expanded',String(expanded));$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));
+ $('edgeReveal').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));
 }
 function desiredHeight(){
  if(!expanded)return state.windowPolicy?.reveal?.height??16;
  if(drawer||insightOpen||miniOpen)return undefined;
- const feed=$('feed'),nodes=[...feed.querySelectorAll('.repo-slot')],style=getComputedStyle(feed);
- const height=IslandMorph.panelHeight({header:document.querySelector('.topbar').offsetHeight,
- heading:document.querySelector('.feed-heading').offsetHeight,
- footer:document.querySelector('footer').offsetHeight+$('notifications').offsetHeight,padding:state.windowPolicy?.padding??8,
- gap:parseFloat(style.rowGap)||12,count:state.settings.visibleRows||2,
- rows:nodes.map(n=>n.offsetHeight),empty:feed.querySelector('.empty')?.offsetHeight||210});
- const pane=$('advancedPane'),top=document.querySelector('.topbar').offsetHeight+document.querySelector('.feed-heading').offsetHeight,footer=document.querySelector('footer').offsetHeight+$('notifications').offsetHeight;
- if(pane.hidden)return height;
- const children=[...pane.children].filter(child=>!child.hidden);
- const content=children.reduce((sum,child)=>sum+child.offsetHeight,0)+(children.length>1?(parseFloat(getComputedStyle(pane).rowGap)||0):0);
- return Math.max(height,top+footer+Math.min(content+20,350)+(state.windowPolicy?.padding??8)+12);
+ const feed=$('feed'),style=getComputedStyle(feed),columns=Number(style.getPropertyValue('--feed-columns'))||1,rows=[];
+ [...feed.querySelectorAll('.repo-slot')].forEach((slot,index)=>{
+  const row=Math.floor(index/columns);
+  rows[row]=Math.max(rows[row]||0,slot.offsetHeight);
+ });
+ const island=$('island'),discovery=$('discoveryPanel'),px=(node,key)=>parseFloat(getComputedStyle(node)[key])||0;
+ const padding=(state.windowPolicy?.padding??8)+px(island,'borderBottomWidth')+
+  px(discovery,'paddingTop')+px(discovery,'paddingBottom');
+ return IslandMorph.panelHeight({
+  header:document.querySelector('.topbar').offsetHeight,
+  heading:0,footer:document.querySelector('footer').offsetHeight+$('notifications').offsetHeight,
+  padding:Math.max(0,padding-12),gap:parseFloat(style.rowGap)||0,count:state.settings.visibleRows,
+  rows,empty:feed.querySelector('.empty')?.offsetHeight||100
+ });
+}
+async function showMini(focus=false){
+ if(miniOpen)return;
+ miniOpen=true;expanded=true;insightOpen=false;drawer=false;
+ await windowMode();
+ if(focus&&miniOpen)$('miniExpand').focus({preventScroll:true});
 }
 async function windowMode(){
  fitKey='';const serial=++transition,currentTransform=getComputedStyle($('island')).transform;
  rootAnimation?.cancel();hoverAnimation?.cancel();morphing=true;
  const node=$('island'),mode=miniOpen?'mini':insightOpen?'insight':expanded?(drawer?'workspace':'panel'):'collapsed',before=pointerBounds||state.windowBounds;
+ const surfacePadding=state.windowPolicy?.padding??8,fromHidden=before?.height<=16;
  const duration=IslandMorph.duration(state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches);
  islandController?.configure(state.settings,mode==='mini'?'panel':mode);
  try{
   if(mode==='collapsed'&&before&&canAnimate()&&api.previewBounds){
    const target=await api.previewBounds(mode);if(serial!==transition)return;
    rootAnimation=node.animate([{transform:currentTransform==='none'?'none':currentTransform,opacity:1},
-    {transform:IslandMorph.transform(before,target,state.windowPolicy?.padding??8,0),opacity:.15}],
+    {transform:IslandMorph.transform(before,IslandMorph.revealBounds(target),surfacePadding,0),opacity:.15}],
     {duration:Math.min(160,duration),easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'});
    try{await rootAnimation.finished;}catch{}if(serial!==transition)return;
   }
+  const reply=await api?.expand({mode,requestId:serial});if(serial!==transition)return;
   applyMode();ultimateStatus();if(!expanded)compactProtectedEntry=false;
-  const reply=await api?.expand({mode,requestId:serial,height:desiredHeight()});if(serial!==transition)return;
   updatePointerBounds(reply?.bounds);rootAnimation?.cancel();if(drawer)renderDrawer(false);
   if(mode!=='collapsed'&&before&&reply?.bounds&&canAnimate()){
-   rootAnimation=node.animate([{transform:IslandMorph.transform(reply.bounds,before,state.windowPolicy?.padding??8,before.height<=16?0:state.windowPolicy?.padding??8),opacity:.85},
+   rootAnimation=node.animate([{transform:IslandMorph.transform(reply.bounds,fromHidden?IslandMorph.revealBounds(before):before,surfacePadding,fromHidden?0:surfacePadding),opacity:.85},
     {transform:'none',opacity:1}],{duration,easing:'cubic-bezier(.16,1,.3,1)'});
    try{await rootAnimation.finished;}catch{}if(serial!==transition)return;rootAnimation.cancel();
   }
  }finally{if(serial===transition){rootAnimation?.cancel();morphing=false;ultimateStatus();ultimateMagnify(!!islandController?.pointer);requestFit();}}
 }
 async function openDrawer(tab){miniOpen=false;insightOpen=false;if(tab==='library'&&section!=='library')uFilters.pinnedFirst=state.settings.pinnedFirst;section=tab;drawer=true;expanded=true;if(tab==='tune')draft={...state.profile.weights};search='';drawerStamp='';await windowMode();renderDrawer();}
-async function closeDrawer(){drawer=false;await windowMode();$('menu').focus({preventScroll:true});}
+async function closeDrawer(){drawer=false;await windowMode();$('toggle').focus({preventScroll:true});}
 function compact(number){return state?.settings.exactStars?Intl.NumberFormat('en').format(number):Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1}).format(number);}
 function commands(repo){const name=repo.full_name.split('/')[1];return{clone:'git clone https://github.com/'+repo.full_name+'.git',inspect:'git -C "'+name+'" status\ngit -C "'+name+'" log -1 --oneline'};}
 function choose(id){selectedId=id;document.querySelectorAll('.repo-row').forEach(row=>row.classList.toggle('selected',Number(row.dataset.repoId)===id));updateActions();if(drawer&&section==='details')renderDrawer(false);}
@@ -106,42 +116,26 @@ async function checkRelease(repo,force=false){
 function updateActions(){
  const repo=selected();
  const mini=UI.dockModel(repos(),selectedId);
- $('miniTitle').textContent=mini.title;
- $('miniSummary').textContent=mini.summary;
+ const metadata=state.releaseMetadata?.[mini.repo?.id],release=metadata?.fullName===mini.repo?.full_name?metadata:null;
+ const summary=release?.title&&release.title!==release.tag?release.title:mini.summary;
+ $('miniTitle').textContent=mini.repo?.full_name.split('/')[0]||'RepoPulse';
+ $('miniSummary').textContent=release?.tag?'Release '+release.tag+(summary?' · '+summary:''):mini.summary;
+ $('miniLink').disabled=!mini.repo;
+ const linkLabel=release?.tag?'Open '+release.tag+' on GitHub':release?'Open GitHub releases':'Open latest release on GitHub';
+ $('miniLink').title=linkLabel;
+ $('miniLink').setAttribute('aria-label',linkLabel);
  const avatar=$('miniAvatar'),id=String(mini.repo?.id||'');
- if(avatar.dataset.repo!==id){
-  avatar.dataset.repo=id;avatar.textContent=mini.repo?.full_name?.[0]?.toUpperCase()||'R';
-  if(mini.repo?.avatar_url&&!state.fixture){const img=el('img',{src:mini.repo.avatar_url,alt:'',referrerpolicy:'no-referrer'});img.addEventListener('error',()=>img.remove());avatar.append(img);}
+ const avatarKey=id+':'+(mini.repo?.avatar_url||'');
+ if(avatar.dataset.repo!==avatarKey){
+  avatar.dataset.repo=avatarKey;avatar.textContent=mini.repo?.full_name?.[0]?.toUpperCase()||'R';
+  if(mini.repo&&!state.fixture){const img=el('img',{src:mini.repo.avatar_url||'https://github.com/'+encodeURIComponent(mini.repo.full_name.split('/')[0])+'.png?size=88',alt:'',referrerpolicy:'no-referrer'});img.addEventListener('error',()=>img.remove());avatar.append(img);}
  }
  if($('workspaceContext'))$('workspaceContext').textContent=repo?.full_name||'Your discovery workspace';
  for(const row of document.querySelectorAll('.repo-row')){
   const id=Number(row.dataset.repoId),save=row.querySelector('[data-action="save"]'),saved=state.saved.some(item=>item.id===id);
   if(save){save.textContent=saved?'Bookmarked':'Bookmark';save.setAttribute('aria-pressed',String(saved));}
  }
- updateAdvanced(repos().find(item=>item.id===selectedId)||repos()[0]);
  updatePickRange();
-}
-function updateAdvanced(repo){
- const pane=$('advancedPane'),command=$('advancedCommand'),install=$('installSelected'),learn=$('learnSelected');
- pane.hidden=!repo;
- if(!repo){command.replaceChildren();delete command.dataset.repoId;return;}
- const show=state.settings.showCommands;
- command.hidden=!show;
- if(!show){command.replaceChildren();delete command.dataset.repoId;}
- else if(command.dataset.repoId!==String(repo.id)||!command.firstElementChild){
-  command.dataset.repoId=String(repo.id);command.replaceChildren(smartCode(repo));
- }
- install.disabled=releaseStates.get(repo.id)?.status==='checking';
- install.title=installPlan(repo).command?'Copy verified package command':'Open the release or project setup guide';
- learn.title='Open '+repo.full_name+' on GitHub';
-}
-function advancedRepo(){return repos().find(item=>item.id===selectedId)||repos()[0]||null;}
-async function installSelected(){
- const repo=advancedRepo();if(!repo)return;
- if(installPlan(repo).command)return copy(repo,'package');
- const release=await checkRelease(repo);
- if(release.available==null){toast(release.error||'Releases could not be checked.');return;}
- return openRepo(repo,release.available?'releases':'readme');
 }
 async function undoLast(){if(!state.canUndo)return;dynamicHoldUntil=Date.now()+1000;adopt(await api.undo());selectedId=repos()[0]?.id??null;render();toast('Previous picks restored.');}
 function undoToast(message){toast(message);if(!insightOpen&&state.canUndo)toastNotice.insertBefore(btn('Undo',undoLast,'toast-undo','Undo last replacement'),toastNotice.lastElementChild);}
@@ -190,18 +184,18 @@ function smartCode(repo){const block=el('div',{class:'code-block smart-code'}),t
 async function requestActivity(repo){if(!api.activity||activityPending.size>0||(activityStates.get(repo.id)?.expires||0)>Date.now())return;activityPending.add(repo.id);try{const entry=await api.activity(repo.id);activityStates.set(repo.id,{...entry,expires:Date.now()+(entry.status==='ready'?900000:60000)});if(activityStates.size>512)activityStates.delete(activityStates.keys().next().value);for(const node of document.querySelectorAll('[data-repo-id="'+repo.id+'"] .feed-activity'))fillActivity(repo,node);for(const code of document.querySelectorAll('[data-repo-id="'+repo.id+'"] .smart-code'))code.refresh?.();const row=document.querySelector('.repo-row[data-repo-id="'+repo.id+'"]');if(row){row.querySelector('.star-velocity').textContent=starTrend(repo);const action=row.querySelector('.row-install');if(action&&entry.install?.command)action.textContent='Copy install';}}catch(error){activityStates.set(repo.id,{status:'unavailable',error:error.message,expires:Date.now()+60000});}finally{activityPending.delete(repo.id);queueMicrotask(()=>{const next=repos().find(r=>(activityStates.get(r.id)?.expires||0)<=Date.now());if(next&&expanded&&!drawer)void requestActivity(next);});}}
 function row(repo,index){
  const article=el('article',{class:'repo-row','data-repo-id':String(repo.id),'aria-label':repo.full_name,tabindex:'-1'}),identity=el('div',{class:'repo-identity'}),title=el('div',{class:'identity-title'}),avatar=el('img',{class:'owner-avatar',src:state.fixture?'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32"%3E%3Ccircle cx="16" cy="16" r="16" fill="%23687285"/%3E%3C/svg%3E':repo.avatar_url||'https://github.com/'+encodeURIComponent(repo.full_name.split('/')[0])+'.png?size=64',alt:'','aria-hidden':'true',loading:'lazy',decoding:'async',referrerpolicy:'no-referrer'}),initial=el('span',{class:'avatar-fallback','aria-hidden':'true'},repo.full_name[0].toUpperCase());avatar.addEventListener('error',()=>{avatar.hidden=true;});
- const name=el('button',{class:'repo-name',type:'button', 'aria-label':'Select '+repo.full_name},repo.full_name.split('/')[1]);name.title=repo.full_name;name.addEventListener('click',()=>choose(repo.id));avatar.hidden=!!state.fixture||!state.settings.showOwners;initial.hidden=!state.settings.showOwners;title.append(initial,avatar,name);identity.append(title);
+ const name=el('button',{class:'repo-name',type:'button', 'aria-label':'Open '+repo.full_name+' on GitHub'},repo.full_name.split('/')[1]);name.title=repo.full_name;name.addEventListener('click',()=>run(()=>openRepo(repo)));avatar.hidden=!!state.fixture||!state.settings.showOwners;initial.hidden=!state.settings.showOwners;title.append(initial,avatar,name);identity.append(title);
  const meta=el('div',{class:'repo-meta'});meta.append(el('span',{title:Intl.NumberFormat('en').format(repo.stargazers_count)+' stars'},compact(repo.stargazers_count)+' stars'),el('span',{},repo.language||'Open source'));identity.append(meta);
  const activity=el('p',{class:'feed-activity'});fillActivity(repo,activity);identity.append(activity);
  const rate=el('p',{class:'star-velocity'},starTrend(repo));rate.title='Measured from local GitHub star-count observations; no estimate is fabricated.';identity.append(rate);
  const feedLink=btn('Release RSS ↗',()=>openRepo(repo,'feed'),'rss-link','Open official GitHub release Atom feed for '+repo.full_name);identity.append(feedLink);
- const extra=el('div',{class:'row-extra'}),save=btn(state.saved.some(r=>r.id===repo.id)?'Bookmarked':'Bookmark',()=>react(repo,'save'),'','Bookmark '+repo.full_name);save.dataset.action='save';extra.append(save,btn('Skip',()=>react(repo,'skip'),'','Skip this pick; Undo is available'));const badges=ultimateBadges(repo);if(badges)identity.append(badges);if(state.license?.active&&api.plusToggle){const watched=state.plusRepos?.some(item=>item.id===repo.id);const watch=btn(watched?'Watching':'Watch',async()=>{adopt(await api.plusToggle(repo.id));render();},'', 'Toggle RSS+ watchlist for '+repo.full_name);watch.setAttribute('aria-pressed',String(!!watched));extra.append(watch);}if(state.settings.showQuickActions!==false)identity.append(extra);
+ const extra=el('div',{class:'row-extra'}),save=btn(state.saved.some(r=>r.id===repo.id)?'Bookmarked':'Bookmark',()=>react(repo,'save'),'','Bookmark '+repo.full_name);save.dataset.action='save';extra.append(btn('Overview',()=>{choose(repo.id);return openDrawer('details');},'','Overview for '+repo.full_name),save,btn('Skip',()=>react(repo,'skip'),'','Skip this pick; Undo is available'));const badges=ultimateBadges(repo);if(badges)identity.append(badges);if(state.license?.active&&api.plusToggle){const watched=state.plusRepos?.some(item=>item.id===repo.id);const watch=btn(watched?'Watching':'Watch',async()=>{adopt(await api.plusToggle(repo.id));render();},'', 'Toggle RSS+ watchlist for '+repo.full_name);watch.setAttribute('aria-pressed',String(!!watched));extra.append(watch);}if(state.settings.showQuickActions!==false)identity.append(extra);
  const summary=el('div',{class:'repo-summary'});
  if(state.settings.showDescriptions)summary.append(el('p',{class:'repo-description'},repo.description));
  if(state.settings.showReasons)summary.append(el('p',{class:'repo-reason'},repo.reason||'A widely adopted project.'));
  identity.insertBefore(summary,extra.parentNode===identity?extra:null);
  article.append(identity);
- article.addEventListener('focusin',()=>choose(repo.id));article.addEventListener('pointerdown',()=>choose(repo.id));article.classList.toggle('selected',selectedId===repo.id);queueMicrotask(()=>void requestActivity(repo));return article;
+ article.addEventListener('contextmenu',event=>{event.preventDefault();choose(repo.id);run(()=>openDrawer('details'));});article.addEventListener('focusin',()=>choose(repo.id));article.addEventListener('pointerdown',()=>choose(repo.id));article.classList.toggle('selected',selectedId===repo.id);queueMicrotask(()=>void requestActivity(repo));return article;
 }
 function empty(title,body,action,label){const box=el('div',{class:'empty'});box.append(el('h2',{},title),el('p',{},body));if(action)box.append(btn(label,action,'secondary'));return box;}
 function rowKey(repo){return JSON.stringify([repo.full_name,repo.description,repo.stargazers_count,repo.language,repo.reason,state.settings.showCommands,state.settings.showDescriptions,state.settings.showOwners,state.settings.showReasons,state.settings.exactStars,state.settings.showQuickActions,state.settings.showBadges,!!state.license?.active,!!state.plusRepos?.some(item=>item.id===repo.id),state.workspace?.records?.[repo.id]]);}
@@ -250,6 +244,7 @@ function renderNow(){
  $('pinButton').setAttribute('aria-pressed',String(prefs.pinned));
  $('pinButton').title=prefs.pinned?'Turn off Always on top':'Turn on Always on top';
  if(!drawer&&!repos().some(r=>r.id===selectedId))selectedId=repos()[0]?.id??null;
+ $('systemInfo').textContent='SYS: '+(state.systemLabel||({win32:'Windows',darwin:'macOS',linux:'Linux'})[state.platform]||'Unknown OS');
  renderSync();if(expanded&&!drawer)for(const repo of repos())void requestActivity(repo);$('next').disabled=!state.catalogSize;
  dynamicSync();if(!canAnimate()){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}reconcile();updateActions();if(drawer)renderDrawer(false);requestFit();
  // Release checks are demand-driven: live rotation must not poll GitHub for every card.
@@ -260,7 +255,10 @@ function overview(root){const repo=selected();if(!repo){root.append(empty('Nothi
  heading(root,repo.full_name,[btn('Save',()=>react(repo,'save'),'secondary'),btn('Open repository',()=>openRepo(repo),'primary')]);root.append(el('p',{class:'intro'},repo.description),el('div',{class:'notice'},repo.reason||'Selected from the established open-source catalog.'));
  const release=releaseStates.get(repo.id);root.append(el('p',{class:'notice'},release?.available===true?'Public release available: '+release.tag:release?.available===false?'No public release. Use Guide to read setup instructions.':release?.error||'Release availability is checked before opening Install.'));const stats=el('div',{class:'stat-row'});for(const [value,label]of [[compact(repo.stargazers_count),'GitHub stars'],[repo.language||'Mixed','language'],[repo.license||'Not specified','license'],[repo.pushed_at?new Date(repo.pushed_at).toLocaleDateString():'Unknown','last push']]){const box=el('div',{class:'stat'});box.append(el('b',{},value),el('span',{},label));stats.append(box);}root.append(stats);
  const tags=el('div',{class:'stack'});(repo.topics||[]).slice(0,8).forEach(t=>tags.append(el('span',{class:'tag'},t)));root.append(tags);
- const columns=el('div',{class:'detail-columns'});columns.append(codeBlock(repo,'clone','Get source - not an installer'),codeBlock(repo,'inspect','After cloning - inspect locally'));root.append(columns);
+ if(state.settings.showCommands){
+  const columns=el('div',{class:'detail-columns','data-repo-id':String(repo.id)});
+  columns.append(smartCode(repo),codeBlock(repo,'inspect','Inspect a local clone'));root.append(columns);
+ }
  const actions=el('div',{class:'stack'});actions.append(btn('Install release',()=>openRepo(repo,'releases'),'primary'),btn('Retry release check',()=>checkRelease(repo,true),'secondary'),btn('Copy Markdown',()=>copy(repo,'markdown'),'secondary'),btn('Hide repository',()=>react(repo,'hide'),'secondary'),btn('Guide',()=>openRepo(repo,'readme'),'primary'),btn('Copy link',()=>copy(repo,'url'),'secondary'),btn('Snooze 7 days',()=>react(repo,'snooze'),'secondary'),btn('Hide this owner',()=>react(repo,'block'),'secondary danger'));ultimateDetails(root,repo);root.append(el('p',{class:'intro'},'Install opens public GitHub releases when a release exists. Learn More opens the repository directly. Guide opens its README. Commands are copied only.'),actions);
 }
 function collectionView(root,history=false){
@@ -297,11 +295,11 @@ setting(grid,'density','Density','','select',[['comfortable','Comfortable'],['co
  setting(display,'motion','Animation preference','System mode respects reduced motion.','select',[['system','Follow system'],['full','Animate'],['none','No animation']]);
  setting(display,'motionDuration','Animation speed','','select',[[80,'Instant'],[140,'Quick'],[220,'Balanced'],[320,'Relaxed']]);
  setting(display,'visibleRows','Panel height','','select',[[1,'Compact'],[2,'Balanced'],[3,'Roomy']]);
- setting(display,'panelWidth','Preferred panel width','Clamped to your monitor.','select',[[960,'960 px'],[1080,'1080 px'],[1280,'1280 px'],[1440,'1440 px']]);
+ setting(display,'panelWidth','Preferred panel width','Clamped to your monitor.','select',[[920,'920 px'],[1080,'1080 px'],[1280,'1280 px'],[1440,'1440 px']]);
  setting(display,'toastSeconds','Message duration','','select',[[3,'3 seconds'],[5,'5 seconds'],[8,'8 seconds']]);
  for(const [key,title,description]of [['showCommands','Show source commands','Hide code blocks for a calmer feed.'],['showDescriptions','Show descriptions','Keep or hide project summaries.'],['showReasons','Show relevance explanations','Explain why a project is recommended.'],['shortcuts','Keyboard shortcuts','Disable letter shortcuts if preferred.'],['exactStars','Exact star counts','Display full cached counts instead of compact notation.'],['uniqueHistory','Unique history view','Show only the newest visit per project.']])setting(display,key,title,description);
  root.append(el('h3',{class:'subheading'},'Appearance'),display,el('h3',{class:'subheading'},'Discovery and startup'),grid);
- const resets=el('div',{class:'stack'});resets.append(btn('Reset appearance',()=>changeSettings({textScale:100,motion:'system',motionDuration:80,visibleRows:2,panelWidth:960,showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,theme:'reference',density:'compact',opacity:100,reducedMotion:false}),'secondary'),btn('Reset feed filters',()=>changeSettings({minStars:50000,languages:[]}),'secondary'));root.append(resets);
+ const resets=el('div',{class:'stack'});resets.append(btn('Reset appearance',()=>changeSettings({textScale:100,motion:'system',motionDuration:80,visibleRows:2,panelWidth:920,showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,theme:'reference',density:'compact',opacity:100,reducedMotion:false}),'secondary'),btn('Reset feed filters',()=>changeSettings({minStars:50000,languages:[]}),'secondary'));root.append(resets);
  ultimateSettings(root);
  if(api.testNotification){
   const messages={shown:'Test notification sent.',requested:'Notification requested. Check your system notification center.',failed:'System notification failed. Check OS permissions for RepoPulse.',unavailable:'System notifications are unavailable.'};
@@ -378,7 +376,7 @@ function plusView(root){
 function renderDrawer(force=true){
  if(!state||!drawer)return;
  document.querySelectorAll('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===section);b.setAttribute('aria-current',b.dataset.tab===section?'page':'false');});
- const stamp=JSON.stringify([section,section==='history'?[state.settings.uniqueHistory,state.settings.exactStars]:section==='saved'?state.settings.exactStars:null,section==='details'?[selected(),releaseStates.get(selected()?.id)]:null,section==='saved'?state.saved:null,section==='history'?state.history:null,section==='tune'?state.profile:null,section==='settings'?[state.settings,state.githubTokenConfigured,state.saved.length,state.history.length,state.catalogSize]:null,section==='exclusions'?state.exclusions:null,section==='plus'?[state.license,state.plusRepos,selectedId]:null,['library','collections','compare','insights'].includes(section)?[state.workspace,state.saved,state.history,state.analytics]:null,section==='details'?state.workspace?.records?.[selected()?.id]:null]);
+ const stamp=JSON.stringify([section,section==='history'?[state.settings.uniqueHistory,state.settings.exactStars]:section==='saved'?state.settings.exactStars:null,section==='details'?[selected(),releaseStates.get(selected()?.id),state.settings.showCommands]:null,section==='saved'?state.saved:null,section==='history'?state.history:null,section==='tune'?state.profile:null,section==='settings'?[state.settings,state.githubTokenConfigured,state.saved.length,state.history.length,state.catalogSize]:null,section==='exclusions'?state.exclusions:null,section==='plus'?[state.license,state.plusRepos,selectedId]:null,['library','collections','compare','insights'].includes(section)?[state.workspace,state.saved,state.history,state.analytics]:null,section==='details'?state.workspace?.records?.[selected()?.id]:null]);
  if(!force&&stamp===drawerStamp)return;drawerStamp=stamp;
  $('drawer').dataset.view=section;const root=$('drawerContent'),active=document.activeElement,within=root.contains(active),key=within?(active.dataset.focusKey||active.id):null,scroll=root.scrollTop;
  let cursor=null;try{if(within&&typeof active.selectionStart==='number')cursor=[active.selectionStart,active.selectionEnd];}catch{}
@@ -387,13 +385,17 @@ function renderDrawer(force=true){
 }
 async function refresh(force=false){if(busy)return;busy=true;$('refresh').disabled=true;try{const result=await api.refresh(force);adopt(result.state);render();if(result.error)toast(result.error);else if(force)toast(result.state.cacheAt?'Catalog checked.':'Catalog metadata is unavailable.');}finally{busy=false;$('refresh').disabled=false;}}
 $('browseLibrary').addEventListener('click',()=>run(()=>openDrawer('library')));
-$('installSelected').addEventListener('click',()=>run(installSelected));
-$('learnSelected').addEventListener('click',()=>run(()=>{const repo=advancedRepo();if(repo)return openRepo(repo,'learn');}));
 $('plusButton').addEventListener('click',()=>run(()=>openDrawer('plus')));
-$('miniButton').addEventListener('click',()=>run(async()=>{miniOpen=true;insightOpen=false;expanded=true;drawer=false;await windowMode();$('miniExpand').focus({preventScroll:true});}));
-$('miniExpand').addEventListener('click',()=>run(async()=>{miniOpen=false;expanded=true;await windowMode();$('miniButton').focus({preventScroll:true});}));
-$('miniHide').addEventListener('click',()=>run(async()=>{miniOpen=false;expanded=false;await windowMode();}));
-$('toggle').addEventListener('click',()=>run(async()=>{insightOpen=false;expanded=!expanded;if(!expanded)drawer=false;await windowMode();}));
+$('miniButton').addEventListener('click',()=>run(()=>showMini(true)));
+$('miniExpand').addEventListener('click',()=>run(async()=>{
+ miniOpen=false;expanded=true;await windowMode();$('toggle').focus({preventScroll:true});
+}));
+$('miniIsland').addEventListener('click',event=>{if(event.target===$('miniIsland'))$('miniExpand').click();});
+$('miniLink').addEventListener('click',()=>run(async()=>{
+ const repo=repos().find(item=>item.id===selectedId)||repos()[0];
+ if(repo)await api.open(repo.id,'latest-release');
+}));
+$('toggle').addEventListener('click',()=>run(()=>drawer?closeDrawer():openDrawer('commands')));
 $('collapse').addEventListener('click',()=>run(async()=>{insightOpen=false;expanded=false;drawer=false;await windowMode();}));
 $('menu').addEventListener('click',()=>run(()=>drawer?closeDrawer():openDrawer('settings')));
 $('closeDrawer').addEventListener('click',()=>run(closeDrawer));
@@ -428,7 +430,7 @@ window.addEventListener('keydown',e=>{
  if(!api){$('feed').append(empty('RepoPulse desktop','Open this interface in the desktop app.'));return;}
  adopt(await api.state());draft={...state.profile.weights};selectedId=repos()[0]?.id??null;
  const stopState=api.onState(next=>{adopt(next);render();});
- const stopMode=api.onMode?.(message=>{const next=UI.externalMode(message);if(!next)return;if(message?.insight){state={...state,insight:message.insight};renderInsight();}if(message?.bounds)pointerBounds=message.bounds;const nextExpanded=next!=='collapsed',nextDrawer=next==='workspace',nextInsight=next==='insight',nextMini=next==='mini';if(nextExpanded===expanded&&nextDrawer===drawer&&nextInsight===insightOpen&&nextMini===miniOpen)return;transition++;rootAnimation?.cancel();hoverAnimation?.cancel();morphing=false;expanded=nextExpanded;drawer=nextDrawer;insightOpen=nextInsight;miniOpen=nextMini;applyMode();if(nextInsight&&canAnimate())$('idleInsight').animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:200,easing:'cubic-bezier(.16,1,.3,1)'});document.body.classList.toggle('collapsed',!expanded);document.body.classList.toggle('workspace-open',expanded&&drawer);$('expanded').hidden=!expanded||insightOpen||miniOpen;$('drawer').hidden=!drawer;$('toggle').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));islandController?.configure(state.settings,next==='mini'?'panel':next);if(next==='panel')islandController?.pause(1200);ultimateStatus();updatePointerBounds(pointerBounds);requestFit();if(drawer)renderDrawer(false);});
+ const stopMode=api.onMode?.(message=>{const next=UI.externalMode(message);if(!next||Number.isSafeInteger(message?.requestId)&&message.requestId<transition)return;if(message?.insight){state={...state,insight:message.insight};renderInsight();}if(message?.bounds)pointerBounds=message.bounds;const nextExpanded=next!=='collapsed',nextDrawer=next==='workspace',nextInsight=next==='insight',nextMini=next==='mini';if(nextExpanded===expanded&&nextDrawer===drawer&&nextInsight===insightOpen&&nextMini===miniOpen)return;transition++;rootAnimation?.cancel();hoverAnimation?.cancel();morphing=false;expanded=nextExpanded;drawer=nextDrawer;insightOpen=nextInsight;miniOpen=nextMini;applyMode();if(nextInsight&&canAnimate())$('idleInsight').animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:200,easing:'cubic-bezier(.16,1,.3,1)'});islandController?.configure(state.settings,next==='mini'?'panel':next);if(next==='panel')islandController?.pause(1200);ultimateStatus();updatePointerBounds(pointerBounds);requestFit();if(drawer)renderDrawer(false);});
  const observer=new ResizeObserver(()=>{requestFit();updatePickRange();});observer.observe($('island'));observer.observe($('notifications'));$('feed').addEventListener('scroll',()=>{updatePickRange();dynamicHoldUntil=Date.now()+1000;},{passive:true});const syncTimer=setInterval(renderSync,30000);window.addEventListener('beforeunload',()=>{observer.disconnect();clearInterval(syncTimer);clearTimeout(toastTimer);clearTimeout(releaseTimer);if(typeof stopState==='function')stopState();if(typeof stopMode==='function')stopMode();},{once:true});expanded=state.windowMode!=='collapsed';miniOpen=state.windowMode==='mini';drawer=state.windowMode==='workspace';applyMode();ultimateInit();render();if(state.recoveryNotice)toast(state.recoveryNotice);await refresh();
 })().catch(e=>toast(e.message));
 

@@ -37,33 +37,41 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
   if(name==='desktop-preview.png'){const encoded=png.toString('base64');for(let n=0;n<encoded.length;n+=4096)console.log('REPOPULSE_PREVIEW:'+encoded.slice(n,n+4096));}
  }
 
- const scroll=await evaluate(`(()=>{const f=document.getElementById('feed');return{client:f.clientHeight,total:f.scrollHeight,text:document.getElementById('pickRange').textContent,footerActions:document.querySelectorAll('footer .row-learn,footer #install,footer #learn').length};})()`);assert.ok(scroll.total>scroll.client);assert.equal(scroll.footerActions,0);assert.ok(scroll.text.includes('of 3'));
- await evaluate("document.getElementById('feed').scrollTop=9999");
- await until(()=>evaluate(`(()=>{const feed=document.getElementById('feed').getBoundingClientRect();const third=document.querySelectorAll('.repo-row')[2].getBoundingClientRect();return third.bottom<=feed.bottom+2&&third.top>=feed.top;})()`));
- assert.match(await evaluate("updatePickRange();document.getElementById('pickRange').textContent"),/3 of 3/);
- await evaluate("document.getElementById('feed').scrollTop=0;updatePickRange()");
+ const grid=await evaluate(`(()=>{const f=document.getElementById('feed'),rows=[...f.querySelectorAll('.repo-row')],boxes=rows.map(r=>r.getBoundingClientRect());return {
+  distinct:new Set(rows.map(r=>r.dataset.repoId)).size,columns:getComputedStyle(f).gridTemplateColumns.split(' ').length,
+  rowGap:getComputedStyle(f).rowGap,columnGap:getComputedStyle(f).columnGap,
+  inline:boxes[0].top===boxes[1].top&&boxes[0].left<boxes[1].left,
+  scope:document.querySelector('#systemInfo').textContent,third:boxes[2].bottom<=f.getBoundingClientRect().bottom+2
+ };})()`);
+ assert.deepEqual({...grid,scope:grid.scope.split(' ')[0]},{distinct:3,columns:2,rowGap:'32px',columnGap:'48px',inline:true,scope:'SYS:',third:true});
  await capture('desktop-preview.png');
  await evaluate("document.getElementById('miniButton').click()");
- await until(()=>evaluate("document.body.classList.contains('mini-open')&&!document.getElementById('miniIsland').hidden"));
- assert.equal(window.getBounds().height,86);
+ await until(()=>evaluate("!document.getElementById('miniIsland').hidden"));
+ assert.equal(window.getBounds().height,74);
+ assert.equal(window.getBounds().width,520);
+ const first=store.state.daily.repos[0],second=store.state.daily.repos[1];
+ const releaseUrl=require('../src/navigation.cjs').destination(first,'latest-release',store.state.releaseMetadata?.[first.id]);
+ await evaluate("document.getElementById('miniLink').click()");
+ await until(()=>snapshot().lastExternal?.kind==='latest-release');
+ assert.equal(snapshot().lastExternal.url,releaseUrl);
+ assert.equal(store.state.history.length,0,'The compact release shortcut does not replace an item');
+ assert.equal(await evaluate("document.getElementById('miniIsland').hidden"),false);
  await capture('dynamic-island-preview.png');
  await evaluate("document.getElementById('miniExpand').click()");
  await until(()=>evaluate("!document.body.classList.contains('mini-open')&&!document.getElementById('expanded').hidden"));
 
- const first=store.state.daily.repos[0],second=store.state.daily.repos[1];
- await evaluate(`window.originalRow=document.querySelector('.repo-row');document.querySelector('.row-extra button').focus();document.querySelector('.row-extra button').click()`);await until(()=>store.state.saved.length===1);await new Promise(r=>setTimeout(r,100));
+ await evaluate(`window.originalRow=document.querySelector('.repo-row');document.querySelector('[data-action=save]').focus();document.querySelector('[data-action=save]').click()`);await until(()=>store.state.saved.length===1);await new Promise(r=>setTimeout(r,100));
  assert.equal(await evaluate(`window.originalRow===document.querySelector('.repo-row')`),true,'Saving must retain the row DOM');
- const fonts=await evaluate(`({description:parseFloat(getComputedStyle(document.querySelector('.repo-description')).fontSize),code:parseFloat(getComputedStyle(document.querySelector('pre')).fontSize),overflow:document.documentElement.scrollWidth>innerWidth})`);
- assert.ok(fonts.description>=14);assert.ok(fonts.code>=13);assert.equal(fonts.overflow,false);
- await evaluate(`document.querySelector('#learnSelected').click()`);await until(()=>store.state.history.length===1);
- assert.equal(snapshot().lastExternal.url,'https://github.com/'+first.full_name);assert.equal(snapshot().lastExternal.kind,'learn');assert.notEqual(store.state.daily.repos[0].id,first.id);assert.equal(store.state.daily.repos[1].id,second.id);
+ const fonts=await evaluate(`({description:parseFloat(getComputedStyle(document.querySelector('.repo-description')).fontSize),heading:parseFloat(getComputedStyle(document.querySelector('.repo-name')).fontSize),overflow:document.documentElement.scrollWidth>innerWidth})`);
+ assert.deepEqual(fonts,{description:13,heading:29,overflow:false});
+ await evaluate(`document.querySelector('.repo-name').click()`);await until(()=>store.state.history.length===1);
+ assert.equal(snapshot().lastExternal.url,'https://github.com/'+first.full_name);assert.equal(snapshot().lastExternal.kind,'repository');assert.notEqual(store.state.daily.repos[0].id,first.id);assert.equal(store.state.daily.repos[1].id,second.id);
  await until(()=>evaluate(`!!document.querySelector('.toast-undo')`));await evaluate(`document.querySelector('.toast-undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
- await until(()=>evaluate(`document.querySelector('#advancedCommand').dataset.repoId==='${first.id}'&&!document.querySelector('#installSelected').disabled`));
- await evaluate("document.querySelector('#installSelected').click()");
+ await evaluate(`choose(${first.id});openDrawer('details')`);
+ await evaluate(`Array.from(document.querySelectorAll('#drawerContent button')).find(b=>b.textContent==='Install release').click()`);
  await until(()=>snapshot().lastExternal?.kind==='releases');
  assert.equal(snapshot().lastExternal.url,'https://github.com/'+first.full_name+'/releases');
  await until(()=>evaluate(`!!document.querySelector('.toast-undo')`));await evaluate(`document.querySelector('.toast-undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
- await until(()=>evaluate(`document.querySelector('.repo-row').dataset.repoId==='${first.id}'`));
  await evaluate(`document.getElementById('menu').click();document.querySelector('[data-tab=details]').click()`);await until(()=>evaluate(`!document.getElementById('drawer').hidden`));await capture('workspace-preview.png');
  const workspaceBounds=await evaluate(`({open:document.body.classList.contains('workspace-open'),drawer:document.getElementById('drawer').getBoundingClientRect().toJSON(),content:document.getElementById('drawerContent').getBoundingClientRect().toJSON(),feed:getComputedStyle(document.getElementById('feed')).display,height:innerHeight})`);assert.equal(workspaceBounds.open,true);assert.equal(workspaceBounds.feed,'none');assert.ok(workspaceBounds.content.height>250,JSON.stringify(workspaceBounds));assert.ok(workspaceBounds.drawer.bottom<=workspaceBounds.height,JSON.stringify(workspaceBounds));
 
@@ -80,7 +88,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true,'Large text must fit');
  await evaluate(`document.getElementById('closeDrawer').click()`);await until(()=>evaluate(`document.getElementById('drawer').hidden`));
  await evaluate(`window.pulse.settings({textScale:100,motion:'system',visibleRows:2})`);await until(()=>evaluate(`document.body.dataset.scale==='100'`));
- await evaluate(`document.getElementById('collapse').click();document.getElementById('toggle').click()`);await until(()=>evaluate(`!document.getElementById('expanded').hidden`));
+ await evaluate(`document.getElementById('collapse').click();document.getElementById('edgeReveal').click();document.getElementById('miniExpand').click()`);await until(()=>evaluate(`!document.getElementById('expanded').hidden`));
  
  await evaluate("window.pulse.workspacePatch("+first.id+",{notes:'Native workspace note',tags:['native','testing'],rating:4,pinned:true,queued:true})");
  await until(()=>store.state.workspace.records[first.id]?.queued===true);
@@ -133,28 +141,28 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
 
  assert.ok(window.getBounds().width<=120&&window.getBounds().height<=16,JSON.stringify(window.getBounds()));
  const edge=await evaluate("({bar:getComputedStyle(document.getElementById('edgeReveal')).display,header:getComputedStyle(document.querySelector('.topbar')).display,line:document.querySelector('#edgeReveal span').getBoundingClientRect().height})");
- assert.equal(edge.header,'none');assert.notEqual(edge.bar,'none');assert.equal(edge.line,6);
+ assert.equal(edge.header,'none');assert.notEqual(edge.bar,'none');assert.equal(edge.line,5);
  await capture('edge-hidden-preview.png');
  const edgeHistory=store.state.history.length;
  await evaluate("document.getElementById('edgeReveal').click()");
- await until(()=>evaluate("!document.getElementById('expanded').hidden"));
+ await until(()=>evaluate("!document.getElementById('miniIsland').hidden"));
  assert.equal(store.state.history.length,edgeHistory,'Reveal handle opens the panel, never a repository');
- await evaluate("document.getElementById('collapse').click()");
- await until(()=>evaluate("document.getElementById('expanded').hidden"));
- console.log('11.6 hidden handle passed: 120x16 native footprint, 3px indicator, no header and accessible click reveal.');
+ await evaluate("miniOpen=false;expanded=false;windowMode()");
+ await until(()=>evaluate("document.body.classList.contains('collapsed')"));
+ console.log('11.6 hidden handle passed: 120x16 native footprint, 5px indicator, no header and accessible click reveal.');
 
 
  await movePointer(-20,-20);
  await movePointer(60,4);
- await until(()=>evaluate("!document.getElementById('expanded').hidden"));
+ await until(()=>evaluate("!document.getElementById('miniIsland').hidden"));
  await new Promise(r=>setTimeout(r,500));
  const growth=await evaluate("getComputedStyle(document.getElementById('island')).transform");
- assert.ok(!snapshot().windowPolicy.transparent||growth.includes('1.02'), 'Transparent hover magnification: '+growth);
+ assert.ok(!snapshot().windowPolicy.transparent||growth==='none', 'Transparent hover magnification: '+growth);
  await capture('hover-preview.png');
  // Use actual Chromium mouse input at a fixed screen coordinate near a clamped edge.
  await evaluate("window.pulse.settings({autoHide:false,keepOnFocus:false})");
- await evaluate("document.getElementById('collapse').click()");
- await until(()=>evaluate("document.getElementById('expanded').hidden"));
+ await evaluate("miniOpen=false;expanded=false;windowMode()");
+ await until(()=>evaluate("document.body.classList.contains('collapsed')"));
  await new Promise(r=>setTimeout(r,160));
  const work=require('electron').screen.getDisplayMatching(window.getBounds()).workArea;
  // The dock owns its top-center anchor; verify entry there rather than a user-dragged bottom edge.
@@ -164,23 +172,25 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await evaluate("window.hoverModes=[];window.stopHoverTrace=window.pulse.onMode(m=>window.hoverModes.push(m));window.pulse.settings({autoHide:true,collapseOnLeave:true,hideDelay:0,hoverDelay:0,keepOnFocus:false})");
  await until(()=>evaluate("islandController.prefs.hoverDelay===0&&islandController.prefs.hideDelay===0"));
  await moveScreen(point.x,point.y);
- await until(()=>evaluate("!document.getElementById('expanded').hidden"));
+ await until(()=>evaluate("!document.getElementById('miniIsland').hidden"));
  for(let i=0;i<8;i++)await moveScreen(point.x,point.y);
- assert.equal(await evaluate("document.getElementById('expanded').hidden"),false,'A stationary pointer must not cause resize/hover oscillation');
+ assert.equal(await evaluate("document.getElementById('miniIsland').hidden"),false,'A stationary pointer must not cause resize/hover oscillation');
  await moveScreen(work.x-20,work.y-20);
- await until(()=>evaluate("document.getElementById('expanded').hidden"));
+ await until(()=>evaluate("document.body.classList.contains('collapsed')"));
  await new Promise(r=>setTimeout(r,160));
  const restored=window.getBounds();assert.ok(Math.abs(restored.x-dockAnchor.x)<=1&&Math.abs(restored.y-dockAnchor.y)<=1,'Dock anchor must survive clamped expansion: '+JSON.stringify({dockAnchor,restored}));
- const trace=await evaluate("window.hoverModes.map(m=>m.mode||m);");assert.equal(trace.filter(m=>m==='panel').length,1,'One physical entry must produce one panel request: '+JSON.stringify(trace));
+ const trace=await evaluate("window.hoverModes.map(m=>m.mode||m);");assert.equal(trace.filter(m=>m==='mini').length,1,'One physical entry must produce one compact request: '+JSON.stringify(trace));
  // Interrupt closing with re-entry several times and finish in the latest requested mode.
  for(let i=0;i<3;i++){await moveScreen(point.x,point.y);await new Promise(r=>setTimeout(r,20));await moveScreen(work.x-20,work.y-20);}
- await moveScreen(point.x,point.y);await until(()=>evaluate("!document.getElementById('expanded').hidden"));
+ await moveScreen(point.x,point.y);await until(()=>evaluate("!document.getElementById('miniIsland').hidden"));
  await new Promise(r=>setTimeout(r,250));assert.equal(await evaluate("document.body.classList.contains('collapsed')"),false,'A delayed close acknowledgement must not override re-entry');
  await evaluate("window.stopHoverTrace()");
  console.log('Real pointer/resize regression passed: stable edge hover, exact dock-anchor restoration and interrupted close/re-entry.');
 
  await evaluate("window.pulse.settings({autoHide:false,motion:'none',hoverLift:false})");
  await evaluate("document.getElementById('edgeReveal').click()");
+ await until(()=>evaluate("!document.getElementById('miniIsland').hidden"));
+ await evaluate("document.getElementById('miniExpand').click()");
  await until(()=>window.getBounds().height>100);
  await movePointer(-20,-20);
  window.setBounds({width:600});
@@ -189,7 +199,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
 
  // Verify real IPC and renderer timing, not a manual replacement helper.
  const historyBefore=store.state.history.length,weightsBefore=JSON.stringify(store.state.profile.weights);
- await evaluate("document.activeElement.blur();window.pulse.settings({panelWidth:960,textScale:100,visibleRows:2,autoHide:false,dynamicRefresh:true,cycleMin:3,cycleMax:3,cyclePauseHover:false,cyclePauseFocus:false,motion:'full',motionPreset:'snappy',motionDuration:80})");
+ await evaluate("document.activeElement.blur();window.pulse.settings({panelWidth:920,textScale:100,visibleRows:2,autoHide:false,dynamicRefresh:true,cycleMin:3,cycleMax:3,cyclePauseHover:false,cyclePauseFocus:false,motion:'full',motionPreset:'snappy',motionDuration:80})");
  const cycleBefore=store.state.daily.repos.map(r=>r.id).join(',');
  await until(()=>store.state.daily.repos.map(r=>r.id).join(',')!==cycleBefore,160); // Includes the intentional 10-second post-Undo protection.
  assert.equal(store.state.history.length,historyBefore,'Autonomous display must not become a recorded visit');
@@ -226,21 +236,21 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  const axios=require('../src/engine.cjs').normalizeRepo({id:9001,full_name:'axios/axios',stargazers_count:150000,language:'JavaScript',description:'Promise based HTTP client for browser and Node.js. Includes a clean package manager installation.'});
  store.state.cache.push(axios);store.state.daily.repos[0]=axios;
  console.log('AXIOS_IPC_METADATA',JSON.stringify(await evaluate("window.pulse.activity(9001)")));
- await evaluate("window.pulse.settings({})");await evaluate("document.getElementById('toggle').click()");
+ await evaluate("window.pulse.settings({})");await evaluate("miniOpen=false;expanded=true;windowMode()");
  await until(()=>evaluate("!!document.querySelector('.repo-row[data-repo-id=\"9001\"] .repo-name')"));
- await evaluate("document.querySelector('.repo-row[data-repo-id=\"9001\"] .repo-name').click()");
- await until(()=>evaluate("!!document.querySelector('#advancedCommand[data-repo-id=\"9001\"] .smart-code')&&document.querySelector('#advancedCommand[data-repo-id=\"9001\"] pre').textContent==='npm install axios'"));
- await evaluate("document.querySelector('#advancedCommand[data-repo-id=\"9001\"] .copy-command').click()");
+ await evaluate("choose(9001);openDrawer('details')");
+ await until(()=>evaluate("!!document.querySelector('#drawerContent [data-repo-id=\"9001\"] .smart-code')&&document.querySelector('#drawerContent [data-repo-id=\"9001\"] pre').textContent==='npm install axios'"));
+ await evaluate("document.querySelector('#drawerContent [data-repo-id=\"9001\"] .copy-command').click()");
  await until(async()=>await require('electron').clipboard.readText()==='npm install axios');
- const commandSurface=await evaluate("({panes:document.querySelectorAll('#discoveryPanel .smart-code').length,rowPanes:document.querySelectorAll('.repo-row .smart-code').length,wrap:getComputedStyle(document.querySelector('#advancedCommand pre')).whiteSpace})");
+ const commandSurface=await evaluate("({panes:document.querySelectorAll('#drawerContent .smart-code').length,rowPanes:document.querySelectorAll('.repo-row .smart-code').length,wrap:getComputedStyle(document.querySelector('#drawerContent .smart-code pre')).whiteSpace})");
  assert.deepEqual(commandSurface,{panes:1,rowPanes:0,wrap:'pre'});
- await evaluate("document.querySelector('#advancedCommand[data-repo-id=\"9001\"] .command-tab[aria-selected=true]').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));document.querySelector('#advancedCommand[data-repo-id=\"9001\"] .copy-command').click()");
+ await evaluate("document.querySelector('#drawerContent [data-repo-id=\"9001\"] .command-tab[aria-selected=true]').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));document.querySelector('#drawerContent [data-repo-id=\"9001\"] .copy-command').click()");
  await until(async()=>await require('electron').clipboard.readText()==='git clone https://github.com/axios/axios.git');
  await evaluate("state.cacheAt=new Date(Date.now()-78*60000).toISOString();state.lastError=null;renderSync();dynamicStatus({enabled:true,remaining:3000,period:3000,reason:'exhausted'})");
  assert.match(await evaluate("document.getElementById('status').textContent"),/Last synced 78m ago/);
  assert.ok(!(await evaluate("document.getElementById('liveToggle').textContent")).includes('Live'));
  assert.equal(await evaluate("document.getElementById('connectionDot').dataset.status"),'stale');
- await evaluate("window.pulse.settings({})");await capture('audit-preview.png');
+ await evaluate("window.pulse.settings({});closeDrawer()");await until(()=>evaluate("document.getElementById('drawer').hidden"));await capture('audit-preview.png');
  console.log('11.1 audit native checks passed: all three picks reachable, no duplicated footer actions, single command surface, npm/clone copy, nowrap code and stale sync consistency.');
 
  // Reproduce the reported 0-pick state with a fully seen catalog on a new day.
@@ -255,8 +265,8 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await evaluate("document.getElementById('next').click()");await until(()=>evaluate("document.querySelectorAll('.repo-row').length===3"));
  assert.equal(store.state.history.length,recoveryHistory);assert.equal(JSON.stringify(store.state.profile.weights),recoveryWeights);
  await evaluate("window.pulse.settings({languages:['NotARealLanguage']})");await until(()=>evaluate("!!document.querySelector('#feed>.empty')"));
- await until(()=>window.getBounds().height>=300);
- assert.ok(await evaluate("document.querySelector('#feed>.empty').getBoundingClientRect().height>=180"));
+ await until(()=>window.getBounds().height>=235);
+ assert.ok(await evaluate("document.querySelector('#feed>.empty').getBoundingClientRect().height>=100"));
  await capture('empty-filter-preview.png');
  await evaluate("document.querySelector('#feed>.empty button').click()");await until(()=>evaluate("document.querySelectorAll('.repo-row').length===3"));
  await capture('catalog-recovery-preview.png');
@@ -273,7 +283,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
   // Very tall cards intentionally scroll on short displays.
   assert.ok(geometry.visible||geometry.height>window.getBounds().height-160,JSON.stringify({width,scale,commands,geometry}));
  }
- await evaluate("window.pulse.settings({panelWidth:960,textScale:100,visibleRows:2,showCommands:true,motion:'full',hoverLift:true})");
+ await evaluate("window.pulse.settings({panelWidth:920,textScale:100,visibleRows:2,showCommands:true,motion:'full',hoverLift:true})");
  await new Promise(r=>setTimeout(r,300));
  await capture('geometry-preview.png');
  console.log('11.3 measured geometry passed: 440/600/960 widths, 100/150 percent text, commands on/off, no horizontal card overflow and visible first-card actions.');
@@ -315,7 +325,9 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  const activation=window.getBounds(),center=activation.x+activation.width/2;
  await moveScreen(center+activation.width,activation.y+4);await new Promise(r=>setTimeout(r,150));
  assert.ok(window.getBounds().height<=16,'Neighboring browser tabs must not reveal the island');
- await moveScreen(center,activation.y+4);await until(()=>evaluate("!document.getElementById('expanded').hidden"));
+ await moveScreen(center,activation.y+4);await until(()=>evaluate("!document.getElementById('miniIsland').hidden"));
+ await evaluate("document.getElementById('miniExpand').click()");
+ await until(()=>evaluate("!document.getElementById('expanded').hidden"));
  await evaluate("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Control'}));window.actualRefresh=api.refresh;api.refresh=()=>new Promise(resolve=>window.finishPendingRefresh=resolve);document.getElementById('refresh').click()");
  await until(()=>evaluate("busy===true"));
  await moveScreen(0,100);await until(()=>window.getBounds().height<=16);
@@ -323,7 +335,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await evaluate("api.refresh=window.actualRefresh;window.finishPendingRefresh({state,error:null})");
  await until(()=>evaluate("busy===false"));
  assert.ok(window.getBounds().height<=16);
- await moveScreen(center,activation.y+4);await until(()=>evaluate("!document.getElementById('expanded').hidden"));
+ await moveScreen(center,activation.y+4);await until(()=>evaluate("!document.getElementById('miniIsland').hidden"));
  await new Promise(r=>setTimeout(r,200));assert.equal(await evaluate("document.body.classList.contains('collapsed')"),false);
  await moveScreen(0,100);await until(()=>window.getBounds().height<=16);
  console.log('11.6 native regression passed: background sync and stale keyboard focus cannot prevent hiding; only top-center entry reveals; physical leave hides again.');
