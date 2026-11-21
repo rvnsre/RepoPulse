@@ -9,20 +9,31 @@ const RETRY=15*60*1000;
 const OFFLINE=24*60*60*1000;
 
 function normalizeKey(value){
- if(typeof value!=='string')return null;
- const key=value.trim().toUpperCase();
- return /^(?:[0-9A-F]{8}-){3}[0-9A-F]{8}$/.test(key)?key:null;
+ if(typeof value!=='string'||value.length>256)return null;
+ const key=value.normalize('NFKC').trim().replace(/[‐‑‒–—−]/g,'-').replace(/\s+/g,'').toUpperCase();
+ if(/^(?:[0-9A-F]{8}-){3}[0-9A-F]{8}$/.test(key))return key;
+ if(/^[0-9A-F]{32}$/.test(key))return key.match(/.{8}/g).join('-');
+ return null;
+}
+
+const TIER_ID='7y1PoKaK1JZcHVvI-UEQ-Q==';
+function tierValues(value){
+ if(typeof value==='string')return value.trim()?value.split(/\s*[,;\n]\s*/):[];
+ if(Array.isArray(value))return value.flatMap(tierValues);
+ if(value&&typeof value==='object')return Object.values(value).flatMap(tierValues);
+ return [];
 }
 
 function assess(body,now){
  const p=body?.purchase;
- if(body?.success===false)return {status:'invalid'};
+ if(body?.success===false)return {status:'not-found'};
  if(body?.success!==true||!p||typeof p!=='object')return {status:'unavailable'};
- // Gumroad exposes the purchased tier in the variants field.
- const plus=typeof p.variants==='string'&&p.variants.split(/\s*[,;\n]\s*/).some(part=>
-  /^(?:[^:]+:\s*)?RSS\+$/i.test(part.trim()));
- if(p.product_id!==PRODUCT_ID||!plus||p.recurrence!=='monthly'||!p.subscription_id)
-  return {status:'invalid'};
+ if(p.product_id!==PRODUCT_ID)return {status:'wrong-product'};
+ if(p.recurrence!=='monthly'||!p.subscription_id)return {status:'wrong-plan'};
+ const tiers=tierValues(p.variants??p.variant);
+ const plus=p.variant_id===TIER_ID||tiers.some(part=>/^(?:[^:]+:\s*)?RSS\s*\+$/i.test(part.trim()));
+ const monthlyPaidFallback=!tiers.length&&!p.variant_id&&p.price===500&&String(p.currency).toLowerCase()==='usd';
+ if(!plus&&!monthlyPaidFallback)return {status:'wrong-plan'};
  if(p.refunded||p.chargebacked||p.disputed&&!p.dispute_won||p.test||p.is_test||p.license_disabled)
   return {status:'inactive'};
  const dates=[p.subscription_ended_at,p.subscription_cancelled_at,p.subscription_failed_at].filter(value=>value!=null);
@@ -34,13 +45,13 @@ function assess(body,now){
 }
 
 async function verify(key,fetcher=fetch,now=Date.now){
- if(!normalizeKey(key))return {status:'invalid'};
+ key=normalizeKey(key);if(!key)return {status:'invalid-format'};
  try{
   const response=await fetcher(VERIFY,{
    method:'POST',redirect:'error',signal:AbortSignal.timeout(12000),
    body:new URLSearchParams({product_id:PRODUCT_ID,license_key:key,increment_uses_count:'false'})
   });
-  if(response.status===404)return {status:'invalid'};
+  if(response.status===404)return {status:'not-found'};
   if(!response.ok)return {status:'unavailable'};
   return assess(await response.json(),now());
  }catch{return {status:'unavailable'};}
@@ -88,7 +99,7 @@ function createLicense({safeStorage,file,fetcher=fetch,now=Date.now}){
  }
  async function activate(input){
   const candidate=normalizeKey(input);
-  if(!candidate)return {status:'invalid',license:snapshot()};
+  if(!candidate)return {status:'invalid-format',license:snapshot()};
   const revision=++generation;pending=revision;inflight=null;
   const result=await verify(candidate,fetcher,now);
   if(revision!==generation)return {status:'superseded',license:snapshot()};

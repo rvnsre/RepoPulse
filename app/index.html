@@ -24,7 +24,7 @@
           <rect x="1" y="1" width="22" height="22" rx="5" fill="currentColor"/>
           <path d="M5 12h3.5l2-4.5 3.2 9 2-4.5H19" stroke="var(--accent-ink)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        <b>RepoPulse</b>
+        <b>GitHub <span>RSS+</span></b>
       </button>
       <span id="connectionDot" class="connection-dot" aria-hidden="true"></span>
       <span id="status" class="status" role="status">Connecting to GitHub</span>
@@ -56,7 +56,16 @@
         </div>
         <button id="browseLibrary" class="browse-button" title="Open the cached project library">Library</button>
       </div>
-      <main id="feed" aria-label="Personalized repositories"></main>
+      <main id="discoveryPanel" aria-label="Personalized repositories">
+        <div id="feed" aria-label="Repository choices"></div>
+        <aside id="advancedPane" aria-label="Selected repository commands">
+          <div id="advancedCommand"></div>
+          <div class="advanced-actions">
+            <button id="installSelected" class="row-install">Install</button>
+            <button id="learnSelected" class="row-learn">Learn <small>More</small></button>
+          </div>
+        </aside>
+      </main>
       <footer>
         <span id="pickRange" class="pick-range" role="status"></span>
         <div class="foot-actions">

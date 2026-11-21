@@ -52,11 +52,16 @@ function desiredHeight(){
  if(!expanded)return state.windowPolicy?.reveal?.height??16;
  if(drawer||insightOpen||miniOpen)return undefined;
  const feed=$('feed'),nodes=[...feed.querySelectorAll('.repo-slot')],style=getComputedStyle(feed);
- return IslandMorph.panelHeight({header:document.querySelector('.topbar').offsetHeight,
+ const height=IslandMorph.panelHeight({header:document.querySelector('.topbar').offsetHeight,
  heading:document.querySelector('.feed-heading').offsetHeight,
  footer:document.querySelector('footer').offsetHeight+$('notifications').offsetHeight,padding:state.windowPolicy?.padding??8,
  gap:parseFloat(style.rowGap)||12,count:state.settings.visibleRows||2,
  rows:nodes.map(n=>n.offsetHeight),empty:feed.querySelector('.empty')?.offsetHeight||210});
+ const pane=$('advancedPane'),top=document.querySelector('.topbar').offsetHeight+document.querySelector('.feed-heading').offsetHeight,footer=document.querySelector('footer').offsetHeight+$('notifications').offsetHeight;
+ if(pane.hidden)return height;
+ const children=[...pane.children].filter(child=>!child.hidden);
+ const content=children.reduce((sum,child)=>sum+child.offsetHeight,0)+(children.length>1?(parseFloat(getComputedStyle(pane).rowGap)||0):0);
+ return Math.max(height,top+footer+Math.min(content+20,350)+(state.windowPolicy?.padding??8)+12);
 }
 async function windowMode(){
  fitKey='';const serial=++transition,currentTransform=getComputedStyle($('island')).transform;
@@ -109,8 +114,34 @@ function updateActions(){
   if(mini.repo?.avatar_url&&!state.fixture){const img=el('img',{src:mini.repo.avatar_url,alt:'',referrerpolicy:'no-referrer'});img.addEventListener('error',()=>img.remove());avatar.append(img);}
  }
  if($('workspaceContext'))$('workspaceContext').textContent=repo?.full_name||'Your discovery workspace';
- for(const row of document.querySelectorAll('.repo-row')){const id=Number(row.dataset.repoId),saved=state.saved.some(r=>r.id===id),save=row.querySelector('[data-action="save"]');if(save){save.textContent=saved?'Bookmarked':'Bookmark';save.setAttribute('aria-pressed',String(saved));}const status=releaseStates.get(id),install=row.querySelector('.row-install');if(install){install.disabled=status?.status==='checking';install.textContent=status?.status==='checking'?'Checking…':installPlan(selected()?.id===id?selected():repos().find(r=>r.id===id)||selected()).command?'Copy install':status?.available===false?'Setup guide':'Downloads';}}
+ for(const row of document.querySelectorAll('.repo-row')){
+  const id=Number(row.dataset.repoId),save=row.querySelector('[data-action="save"]'),saved=state.saved.some(item=>item.id===id);
+  if(save){save.textContent=saved?'Bookmarked':'Bookmark';save.setAttribute('aria-pressed',String(saved));}
+ }
+ updateAdvanced(repos().find(item=>item.id===selectedId)||repos()[0]);
  updatePickRange();
+}
+function updateAdvanced(repo){
+ const pane=$('advancedPane'),command=$('advancedCommand'),install=$('installSelected'),learn=$('learnSelected');
+ pane.hidden=!repo;
+ if(!repo){command.replaceChildren();delete command.dataset.repoId;return;}
+ const show=state.settings.showCommands;
+ command.hidden=!show;
+ if(!show){command.replaceChildren();delete command.dataset.repoId;}
+ else if(command.dataset.repoId!==String(repo.id)||!command.firstElementChild){
+  command.dataset.repoId=String(repo.id);command.replaceChildren(smartCode(repo));
+ }
+ install.disabled=releaseStates.get(repo.id)?.status==='checking';
+ install.title=installPlan(repo).command?'Copy verified package command':'Open the release or project setup guide';
+ learn.title='Open '+repo.full_name+' on GitHub';
+}
+function advancedRepo(){return repos().find(item=>item.id===selectedId)||repos()[0]||null;}
+async function installSelected(){
+ const repo=advancedRepo();if(!repo)return;
+ if(installPlan(repo).command)return copy(repo,'package');
+ const release=await checkRelease(repo);
+ if(release.available==null){toast(release.error||'Releases could not be checked.');return;}
+ return openRepo(repo,release.available?'releases':'readme');
 }
 async function undoLast(){if(!state.canUndo)return;dynamicHoldUntil=Date.now()+1000;adopt(await api.undo());selectedId=repos()[0]?.id??null;render();toast('Previous picks restored.');}
 function undoToast(message){toast(message);if(!insightOpen&&state.canUndo)toastNotice.insertBefore(btn('Undo',undoLast,'toast-undo','Undo last replacement'),toastNotice.lastElementChild);}
@@ -159,18 +190,17 @@ function smartCode(repo){const block=el('div',{class:'code-block smart-code'}),t
 async function requestActivity(repo){if(!api.activity||activityPending.size>0||(activityStates.get(repo.id)?.expires||0)>Date.now())return;activityPending.add(repo.id);try{const entry=await api.activity(repo.id);activityStates.set(repo.id,{...entry,expires:Date.now()+(entry.status==='ready'?900000:60000)});if(activityStates.size>512)activityStates.delete(activityStates.keys().next().value);for(const node of document.querySelectorAll('[data-repo-id="'+repo.id+'"] .feed-activity'))fillActivity(repo,node);for(const code of document.querySelectorAll('[data-repo-id="'+repo.id+'"] .smart-code'))code.refresh?.();const row=document.querySelector('.repo-row[data-repo-id="'+repo.id+'"]');if(row){row.querySelector('.star-velocity').textContent=starTrend(repo);const action=row.querySelector('.row-install');if(action&&entry.install?.command)action.textContent='Copy install';}}catch(error){activityStates.set(repo.id,{status:'unavailable',error:error.message,expires:Date.now()+60000});}finally{activityPending.delete(repo.id);queueMicrotask(()=>{const next=repos().find(r=>(activityStates.get(r.id)?.expires||0)<=Date.now());if(next&&expanded&&!drawer)void requestActivity(next);});}}
 function row(repo,index){
  const article=el('article',{class:'repo-row','data-repo-id':String(repo.id),'aria-label':repo.full_name,tabindex:'-1'}),identity=el('div',{class:'repo-identity'}),title=el('div',{class:'identity-title'}),avatar=el('img',{class:'owner-avatar',src:state.fixture?'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32"%3E%3Ccircle cx="16" cy="16" r="16" fill="%23687285"/%3E%3C/svg%3E':repo.avatar_url||'https://github.com/'+encodeURIComponent(repo.full_name.split('/')[0])+'.png?size=64',alt:'','aria-hidden':'true',loading:'lazy',decoding:'async',referrerpolicy:'no-referrer'}),initial=el('span',{class:'avatar-fallback','aria-hidden':'true'},repo.full_name[0].toUpperCase());avatar.addEventListener('error',()=>{avatar.hidden=true;});
- const name=el('h2',{class:'repo-name',tabindex:'-1'},repo.full_name);name.textContent=state.settings.showOwners?repo.full_name:repo.full_name.split('/')[1];name.title=repo.full_name;avatar.hidden=!!state.fixture||!state.settings.showOwners;initial.hidden=!state.settings.showOwners;title.append(initial,avatar,name);identity.append(title);
+ const name=el('button',{class:'repo-name',type:'button', 'aria-label':'Select '+repo.full_name},repo.full_name.split('/')[1]);name.title=repo.full_name;name.addEventListener('click',()=>choose(repo.id));avatar.hidden=!!state.fixture||!state.settings.showOwners;initial.hidden=!state.settings.showOwners;title.append(initial,avatar,name);identity.append(title);
  const meta=el('div',{class:'repo-meta'});meta.append(el('span',{title:Intl.NumberFormat('en').format(repo.stargazers_count)+' stars'},compact(repo.stargazers_count)+' stars'),el('span',{},repo.language||'Open source'));identity.append(meta);
  const activity=el('p',{class:'feed-activity'});fillActivity(repo,activity);identity.append(activity);
  const rate=el('p',{class:'star-velocity'},starTrend(repo));rate.title='Measured from local GitHub star-count observations; no estimate is fabricated.';identity.append(rate);
  const feedLink=btn('Release RSS ↗',()=>openRepo(repo,'feed'),'rss-link','Open official GitHub release Atom feed for '+repo.full_name);identity.append(feedLink);
  const extra=el('div',{class:'row-extra'}),save=btn(state.saved.some(r=>r.id===repo.id)?'Bookmarked':'Bookmark',()=>react(repo,'save'),'','Bookmark '+repo.full_name);save.dataset.action='save';extra.append(save,btn('Skip',()=>react(repo,'skip'),'','Skip this pick; Undo is available'));const badges=ultimateBadges(repo);if(badges)identity.append(badges);if(state.license?.active&&api.plusToggle){const watched=state.plusRepos?.some(item=>item.id===repo.id);const watch=btn(watched?'Watching':'Watch',async()=>{adopt(await api.plusToggle(repo.id));render();},'', 'Toggle RSS+ watchlist for '+repo.full_name);watch.setAttribute('aria-pressed',String(!!watched));extra.append(watch);}if(state.settings.showQuickActions!==false)identity.append(extra);
- const text=el('div',{class:'repo-copy'}),summary=el('div',{class:'repo-summary'});
+ const summary=el('div',{class:'repo-summary'});
  if(state.settings.showDescriptions)summary.append(el('p',{class:'repo-description'},repo.description));
  if(state.settings.showReasons)summary.append(el('p',{class:'repo-reason'},repo.reason||'A widely adopted project.'));
  identity.insertBefore(summary,extra.parentNode===identity?extra:null);
- if(state.settings.showCommands)text.append(smartCode(repo));
- const actions=el('div',{class:'row-actions'});actions.append(btn('Learn more ↗',()=>{choose(repo.id);return openRepo(repo,'learn');},'row-learn','Open '+repo.full_name+' in browser'));actions.append(btn(installPlan(repo).command?'Copy install':'Install / downloads',async()=>{if(installPlan(repo).command)return copy(repo,'package');const release=await checkRelease(repo);return openRepo(repo,release.available===false?'readme':'releases');},'row-install'));text.append(actions);article.append(identity,text);
+ article.append(identity);
  article.addEventListener('focusin',()=>choose(repo.id));article.addEventListener('pointerdown',()=>choose(repo.id));article.classList.toggle('selected',selectedId===repo.id);queueMicrotask(()=>void requestActivity(repo));return article;
 }
 function empty(title,body,action,label){const box=el('div',{class:'empty'});box.append(el('h2',{},title),el('p',{},body));if(action)box.append(btn(label,action,'secondary'));return box;}
@@ -312,8 +342,8 @@ function plusView(root){
  if(!membership.active){
   root.append(el('p',{class:'plus-price'},'$5 per month'),
    el('p',{class:'intro'},'Track repositories in your watchlist and export release feeds or a Markdown digest.'));
-  const form=el('form',{class:'license-form'}),key=el('input',{type:'password',autocomplete:'off','aria-label':'Gumroad license key',maxlength:'35',placeholder:'XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX',required:''});
-  const result=el('p',{class:'field-hint',role:'status'},membership.status==='inactive'?'This membership has ended.':membership.status==='unavailable'?'Gumroad verification is temporarily unavailable.':membership.status==='invalid'?'This key is no longer valid.':'Use the license key from your Gumroad receipt.');
+  const form=el('form',{class:'license-form'}),key=el('input',{type:'password',autocomplete:'off','aria-label':'Gumroad license key',maxlength:'256',placeholder:'XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX',required:''});
+  const result=el('p',{class:'field-hint',role:'status'},membership.status==='inactive'?'This membership has ended.':membership.status==='unavailable'?'Gumroad verification is temporarily unavailable.':membership.status==='not-found'?'This key is no longer valid.':'Use the license key from your Gumroad receipt.');
   const submit=el('button',{type:'submit',class:'primary'},'Activate RSS+');
   form.append(key,submit,result);
   form.addEventListener('submit',event=>{
@@ -322,7 +352,7 @@ function plusView(root){
     try{
      const reply=await api.plusActivate(key.value);
      if(reply.status==='active'){key.value='';adopt(await api.state());render();toast('RSS+ activated.');return;}
-     result.textContent=({inactive:'This membership has ended or the purchase was reversed.',invalid:'Enter a valid key for the monthly RSS+ tier.',unavailable:'Gumroad could not verify this key right now. Try again shortly.'})[reply.status]||'Activation did not complete.';
+     result.textContent=({inactive:'This membership has ended or the purchase was reversed.','invalid-format':'Paste the license key from your Gumroad receipt.','not-found':'Gumroad did not recognize this key. Check the key in your purchase receipt.','wrong-product':'This license belongs to another Gumroad product.','wrong-plan':'This purchase is not the monthly RSS+ membership.',unavailable:'Gumroad could not verify this key right now. Try again shortly.'})[reply.status]||'Activation did not complete.';
     }finally{submit.disabled=false;}
    });
   });
@@ -357,6 +387,8 @@ function renderDrawer(force=true){
 }
 async function refresh(force=false){if(busy)return;busy=true;$('refresh').disabled=true;try{const result=await api.refresh(force);adopt(result.state);render();if(result.error)toast(result.error);else if(force)toast(result.state.cacheAt?'Catalog checked.':'Catalog metadata is unavailable.');}finally{busy=false;$('refresh').disabled=false;}}
 $('browseLibrary').addEventListener('click',()=>run(()=>openDrawer('library')));
+$('installSelected').addEventListener('click',()=>run(installSelected));
+$('learnSelected').addEventListener('click',()=>run(()=>{const repo=advancedRepo();if(repo)return openRepo(repo,'learn');}));
 $('plusButton').addEventListener('click',()=>run(()=>openDrawer('plus')));
 $('miniButton').addEventListener('click',()=>run(async()=>{miniOpen=true;insightOpen=false;expanded=true;drawer=false;await windowMode();$('miniExpand').focus({preventScroll:true});}));
 $('miniExpand').addEventListener('click',()=>run(async()=>{miniOpen=false;expanded=true;await windowMode();$('miniButton').focus({preventScroll:true});}));
