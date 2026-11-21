@@ -274,7 +274,7 @@ function attachIpc(){
  handle('settings:set',input=>{
   const previous=store.state.settings,next=discovery.settings({...previous,...input});
   if(next.launchAtLogin!==previous.launchAtLogin)configureLogin(app,next.launchAtLogin);
-  store.update(s=>{s.settings=next;discovery.present(s);});if(!next.screenContext)context={topic:null,status:'off'};else if(!previous.screenContext)void collectContext();keepOnTop();window.setOpacity(next.opacity/100);resize(mode,next.anchor!==previous.anchor);emit();return snapshot();
+  store.update(s=>{s.settings=next;discovery.present(s);});if(!next.screenContext)context={topic:null,status:'off'};else if(!previous.screenContext)void collectContext();keepOnTop();window.setOpacity(next.opacity/100);resize(mode,next.anchor!==previous.anchor,lastWindowRequest);emit();return snapshot();
  });
  handle('history:remove',(id,time)=>{if(!Number.isSafeInteger(id)||typeof time!=='string')throw new Error('Invalid history item');store.update(s=>{s.history=s.history.filter(h=>!(h.repo.id===id&&h.openedAt===time));});emit();return snapshot();});
  handle('exclusion:remove',(kind,value)=>{store.update(s=>{if(kind==='owner')s.blockedOwners=s.blockedOwners.filter(v=>v!==value);else if(kind==='hidden'&&Number.isSafeInteger(value)){s.hidden=s.hidden.filter(v=>v!==value);s.seen=s.seen.filter(v=>v!==value);}else if(kind==='snoozed'&&Number.isSafeInteger(value)){delete s.snoozed[value];s.seen=s.seen.filter(v=>v!==value);}else throw new Error('Invalid exclusion');discovery.present(s);});emit();return snapshot();});
