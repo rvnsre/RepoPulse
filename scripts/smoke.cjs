@@ -58,7 +58,10 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await evaluate(`document.querySelector('#learnSelected').click()`);await until(()=>store.state.history.length===1);
  assert.equal(snapshot().lastExternal.url,'https://github.com/'+first.full_name);assert.equal(snapshot().lastExternal.kind,'learn');assert.notEqual(store.state.daily.repos[0].id,first.id);assert.equal(store.state.daily.repos[1].id,second.id);
  await until(()=>evaluate(`!!document.querySelector('.toast-undo')`));await evaluate(`document.querySelector('.toast-undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
- await until(()=>evaluate(`document.querySelector('.repo-row').dataset.repoId==='${first.id}'&&!!document.querySelector('#advancedCommand .download-link')`));await evaluate(`document.querySelector('#advancedCommand .download-link').click()`);await until(()=>evaluate(`!!document.querySelector('#advancedCommand .release-assets button:last-child')`));await evaluate(`document.querySelector('#advancedCommand .release-assets button:last-child').click()`);await until(()=>snapshot().lastExternal?.kind==='releases');assert.equal(snapshot().lastExternal.url,'https://github.com/'+first.full_name+'/releases');
+ await until(()=>evaluate(`document.querySelector('#advancedCommand').dataset.repoId==='${first.id}'&&!document.querySelector('#installSelected').disabled`));
+ await evaluate("document.querySelector('#installSelected').click()");
+ await until(()=>snapshot().lastExternal?.kind==='releases');
+ assert.equal(snapshot().lastExternal.url,'https://github.com/'+first.full_name+'/releases');
  await until(()=>evaluate(`!!document.querySelector('.toast-undo')`));await evaluate(`document.querySelector('.toast-undo').click()`);await until(()=>store.state.daily.repos[0].id===first.id);
  await until(()=>evaluate(`document.querySelector('.repo-row').dataset.repoId==='${first.id}'`));
  await evaluate(`document.getElementById('menu').click();document.querySelector('[data-tab=details]').click()`);await until(()=>evaluate(`!document.getElementById('drawer').hidden`));await capture('workspace-preview.png');

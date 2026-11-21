@@ -541,7 +541,7 @@ body.rss-dark { --panel:#101010; --layer:#141414; --inset:#343434; --accent-bord
   align-items: stretch; min-height: 0; flex: 1;
 }
 #discoveryPanel:has(#advancedPane[hidden]) { grid-template-columns: minmax(0, 1fr); }
-.workspace-open #discoveryPanel { display: none; }
+.workspace-open #discoveryPanel, .workspace-open #discoveryPanel #feed { display: none; }
 #discoveryPanel #feed { padding-inline: 0 6px; gap: 7px; }
 #discoveryPanel .repo-row {
   display: block; background: transparent; border: 0; border-radius: 0;
@@ -571,11 +571,11 @@ body.rss-dark { --panel:#101010; --layer:#141414; --inset:#343434; --accent-bord
 #advancedCommand .smart-code { min-height: 108px; border: 0; border-radius: 14px; padding: 10px 14px; }
 #advancedCommand .smart-code pre { font-family: inherit; font-size: calc(14px * var(--s)); }
 .advanced-actions { display: flex; gap: 12px; justify-content: center; }
-.advanced-actions button {
+#advancedPane .advanced-actions button {
   background: var(--inset); color: var(--ink); border-radius: 40px; padding: 7px 18px;
   font-size: clamp(14px,calc(2.3vw * var(--s)),calc(32px * var(--s))); flex: 1;
 }
-.advanced-actions button:hover { background: var(--hover); }
+#advancedPane .advanced-actions button:hover { background: var(--hover); color: var(--ink); }
 .advanced-actions small { font-size: .46em; }
 .rss-dark footer { border: 0; padding-inline: clamp(16px, 3.5vw, 48px); }
 body.rss-dark.collapsed, body.rss-dark.collapsed .island { background: transparent; }
@@ -588,5 +588,5 @@ body.rss-dark.mini-open .island { border-radius: 46px; background: #090909; }
  #advancedPane { gap: 10px; }
  #advancedCommand .smart-code { padding-inline: 7px; }
  .advanced-actions { gap: 5px; flex-wrap: wrap; }
- .advanced-actions button { padding-inline: 7px; }
+ #advancedPane .advanced-actions button { padding-inline: 7px; }
 }
