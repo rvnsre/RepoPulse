@@ -8,7 +8,26 @@ function policy(platform=process.platform,env=process.env,smoke=false){
 }
 function activeDisplay(screen){try{return screen.getDisplayNearestPoint(screen.getCursorScreenPoint());}catch{return screen.getPrimaryDisplay();}}
 function topAnchor(display){return{cx:display.workArea.x+display.workArea.width/2,y:display.workArea.y};}
-function dockShape(width,height,collapsed=false){const w=Math.max(1,Math.round(width)),h=Math.max(1,Math.round(height));if(collapsed&&w<=120&&h<=16)return[{x:Math.max(0,Math.floor((w-Math.min(66,w))/2)),y:Math.min(2,h-1),width:Math.min(66,w),height:Math.min(6,Math.max(1,h-2))}];const r=Math.min(collapsed?32:18,Math.floor(w/2),Math.floor(h/2));if(!r)return[{x:0,y:0,width:w,height:h}];const rows=[{x:0,y:0,width:w,height:h-r}];for(let y=0;y<r;y++){const inset=Math.ceil(r-Math.sqrt(r*r-(y+.5)**2));rows.push({x:inset,y:h-r+y,width:Math.max(1,w-inset*2),height:1});}return rows;}
+function dockShape(width,height,mode='panel'){
+ const w=Math.max(1,Math.round(width)),h=Math.max(1,Math.round(height));
+ const hidden=mode==='collapsed'||mode===true&&w<=120&&h<=16;
+ const pill=mode==='mini'||mode===true;
+ const shapeWidth=hidden?Math.min(68,w):w;
+ const top=hidden?Math.min(2,h-1):0;
+ const shapeHeight=hidden?Math.min(5,h-top):h;
+ const left=Math.floor((w-shapeWidth)/2);
+ const radius=Math.min(pill||hidden?Math.floor(shapeHeight/2):28,Math.floor(shapeWidth/2),Math.floor(shapeHeight/2));
+ if(!radius)return [{x:left,y:top,width:shapeWidth,height:shapeHeight}];
+ const rows=[],upper=pill||hidden?radius:0;
+ for(let y=0;y<shapeHeight;y++){
+  const distance=Math.max(0,upper-y-.5,y+.5-(shapeHeight-radius));
+  const inset=Math.min(Math.floor((shapeWidth-1)/2),Math.round(radius-Math.sqrt(radius*radius-distance*distance)));
+  const x=left+inset,width=shapeWidth-2*inset,previous=rows.at(-1);
+  if(previous?.x===x&&previous.width===width)previous.height++;
+  else rows.push({x,y:top+y,width,height:1});
+ }
+ return rows;
+}
 function bindInitialVisibility(window){
  let shown=false;const show=()=>{if(shown||window.isDestroyed())return;shown=true;window.showInactive();};
  // A hidden renderer may defer its first animation frame; do not wait only for paint.
