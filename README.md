@@ -1,6 +1,12 @@
-# RepoPulse 11.7.3
+# RepoPulse 12.0.3
 
 A personalized GitHub discovery island for Windows, macOS and Linux, focused on **50,000+ star** public projects.
+
+## Browsing and catalog
+
+Click **Next** in the Advanced footer to open the next page. Previously displayed projects are remembered across app restarts. The button stops at the end, and newly synced projects become available as they qualify.
+
+The bundled GitHub snapshot contains 531 public repositories with at least 50,000 stars, excluding archived repositories and forks. The fetcher supports up to 12,000 entries and is tested against a 10,105-entry fixture. The application shows the actual number of eligible repositories.
 
 ## Camera-edge auto-hide / 11.6
 
@@ -8,7 +14,7 @@ The application now starts hidden under the top-center camera area: a **120 × 1
 
 [Behavior, changed files and regression checks](docs/AUTO-HIDE-v11.6.md).
 
-## Current catalog / 11.5
+## Catalog update / 11.5
 
 The minimum is **50K stars**. The bundled catalog now contains **531 individually API-verified active, non-fork repositories**, including **230 additions** to the former 301-entry snapshot. The smallest verified count is **50,033**. A one-time upgrade fills the existing cache offline while retaining bookmarks, notes, history and interests.
 

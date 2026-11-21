@@ -66,10 +66,13 @@
       <footer>
         <span id="systemInfo" class="system-info"></span>
         <span id="pickRange" class="pick-range" role="status"></span>
+        <div class="feed-pagination" aria-label="Browse repositories">
+          <span id="nextStatus" role="status"></span>
+          <button id="next" type="button" aria-controls="feed" title="Show the next repositories">Next <span aria-hidden="true">→</span></button>
+        </div>
         <div class="foot-actions">
           <button id="autoHideButton" role="switch" aria-checked="true" aria-label="Auto hide" title="Toggle automatic collapse"><span class="switch-track" aria-hidden="true"></span><span id="autoHideLabel">Auto hide</span></button>
           <button id="queueButton" title="Open reading queue">Queue <span id="queueCount">0</span></button>
-          <button id="next" title="Show the next picks">Next picks <span aria-hidden="true">→</span></button>
           <button id="collapse" title="Collapse island" aria-label="Collapse island"></button>
         </div>
       </footer>
