@@ -157,3 +157,15 @@ test('Manual paging remembers prior picks through Undo and repository ID or name
   assert.ok(s.daily.repos.every(r=>r.id!==first.id&&r.id!==42));
  }
 });
+
+test('A persisted three-card manual page gains its fourth eligible card on upgrade',()=>{
+ const loaded=state(Array.from({length:8},(_,i)=>repo(i+1)));
+ loaded.daily.repos.pop();
+ loaded.manualVisited=loaded.daily.repos.map(r=>({id:r.id,full_name:r.full_name}));
+ const before=loaded.daily.repos.map(r=>r.id);
+ const upgraded=D.initialize(JSON.parse(JSON.stringify(loaded)));
+ D.present(upgraded,now+1);
+ assert.deepEqual(upgraded.daily.repos.slice(0,3).map(r=>r.id),before);
+ assert.equal(upgraded.daily.repos.length,4);
+ assert.equal(new Set(upgraded.daily.repos.map(r=>r.id)).size,4);
+});
