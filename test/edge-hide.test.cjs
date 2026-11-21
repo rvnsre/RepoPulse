@@ -5,7 +5,12 @@ test('Hidden footprint is 120 by 16 DIP under the top-center camera area',()=>{f
 test('Late fit requests cannot enlarge the collapsed minimum to the old 64px pill',()=>assert.equal(L.fittedHeight(NaN,1080,true),16));
 test('Default behavior starts hidden and exposes an immediate hover trigger',()=>{const p=D.settings();assert.equal(p.startCollapsed,true);assert.equal(p.hoverExpand,true);assert.equal(p.hoverDelay,0);assert.equal(p.hideDelay,80);assert.equal(p.keepOnFocus,false);});
 test('Installed preferences receive the edge migration exactly once without losing personal data',()=>{const s=D.initialize({...E.defaults(),saved:[{id:1,full_name:'owner/repo',stargazers_count:80000}],profile:{weights:{ai:8}},settings:{autoHide:false,collapseOnLeave:false,hoverExpand:false,keepOnFocus:true,anchor:'left',startCollapsed:false}});assert.equal(s.settings.autoHide,true);assert.equal(s.settings.collapseOnLeave,true);assert.equal(s.settings.startCollapsed,true);assert.equal(s.settings.anchor,'center');assert.equal(s.saved.length,1);assert.equal(s.profile.weights.ai,8);s.settings.autoHide=false;D.initialize(s);assert.equal(s.settings.autoHide,false);});
-test('The tiny native hot zone excludes neighboring browser tabs and the area below it',()=>{const b=L.bounds({x:0,y:0,width:1920,height:1080},{},'collapsed'),t=new PointerTracker();assert.equal(t.update({x:960,y:4},b).inside,true);assert.equal(t.update({x:1021,y:4},b).inside,false);assert.equal(t.update({x:960,y:17},b).inside,false);});
+test('Only the visible indicator can activate hover, even inside the padded native window',()=>{
+ const b=L.bounds({x:0,y:0,width:1920,height:1080},{},'collapsed');
+ const t=new PointerTracker(),shape=W.dockShape(b.width,b.height,'collapsed');
+ for(const p of [{x:960,y:1},{x:960,y:7},{x:925,y:4},{x:994,y:4},{x:926,y:2}])assert.equal(t.update(p,b,shape).inside,false);
+ assert.equal(t.update({x:960,y:4},b,shape).entered,true);
+});
 test('A stationary camera-edge pointer remains inside across window expansion',()=>{const area={x:0,y:0,width:1920,height:1080},small=L.bounds(area,{},'collapsed'),panel=L.bounds(area,{},'panel'),t=new PointerTracker(),p={x:960,y:4};t.update(p,small);assert.equal(t.update(p,panel).left,false);assert.equal(t.update(p,small).left,false);});
 test('Linux draws a 68×5 rounded indicator with a larger native hot zone',()=>{
  const shape=W.dockShape(120,16,'collapsed');

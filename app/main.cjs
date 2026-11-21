@@ -50,7 +50,9 @@ function samplePointer(){
  if(!windowPolicy.pointer||!window||window.isDestroyed()||!window.isVisible())return null;
  let point;
  try{if(smokeMode&&process.platform==='linux'){const output=require('node:child_process').execFileSync('xdotool',['getmouselocation','--shell'],{encoding:'utf8',timeout:1000});const values=Object.fromEntries(output.trim().split(/\r?\n/).map(line=>line.split('=')));point={x:Number(values.X),y:Number(values.Y)};}else point=screen.getCursorScreenPoint();}catch{return null;}
- const value=pointerTracker.update(point,window.getBounds());if(value?.changed)window.webContents.send('pointer:state',value);return value;
+ const nativeBounds=window.getBounds();
+ const hitShape=mode==='collapsed'?dockShape(nativeBounds.width,nativeBounds.height,'collapsed'):undefined;
+ const value=pointerTracker.update(point,nativeBounds,hitShape);if(value?.changed)window.webContents.send('pointer:state',value);return value;
 }
 function keepOnTop(reassert=false){
  if(!quitting)syncTopmost(window,store.state.settings.pinned,process.platform,reassert);
@@ -262,7 +264,7 @@ function attachIpc(){
   if(!await confirm(kind==='cache'?'Replace cached catalog?':'Clear discovery history and rebuild?','Your bookmarks and personal workspace will be preserved.'))return snapshot();
   store.update(s=>{
    if(kind==='cache'){s.cache=[];s.catalogInfo=null;s.starSamples={};s.releaseMetadata={};discovery.bootstrap(s);}
-   else{s.seen=[];s.seenHistory=[];s.presentedAt={};delete s.manualVisited;discovery.present(s);}
+   else{s.seen=[];s.seenHistory=[];s.presentedAt={};delete s.manualVisited;delete s.manualPageSize;discovery.present(s);}
    s.lastRotation=null;
   });
   emit();return snapshot();

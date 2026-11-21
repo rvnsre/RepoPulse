@@ -1,5 +1,5 @@
 'use strict';
-let uKeyboardFocus=false,uMotionSignature='',compactProtectedEntry=false,pointerBounds=null;
+let uKeyboardFocus=false,uMotionSignature='',pointerBounds=null;
 let islandController=null,hoverAnimation=null,uFocusUntil=0,uFocusTimer=null,uQueryVersion=0,uLimit=60,uLastTab='details';
 let uResetRevision=0;
 const uDrafts=new Map(),uCompare=new Set(),uSelected=new Set();
@@ -40,7 +40,7 @@ function ultimateFocus(){
  clearInterval(uFocusTimer);uFocusTimer=setInterval(()=>{if(Date.now()>=uFocusUntil){clearInterval(uFocusTimer);uFocusUntil=0;islandController.hold('focus session',false);$('announcer').textContent='Focus session complete.';toast('Focus session complete.');}ultimateStatus();},1000);ultimateStatus();
 }
 function leaveSurface(){
- compactProtectedEntry=false;uKeyboardFocus=false;islandController.focus(false);islandController.leave();
+ uKeyboardFocus=false;islandController.focus(false);islandController.leave();
 }
 function ultimateInit(){
  uFilters.pinnedFirst=state.settings.pinnedFirst;installIcons();dynamicInit();
@@ -49,14 +49,25 @@ function ultimateInit(){
  // Native pointer samples are independent of animated DOM hit boundaries.
  pointerBounds=state.windowBounds||null;
  if(state.windowPolicy?.pointer!==false&&api.onPointer&&api.pointerState){
-  const acceptPointer=value=>{if(!value)return;const before=islandController.pointer;if(value.inside){const x=value.point.x-value.bounds.x,y=value.point.y-value.bounds.y,target=document.elementFromPoint(x,y),protectedTarget=!expanded&&!!target?.closest('#dockOpen,.toolbar');const force=value.moved&&compactProtectedEntry&&!protectedTarget;compactProtectedEntry=protectedTarget;islandController.enter(value.entered&&value.moved&&!protectedTarget,force);if(value.moved)islandController.activity();}else if(before||islandController.focused||uKeyboardFocus){leaveSurface();}if(before!==value.inside)ultimateMagnify(value.inside);};
+  const acceptPointer=value=>{
+   if(!value)return;
+   const before=islandController.pointer;
+   // While the native window is still shrinking, only the destination indicator can reopen it.
+   const reveal=!expanded&&!insightOpen?IslandMorph.revealBounds(value.bounds):null;
+   const {x,y}=value.point;
+   const inside=value.inside&&(!reveal||(x>=reveal.x&&x<reveal.x+reveal.width&&y>=reveal.y&&y<reveal.y+reveal.height));
+   if(inside){islandController.enter(!expanded&&!insightOpen);if(value.moved)islandController.activity();}
+   else if(before||islandController.focused||uKeyboardFocus)leaveSurface();
+   if(before!==inside)ultimateMagnify(inside);
+  };
   const stopPointer=api.onPointer(acceptPointer);run(async()=>acceptPointer(await api.pointerState()));window.addEventListener('beforeunload',stopPointer);
  }else{
   // Browser fixture has no native window; its viewport never resizes for island modes.
-  const surface=document.documentElement;
-  surface.addEventListener('pointerenter',e=>{if(e.pointerType!=='touch'){const target=document.elementFromPoint(e.clientX,e.clientY);compactProtectedEntry=!expanded&&!!target?.closest('#dockOpen,.toolbar');islandController.enter(!compactProtectedEntry);ultimateMagnify(true);}});
+  const surface=$('island');
+  surface.addEventListener('pointerenter',e=>{if(e.pointerType!=='touch'){if(expanded){islandController.enter(false);ultimateMagnify(true);}}});
   surface.addEventListener('pointerleave',e=>{if(e.pointerType!=='touch'){leaveSurface();ultimateMagnify(false);}});
-  surface.addEventListener('pointermove',e=>{if(compactProtectedEntry&&!expanded&&!e.target.closest('#dockOpen,.toolbar')){compactProtectedEntry=false;islandController.enter(true,true);}});
+  $('edgeReveal').addEventListener('pointerenter',e=>{if(e.pointerType!=='touch')islandController.enter();});
+  $('edgeReveal').addEventListener('pointerleave',e=>{if(!expanded&&e.pointerType!=='touch')leaveSurface();});
  }
  $('island').addEventListener('pointerdown',()=>{uKeyboardFocus=false;islandController.focus(false);islandController.activity();});$('island').addEventListener('wheel',()=>islandController.activity(),{passive:true});
  document.addEventListener('keydown',()=>{uKeyboardFocus=true;islandController.focus(true);islandController.activity();});
@@ -189,6 +200,7 @@ let dynamicScheduler=null,dynamicCursor=0,dynamicHoldUntil=0;
 function dynamicBlocked(){
  if(document.hidden)return 'hidden';
  if(insightOpen)return 'recommendation';if(drawer)return 'workspace';
+ if(miniOpen)return 'compact view';
  if(manualPaging)return 'manual browsing';
  if(Date.now()<dynamicHoldUntil)return 'interaction';
  if(busy||pending.size||slots.some(slot=>slot.desired))return 'busy';

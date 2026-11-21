@@ -1,6 +1,7 @@
 'use strict';
 const {MIN_STARS,MAX_CATALOG,TARGET_CATALOG,CATALOG_REVISION}=require('./catalog-policy.cjs');
 const {ranked, eligible, localDay, normalizeRepo, defaults}=require('./engine.cjs');
+const PAGE_SIZE=4;
 const SETTINGS={...{"autoHide":true,"hoverExpand":true,"collapseOnLeave":true,"idleCollapse":true,"hideDelay":80,"idleSeconds":30,"hoverDelay":0,"keepOnFocus":false,"keepOnHover":true,"hoverScale":102,"motionPreset":"snappy","subtleMotion":false,"hoverLift":true,"glow":true,"showBadges":true,"showQuickActions":true,"showStatus":true,"showQueueCount":true,"pinnedFirst":true,"markReadOnOpen":false,"quietMode":false,"focusMinutes":25,"accent":"sand","cardStyle":"soft","roundness":20,"stagger":true,"startCollapsed":true,"protectEditing":true,"showHints":true},pinned:true,reducedMotion:false,launchAtLogin:false,autoReplace:true,notifications:false,pausedLearning:false,opacity:100,anchor:'center',theme:'reference',density:'compact',minStars:MIN_STARS,languages:[],topics:[],cooldownWindowMs:43200000,textScale:100,motion:'system',motionDuration:80,visibleRows:2,panelWidth:920,compactRevision:1,dynamicRefresh:true,cycleMin:3,cycleMax:10,transitionStyle:'auto',cyclePauseHover:false,cyclePauseFocus:true,cycleCountdown:true,cycleAccent:true,liveRevision:2,dockRevision:1,catalogRevision:CATALOG_REVISION,edgeRevision:1,cycleMotion:'adaptive',windowMotionDuration:160,idleAdvisor:true,screenContext:false,workTopic:'tools',showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,shortcuts:true,exactStars:false,toastSeconds:5,uniqueHistory:false};
 function settings(input={}) {
  input=input&&typeof input==='object'&&!Array.isArray(input)?input:{};const out={...SETTINGS};
@@ -87,10 +88,10 @@ function hydrate(pool,repos) {
 }
 function selectFeed(pool,state,day=localDay(),now=Date.now()) {
  const filtered=filteredCatalog(pool,state,now);
- const visible=hydrate(filtered,state.daily?.repos||[]).slice(0,3);
- if(state.manualVisited&&visible.length&&visible.length===state.daily?.repos?.length)return {day,repos:visible};
+ const visible=hydrate(filtered,state.daily?.repos||[]).slice(0,PAGE_SIZE);
+ if(state.manualPageSize===PAGE_SIZE&&visible.length&&visible.length===state.daily?.repos?.length)return {day,repos:visible};
  const {unseen,replay}=feedPools(state,visible,now,filtered,day);
- return {day,repos:[...visible,...(unseen.length?unseen:replay)].slice(0,3)};
+ return {day,repos:[...visible,...(unseen.length?unseen:replay)].slice(0,PAGE_SIZE)};
 }
 function recordAction(state,repo,action,now=Date.now()) {
  state.seenHistory=[...(state.seenHistory||[]),{id:repo.id,key:canonicalKey(repo),timestamp:now,action}].slice(-20000);
@@ -127,7 +128,7 @@ function advance(state,index,now) {
  const previous=hydrate(filtered,before?.repos||[]);
  const day=before?.day||localDay();
  const {unseen,replay}=feedPools(state,previous,now,filtered,day);
- const chosen=(unseen.length?unseen:replay).slice(0,index===null?3:1);
+ const chosen=(unseen.length?unseen:replay).slice(0,index===null?PAGE_SIZE:1);
  if(!chosen.length){
   if(JSON.stringify(previous.map(repo=>repo.id))!==JSON.stringify(before?.repos?.map(repo=>repo.id))){
    state.daily={day,repos:previous};
@@ -138,8 +139,8 @@ function advance(state,index,now) {
  const revisited=!unseen.length;
  const target=index===null?null:before.repos[index];
  const slot=target?previous.findIndex(identityIndex([target])):-1;
- const repos=index===null?[...chosen,...previous.slice(chosen.length)].slice(0,3):
-  slot<0?[...previous,...chosen].slice(0,3):previous.map((repo,i)=>i===slot?chosen[0]:repo);
+ const repos=index===null?[...chosen,...previous.slice(chosen.length)].slice(0,PAGE_SIZE):
+  slot<0?[...previous,...chosen].slice(0,PAGE_SIZE):previous.map((repo,i)=>i===slot?chosen[0]:repo);
  state.lastRotation={day,repos:previous};
  state.daily={day,repos};
  markPresented(state,chosen,now);
@@ -154,8 +155,9 @@ function nextBatch(state,now=Date.now(),{manualBrowse=false}={}) {
  if(!remaining.length)return {changed:false,exhausted:true,reason:'exhausted'};
  const {available,unseen}=feedPools(state,previous,now,remaining,day);
  const newPick=identityIndex(unseen);
- const chosen=[...unseen,...available.filter(repo=>!newPick(repo))].slice(0,3);
+ const chosen=[...unseen,...available.filter(repo=>!newPick(repo))].slice(0,PAGE_SIZE);
  state.manualVisited??=[];
+ state.manualPageSize=PAGE_SIZE;
  recordManualVisits(state,previous);
  state.lastRotation={day,repos:previous};
  state.daily={day,repos:chosen};
