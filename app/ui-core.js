@@ -24,7 +24,12 @@
   const cut=chars.length>limit?chars.slice(0,limit-1).join('').replace(/\s+\S*$/,''):short;
   return cut+(words.length>6||chars.length>limit?'…':'');
  }
+ function compactSummary(value){
+  const text=typeof value==='string'?value:'';
+  return text.replace(/\[([^\]]+)\]\([^)]*\)/g,'$1')
+   .replace(/https?:\/\/\S+/gi,'').replace(/\s+/g,' ').trim()||'Explore this project on GitHub.';
+ }
  function dockModel(items=[],id){items=(Array.isArray(items)?items:[]).filter(r=>r&&typeof r.full_name==='string');const repo=items.find(r=>r?.id===id)||items[0]||null;return{repo,title:repo?.full_name||'No discovery yet',summary:repo?brief(repo.description):'Open the panel to discover projects'};}
  function externalMode(message){if(typeof message==='object'&&message?.requestId!=null)return null;const mode=typeof message==='string'?message:message?.mode;return ['panel','collapsed','mini','workspace','insight'].includes(mode)?mode:null;}
- return{renderQueue,externalMode,brief,dockModel,visible,rowPlan,motion,textScale,nextScale,search,history,accept};
+ return{renderQueue,externalMode,brief,dockModel,visible,rowPlan,motion,textScale,nextScale,search,history,accept,compactSummary};
 });

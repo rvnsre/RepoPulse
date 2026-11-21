@@ -1,6 +1,6 @@
 'use strict';
 const UI=window.RepoPulseUI,raw=window.pulse,$=id=>document.getElementById(id);
-let miniOpen=false,insightOpen=false,morphing=false,sceneSequence=0,manualPaging=false;
+let miniRepoId=null,miniTimer=null,miniAnimation=null,miniOpen=false,insightOpen=false,morphing=false,sceneSequence=0,manualPaging=false;
 let state,section='details',expanded=true,drawer=false,selectedId=null,pair=0,draft={},toastTimer,busy=false,search='',sort='recent',savedLanguage='',transition=0,rootAnimation=null,drawerStamp='',releaseTimer;
 const pending=new Set(),slots=[],releaseStates=new Map(),releaseRequests=new Map();
 const api=raw?{...raw}:null;
@@ -47,6 +47,7 @@ function applyMode(){
  $('miniIsland').hidden=!miniOpen;document.body.classList.toggle('mini-open',miniOpen);
  $('expanded').hidden=!expanded||insightOpen||miniOpen;$('idleInsight').hidden=!insightOpen;$('drawer').hidden=!drawer;
  document.body.classList.toggle('collapsed',!expanded&&!insightOpen);document.body.classList.toggle('insight-open',insightOpen);document.body.classList.toggle('workspace-open',expanded&&drawer&&!insightOpen);
+ syncMiniTimer();
  $('edgeReveal').setAttribute('aria-expanded',String(expanded));$('menu').setAttribute('aria-expanded',String(drawer));
 }
 function desiredHeight(){
@@ -78,22 +79,24 @@ async function windowMode(){
  rootAnimation?.cancel();hoverAnimation?.cancel();morphing=true;
  const node=$('island'),mode=miniOpen?'mini':insightOpen?'insight':expanded?(drawer?'workspace':'panel'):'collapsed',before=pointerBounds||state.windowBounds;
  const surfacePadding=state.windowPolicy?.padding??8,fromHidden=before?.height<=16;
- const duration=IslandMorph.duration(state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches);
+ const duration=Math.max(220,IslandMorph.duration(state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches));
  islandController?.configure(state.settings,mode==='mini'?'panel':mode);
  try{
   if(mode==='collapsed'&&before&&canAnimate()&&api.previewBounds){
    const target=await api.previewBounds(mode);if(serial!==transition)return;
    rootAnimation=node.animate([{transform:currentTransform==='none'?'none':currentTransform,opacity:1},
     {transform:IslandMorph.transform(before,IslandMorph.revealBounds(target),surfacePadding,0),opacity:.15}],
-    {duration:Math.min(160,duration),easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'});
+    {duration:180,easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'});
    try{await rootAnimation.finished;}catch{}if(serial!==transition)return;
   }
   const reply=await api?.expand({mode,requestId:serial});if(serial!==transition)return;
-  applyMode();ultimateStatus();if(!expanded)compactProtectedEntry=false;
+  applyMode();ultimateStatus();
   updatePointerBounds(reply?.bounds);rootAnimation?.cancel();if(drawer)renderDrawer(false);
   if(mode!=='collapsed'&&before&&reply?.bounds&&canAnimate()){
    rootAnimation=node.animate([{transform:IslandMorph.transform(reply.bounds,fromHidden?IslandMorph.revealBounds(before):before,surfacePadding,fromHidden?0:surfacePadding),opacity:.85},
     {transform:'none',opacity:1}],{duration,easing:'cubic-bezier(.16,1,.3,1)'});
+   const contents=mode==='mini'?[$('miniIsland')]:[document.querySelector('.topbar'),$('expanded')];
+   for(const content of contents)content.animate([{opacity:0},{opacity:0,offset:.18},{opacity:1}],{duration,easing:'ease-out'});
    try{await rootAnimation.finished;}catch{}if(serial!==transition)return;rootAnimation.cancel();
   }
  }finally{if(serial===transition){rootAnimation?.cancel();morphing=false;ultimateStatus();ultimateMagnify(!!islandController?.pointer);requestFit();}}
@@ -114,23 +117,76 @@ async function checkRelease(repo,force=false){
  })();
  releaseRequests.set(repo.id,request);try{return await request;}finally{releaseRequests.delete(repo.id);}
 }
+function compactProjects(){
+ const catalog=new Map((state.catalog||[]).map(repo=>[repo.id,repo]));
+ const picks=[...repos(),...(state.feed?.queueIds||[]).map(id=>catalog.get(id)).filter(Boolean)];
+ return [...new Map(picks.map(repo=>[repo.id,repo])).values()];
+}
+function fitMiniSummary(){
+ const text=$('miniSummary');
+ if(!miniOpen||!text.clientWidth)return;
+ text.classList.add('measuring');
+ for(const fit of ['0','1','2','3']){
+  text.dataset.fit=fit;
+  const style=getComputedStyle(text);
+  if(text.scrollHeight<=Math.ceil(parseFloat(style.lineHeight)*3)&&text.scrollHeight<=47)break;
+ }
+ text.classList.remove('measuring');
+}
+function compactRepo(id=miniRepoId){
+ const picks=compactProjects();
+ const current=picks.find(repo=>repo.id===id);
+ return current||UI.dockModel(picks,selectedId).repo;
+}
+function updateMini(preferredId=miniRepoId){
+ if(!miniOpen)return;
+ const repo=compactRepo(preferredId),id=repo?.id??null,changed=miniRepoId!==id;
+ miniRepoId=id;
+ const release=state.releaseMetadata?.[id];
+ const tag=release?.fullName===repo?.full_name?release?.tag:null;
+ const text=$('miniSummary');
+ const summary=repo?UI.compactSummary(repo.description):'Open the panel to discover projects.';
+ $('miniTitle').textContent=repo?.full_name.split('/')[1]||'RepoPulse';
+ $('miniTitle').title=repo?.full_name||'RepoPulse';
+ if(text.textContent!==summary){text.textContent=summary;text.title=summary;}
+ fitMiniSummary();
+ $('miniLink').disabled=!repo;
+ const label=tag?'Open '+tag+' on GitHub':'Open GitHub releases';
+ $('miniLink').title=label;
+ $('miniLink').setAttribute('aria-label',label);
+ const avatar=$('miniAvatar'),key=id+':'+(repo?.avatar_url||'');
+ if(avatar.dataset.repo!==key){
+  avatar.dataset.repo=key;avatar.textContent=repo?.full_name[0].toUpperCase()||'R';
+  if(repo?.avatar_url&&!state.fixture){
+   const img=el('img',{src:repo.avatar_url,alt:'',referrerpolicy:'no-referrer'});
+   img.addEventListener('error',()=>img.remove());avatar.append(img);
+  }
+ }
+ if(changed&&canAnimate()){
+  miniAnimation?.cancel();
+  miniAnimation=$('miniExpand').animate([{opacity:.25,transform:'translateY(4px)'},{opacity:1,transform:'translateY(0)'}],
+   {duration:260,easing:'cubic-bezier(.2,.75,.25,1)'});
+ }
+}
+function syncMiniTimer(){
+ if(!miniOpen||document.hidden){
+  clearInterval(miniTimer);miniTimer=null;
+  miniAnimation?.cancel();
+  if(!miniOpen)miniRepoId=null;
+  return;
+ }
+ updateMini();
+ if(miniTimer!==null)return;
+ miniTimer=setInterval(()=>{
+  const picks=compactProjects();
+  if(picks.length<2)return;
+  const index=picks.findIndex(repo=>repo.id===miniRepoId);
+  updateMini(picks[(index+1)%picks.length].id);
+ },5000);
+}
 function updateActions(){
  const repo=selected();
- const mini=UI.dockModel(repos(),selectedId);
- const metadata=state.releaseMetadata?.[mini.repo?.id],release=metadata?.fullName===mini.repo?.full_name?metadata:null;
- const summary=release?.title&&release.title!==release.tag?release.title:mini.summary;
- $('miniTitle').textContent=mini.repo?.full_name.split('/')[0]||'RepoPulse';
- $('miniSummary').textContent=release?.tag?'Release '+release.tag+(summary?' · '+summary:''):mini.summary;
- $('miniLink').disabled=!mini.repo;
- const linkLabel=release?.tag?'Open '+release.tag+' on GitHub':release?'Open GitHub releases':'Open latest release on GitHub';
- $('miniLink').title=linkLabel;
- $('miniLink').setAttribute('aria-label',linkLabel);
- const avatar=$('miniAvatar'),id=String(mini.repo?.id||'');
- const avatarKey=id+':'+(mini.repo?.avatar_url||'');
- if(avatar.dataset.repo!==avatarKey){
-  avatar.dataset.repo=avatarKey;avatar.textContent=mini.repo?.full_name?.[0]?.toUpperCase()||'R';
-  if(mini.repo&&!state.fixture){const img=el('img',{src:mini.repo.avatar_url||'https://github.com/'+encodeURIComponent(mini.repo.full_name.split('/')[0])+'.png?size=88',alt:'',referrerpolicy:'no-referrer'});img.addEventListener('error',()=>img.remove());avatar.append(img);}
- }
+ updateMini();
  if($('workspaceContext'))$('workspaceContext').textContent=repo?.full_name||'Your discovery workspace';
  for(const row of document.querySelectorAll('.repo-row')){
   const id=Number(row.dataset.repoId),save=row.querySelector('[data-action="save"]'),saved=state.saved.some(item=>item.id===id);
@@ -210,14 +266,14 @@ function reconcile(){
   if(!slot){slot={element:el('div',{class:'repo-slot'}),version:0,id:null,key:null,desired:null,effect:null};slots[i]=slot;$('feed').append(slot.element);}
   if(slot.id===repo.id&&slot.key===key){if(slot.desired&&slot.desired!==key){slot.version++;slot.effect?.cancel();slot.desired=null;}slot.element.querySelector('.repo-row')?.classList.toggle('selected',repo.id===selectedId);continue;}
   if(slot.desired===key)continue;slot.desired=key;const serial=++slot.version;slot.effect?.cancel();const old=slot.element.firstElementChild,hadFocus=old?.contains(document.activeElement),changed=slot.id!==null&&slot.id!==repo.id;
-  const rowMotion=canAnimate()&&expanded&&!drawer;
+  const rowMotion=canAnimate()&&expanded&&!drawer&&!miniOpen;
   const scene=DynamicFeed.transition(state.settings.transitionStyle,repo.id+i,{...IslandMotion.config(state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches),duration:canAnimate()?IslandMorph.tempo(state.settings.cycleMotion,sceneSequence++):0});
   (async()=>{
    if(changed&&rowMotion&&old&&!batchSwap){slot.effect=old.animate(scene.exit,{...scene.options,duration:Math.round(scene.options.duration*.4)});try{await slot.effect.finished;}catch{}}
    if(serial!==slot.version)return;
    const node=row(repo,i);slot.element.replaceChildren(node);slot.id=repo.id;slot.key=key;slot.desired=null;
    if(hadFocus)node.querySelector('.repo-name').focus({preventScroll:true});
-   if(changed&&rowMotion){const frames=batchSwap?scene.enter.map(frame=>({opacity:Math.max(.75,frame.opacity??1),transform:frame.transform})):scene.enter;slot.effect=node.animate(frames,{...scene.options,delay:state.settings.stagger?i*20:0});try{await slot.effect.finished;}catch{}}
+   if(changed&&rowMotion){const frames=batchSwap?[{opacity:.35,transform:'translateY(5px)'},{opacity:1,transform:'translateY(0)'}]:scene.enter;slot.effect=node.animate(frames,{...scene.options,...(batchSwap?{duration:260,easing:'cubic-bezier(.2,.75,.25,1)'}:{}),delay:state.settings.stagger?i*16:0});try{await slot.effect.finished;}catch{}}
    if(serial!==slot.version)return;
    if(changed&&rowMotion&&state.settings.cycleAccent)node.animate([{outline:'1px solid '+getComputedStyle(node).getPropertyValue('--accent-border').trim(),outlineOffset:'-2px'},{outline:'1px solid transparent',outlineOffset:'-2px'}],{duration:Math.min(400,scene.options.duration*3),easing:'ease-out'});
    requestFit();updateActions();
@@ -393,7 +449,7 @@ $('miniExpand').addEventListener('click',()=>run(async()=>{
 }));
 $('miniIsland').addEventListener('click',event=>{if(event.target===$('miniIsland'))$('miniExpand').click();});
 $('miniLink').addEventListener('click',()=>run(async()=>{
- const repo=repos().find(item=>item.id===selectedId)||repos()[0];
+ const repo=compactRepo();
  if(repo)await api.open(repo.id,'latest-release');
 }));
 $('toggle').addEventListener('click',()=>run(()=>drawer?closeDrawer():openDrawer('commands')));
@@ -437,7 +493,7 @@ $('next').addEventListener('click',()=>run(async()=>{
 }));
 
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>run(()=>openDrawer(b.dataset.tab))));
-document.addEventListener('visibilitychange',()=>{if(document.hidden){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}});
+document.addEventListener('visibilitychange',()=>{syncMiniTimer();if(document.hidden){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}});
 for(const query of ['(prefers-reduced-motion: reduce)','(prefers-color-scheme: dark)'])matchMedia(query).addEventListener('change',render);
 window.addEventListener('keydown',e=>{
  if(!state)return;
@@ -465,7 +521,7 @@ window.addEventListener('keydown',e=>{
  adopt(await api.state());draft={...state.profile.weights};selectedId=repos()[0]?.id??null;
  const stopState=api.onState(next=>{adopt(next);render();});
  const stopMode=api.onMode?.(message=>{const next=UI.externalMode(message);if(!next||Number.isSafeInteger(message?.requestId)&&message.requestId<transition)return;if(message?.insight){state={...state,insight:message.insight};renderInsight();}if(message?.bounds)pointerBounds=message.bounds;const nextExpanded=next!=='collapsed',nextDrawer=next==='workspace',nextInsight=next==='insight',nextMini=next==='mini';if(nextExpanded===expanded&&nextDrawer===drawer&&nextInsight===insightOpen&&nextMini===miniOpen)return;transition++;rootAnimation?.cancel();hoverAnimation?.cancel();morphing=false;expanded=nextExpanded;drawer=nextDrawer;insightOpen=nextInsight;miniOpen=nextMini;applyMode();if(nextInsight&&canAnimate())$('idleInsight').animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:200,easing:'cubic-bezier(.16,1,.3,1)'});islandController?.configure(state.settings,next==='mini'?'panel':next);if(next==='panel')islandController?.pause(1200);ultimateStatus();updatePointerBounds(pointerBounds);requestFit();if(drawer)renderDrawer(false);});
- const observer=new ResizeObserver(()=>{requestFit();updatePickRange();});observer.observe($('island'));observer.observe($('notifications'));$('feed').addEventListener('scroll',()=>{updatePickRange();dynamicHoldUntil=Date.now()+1000;},{passive:true});const syncTimer=setInterval(renderSync,30000);window.addEventListener('beforeunload',()=>{observer.disconnect();clearInterval(syncTimer);clearTimeout(toastTimer);clearTimeout(releaseTimer);if(typeof stopState==='function')stopState();if(typeof stopMode==='function')stopMode();},{once:true});expanded=state.windowMode!=='collapsed';miniOpen=state.windowMode==='mini';drawer=state.windowMode==='workspace';applyMode();ultimateInit();render();if(state.recoveryNotice)toast(state.recoveryNotice);await refresh();
+ const observer=new ResizeObserver(()=>{fitMiniSummary();requestFit();updatePickRange();});observer.observe($('island'));observer.observe($('notifications'));observer.observe($('miniExpand'));$('feed').addEventListener('scroll',()=>{updatePickRange();dynamicHoldUntil=Date.now()+1000;},{passive:true});const syncTimer=setInterval(renderSync,30000);window.addEventListener('beforeunload',()=>{observer.disconnect();clearInterval(miniTimer);clearInterval(syncTimer);clearTimeout(toastTimer);clearTimeout(releaseTimer);if(typeof stopState==='function')stopState();if(typeof stopMode==='function')stopMode();},{once:true});expanded=state.windowMode!=='collapsed';miniOpen=state.windowMode==='mini';drawer=state.windowMode==='workspace';applyMode();ultimateInit();render();if(state.recoveryNotice)toast(state.recoveryNotice);await refresh();
 })().catch(e=>toast(e.message));
 
 

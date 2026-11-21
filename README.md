@@ -1,4 +1,4 @@
-# RepoPulse 12.0.3
+# RepoPulse 12.0.4
 
 A personalized GitHub discovery island for Windows, macOS and Linux, focused on **50,000+ star** public projects.
 

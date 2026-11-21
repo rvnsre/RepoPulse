@@ -13,8 +13,8 @@ function state(cache){
  return s;
 }
 test('Queue filters low stars, book marks and both aliases of a canonical repo',()=>{
- const s=state([repo(1),repo(2),repo(3),repo(4),repo(5,'EXAMPLE/Repo4'),repo(6,'other/low',99999)]);
- assert.equal(s.feed.matchingCount,4);
+ const s=state([repo(1),repo(2),repo(3),repo(4),repo(5,'EXAMPLE/Repo4'),repo(6,'other/low',99999),repo(7)]);
+ assert.equal(s.feed.matchingCount,5);
  assert.equal(s.feed.queueIds.length,1);
  const before=s.daily.repos.map(r=>r.id);
  const next=D.nextBatch(s,now+1);
@@ -126,24 +126,24 @@ test('Manual Next Picks preserves the existing page if every matching repo is vi
 });
 
 test('Manual paging consumes the whole eligible pool without repeats, including after restart',()=>{
- let s=state(Array.from({length:22},(_,i)=>repo(i+1)));
+ let s=state(Array.from({length:29},(_,i)=>repo(i+1)));
  const seen=new Set(s.daily.repos.map(r=>r.id));
  for(let page=0;page<7;page++){
   const result=D.nextBatch(s,now+page+1,{manualBrowse:true});
-  assert.equal(result.count,page===6?1:3);
+  assert.equal(result.count,page===6?1:4);
   for(const r of s.daily.repos){assert.ok(!seen.has(r.id));seen.add(r.id);}
   if(page===2){s=D.initialize(JSON.parse(JSON.stringify(s)));D.present(s,now+page+1);}
  }
- assert.equal(seen.size,22);
+ assert.equal(seen.size,29);
  assert.equal(s.feed.manualRemaining,0);
  assert.equal(D.nextBatch(s,now+2*s.settings.cooldownWindowMs,{manualBrowse:true}).changed,false);
  assert.equal(s.daily.repos.length,1);
  D.present(s,now+2*s.settings.cooldownWindowMs);
  assert.equal(s.daily.repos.length,1);
- s.cache.push(repo(23));
+ s.cache.push(repo(30));
  D.present(s,now+2*s.settings.cooldownWindowMs);
  assert.equal(s.feed.manualRemaining,1);
- assert.equal(D.nextBatch(s,now+2*s.settings.cooldownWindowMs,{manualBrowse:true}).id,23);
+ assert.equal(D.nextBatch(s,now+2*s.settings.cooldownWindowMs,{manualBrowse:true}).id,30);
 });
 
 test('Manual paging remembers prior picks through Undo and repository ID or name changes',()=>{

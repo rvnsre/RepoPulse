@@ -15,7 +15,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  console.log('Native withheld-frame regression passed: cards and status render without compositor callbacks.');
  window.show();window.focus();window.webContents.focus();
  await new Promise(r=>setTimeout(r,500));let dimensions=await evaluate(`({rows:document.querySelectorAll('.repo-row').length,width:innerWidth,height:innerHeight,natural:document.getElementById('expanded').scrollHeight,island:document.getElementById('island').offsetHeight,footer:document.querySelector('footer').getBoundingClientRect().bottom})`);
- assert.equal(dimensions.rows,3);assert.ok(dimensions.width>=900&&dimensions.width<=960);assert.ok(dimensions.height<=650,JSON.stringify(dimensions));assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
+ assert.equal(dimensions.rows,4);assert.ok(dimensions.width>=900&&dimensions.width<=960);assert.ok(dimensions.height<=650,JSON.stringify(dimensions));assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
 
  async function capture(name){
   window.show();window.focus();window.webContents.focus();let png=null;
@@ -43,9 +43,9 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
   distinct:new Set(rows.map(r=>r.dataset.repoId)).size,columns:getComputedStyle(f).gridTemplateColumns.split(' ').length,
   rowGap:getComputedStyle(f).rowGap,columnGap:getComputedStyle(f).columnGap,
   inline:boxes[0].top===boxes[1].top&&boxes[0].left<boxes[1].left,
-  scope:document.querySelector('#systemInfo').textContent,third:boxes[2].bottom<=f.getBoundingClientRect().bottom+2
+  scope:document.querySelector('#systemInfo').textContent,fourth:boxes[2].top===boxes[3].top&&boxes[3].bottom<=f.getBoundingClientRect().bottom+2
  };})()`);
- assert.deepEqual({...grid,scope:grid.scope.split(' ')[0]},{distinct:3,columns:2,rowGap:'32px',columnGap:'48px',inline:true,scope:'SYS:',third:true});
+ assert.deepEqual({...grid,scope:grid.scope.split(' ')[0]},{distinct:4,columns:2,rowGap:'32px',columnGap:'48px',inline:true,scope:'SYS:',fourth:true});
  await capture('desktop-preview.png');
  await evaluate("document.getElementById('miniButton').click()");
  await until(()=>evaluate("!document.getElementById('miniIsland').hidden"));
@@ -58,6 +58,16 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  assert.equal(snapshot().lastExternal.url,releaseUrl);
  assert.equal(store.state.history.length,0,'The compact release shortcut does not replace an item');
  assert.equal(await evaluate("document.getElementById('miniIsland').hidden"),false);
+ const miniBefore=await evaluate("miniRepoId");
+ const compactText=await evaluate(`(()=>{const text=document.getElementById('miniSummary');
+  text.textContent='f.k.a. Awesome ChatGPT Prompts. Share, discover, and collect prompts from the community. '.repeat(4);
+  fitMiniSummary();
+  return {height:text.clientHeight,fit:Number(text.dataset.fit),length:text.textContent.length};
+ })()`);
+ assert.ok(compactText.height>0&&compactText.height<=47&&compactText.fit>0&&compactText.length>300);
+ await until(()=>evaluate(`miniRepoId!==${miniBefore}`),65);
+ assert.equal(store.state.history.length,0,'Rotation in compact view must not record a repository visit');
+ assert.equal(store.state.daily.repos[0].id,first.id,'Rotation in compact view must not page Advanced');
  await capture('dynamic-island-preview.png');
  await evaluate("document.getElementById('miniExpand').click()");
  await until(()=>evaluate("!document.body.classList.contains('mini-open')&&!document.getElementById('expanded').hidden"));
@@ -86,7 +96,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await evaluate('window.pulse.settings({theme:"reference"})');
  await until(()=>evaluate('!document.body.classList.contains("contrast")'));
  await evaluate(`document.querySelector('[data-tab="saved"]').click()`);await until(()=>evaluate(`document.querySelectorAll('.list-row').length===1`));
- await evaluate(`window.pulse.settings({textScale:150,motion:'none',visibleRows:3})`);await until(()=>evaluate(`document.body.dataset.scale==='150'&&document.querySelectorAll('.repo-row').length===3`));
+ await evaluate(`window.pulse.settings({textScale:150,motion:'none',visibleRows:3})`);await until(()=>evaluate(`document.body.dataset.scale==='150'&&document.querySelectorAll('.repo-row').length===4`));
  assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true,'Large text must fit');
  await evaluate(`document.getElementById('closeDrawer').click()`);await until(()=>evaluate(`document.getElementById('drawer').hidden`));
  await evaluate(`window.pulse.settings({textScale:100,motion:'system',visibleRows:2})`);await until(()=>evaluate(`document.body.dataset.scale==='100'`));
@@ -253,7 +263,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  assert.ok(!(await evaluate("document.getElementById('liveToggle').textContent")).includes('Live'));
  assert.equal(await evaluate("document.getElementById('connectionDot').dataset.status"),'stale');
  await evaluate("window.pulse.settings({});closeDrawer()");await until(()=>evaluate("document.getElementById('drawer').hidden"));await capture('audit-preview.png');
- console.log('11.1 audit native checks passed: all three picks reachable, no duplicated footer actions, single command surface, npm/clone copy, nowrap code and stale sync consistency.');
+ console.log('11.1 audit native checks passed: all four picks reachable, no duplicated footer actions, single command surface, npm/clone copy, nowrap code and stale sync consistency.');
 
  // Reproduce the reported 0-pick state with a fully seen catalog on a new day.
  const recoveryHistory=store.state.history.length,recoveryWeights=JSON.stringify(store.state.profile.weights);
@@ -262,17 +272,17 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  store.state.seenHistory=store.state.seenHistory.map(entry=>({...entry,timestamp:cooledAt}));
  store.state.daily={day:'2000-01-01',repos:[]};
  await evaluate("window.pulse.settings({autoHide:false,dynamicRefresh:false})");
- await until(()=>evaluate("document.querySelectorAll('.repo-row').length===3"));
- assert.equal(store.state.daily.repos.length,3);assert.ok(store.state.daily.repos.every(r=>r.stargazers_count>=50000));
- await evaluate("document.getElementById('next').click()");await until(()=>evaluate("document.querySelectorAll('.repo-row').length===3"));
+ await until(()=>evaluate("document.querySelectorAll('.repo-row').length===4"));
+ assert.equal(store.state.daily.repos.length,4);assert.ok(store.state.daily.repos.every(r=>r.stargazers_count>=50000));
+ await evaluate("document.getElementById('next').click()");await until(()=>evaluate("document.querySelectorAll('.repo-row').length===4"));
  assert.equal(store.state.history.length,recoveryHistory);assert.equal(JSON.stringify(store.state.profile.weights),recoveryWeights);
  await evaluate("window.pulse.settings({languages:['NotARealLanguage']})");await until(()=>evaluate("!!document.querySelector('#feed>.empty')"));
  await until(()=>window.getBounds().height>=235);
  assert.ok(await evaluate("document.querySelector('#feed>.empty').getBoundingClientRect().height>=100"));
  await capture('empty-filter-preview.png');
- await evaluate("document.querySelector('#feed>.empty button').click()");await until(()=>evaluate("document.querySelectorAll('.repo-row').length===3"));
+ await evaluate("document.querySelector('#feed>.empty button').click()");await until(()=>evaluate("document.querySelectorAll('.repo-row').length===4"));
  await capture('catalog-recovery-preview.png');
- console.log('11.2 recovery checks passed: fully seen new-day catalog refills automatically, 50K hard floor, no phantom visits, readable filter-empty recovery and reset to three cards.');
+ console.log('11.2 recovery checks passed: fully seen new-day catalog refills automatically, 50K hard floor, no phantom visits, readable filter-empty recovery and reset to four cards.');
 
  // Real measured geometry across narrow widths, large fonts and command visibility.
  await evaluate("window.pulse.settings({autoHide:false,dynamicRefresh:false,motion:'none',hoverLift:false})");
@@ -325,7 +335,9 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await evaluate("window.pulse.settings({autoHide:true,collapseOnLeave:true,hideDelay:80,hoverDelay:0,keepOnFocus:true,motion:'full',windowMotionDuration:160})");
  await moveScreen(0,100);await until(()=>window.getBounds().height<=16);
  const activation=window.getBounds(),center=activation.x+activation.width/2;
- await moveScreen(center+activation.width,activation.y+4);await new Promise(r=>setTimeout(r,150));
+ await moveScreen(center,activation.y+8);await new Promise(r=>setTimeout(r,150));
+ assert.ok(window.getBounds().height<=16,'Invisible padding immediately below the indicator must not reveal the island');
+ await moveScreen(center+40,activation.y+4);await new Promise(r=>setTimeout(r,150));
  assert.ok(window.getBounds().height<=16,'Neighboring browser tabs must not reveal the island');
  await moveScreen(center,activation.y+4);await until(()=>evaluate("!document.getElementById('miniIsland').hidden"));
  await evaluate("document.getElementById('miniExpand').click()");
@@ -353,7 +365,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
   await until(()=>evaluate("!document.getElementById('next').disabled"));
  }
  console.log('Native Next button passed: five consecutive clicks produce disjoint repository pages.');
- assert.deepEqual(errors,[]);console.log('Native UI passed: readable fonts, stable row DOM, direct Learn URL, verified Releases URL, independent replacement, undo, native screenshots, settings, 150% text, three rows, rapid toggle and collection.');app.exit(0);
+ assert.deepEqual(errors,[]);console.log('Native UI passed: readable fonts, stable row DOM, direct Learn URL, verified Releases URL, independent replacement, undo, native screenshots, settings, 150% text, four repositories, rapid toggle and collection.');app.exit(0);
 }
 module.exports={smoke};
 

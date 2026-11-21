@@ -407,8 +407,8 @@ nav button.active::before { inset: 8px auto 8px 0; }
 .collapsed { padding: 0; background: transparent; }
 .collapsed .island { height: 100vh; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .collapsed .topbar, .collapsed #toast { display: none; }
-.collapsed #edgeReveal { position: absolute; inset: 0; display: block; width: 100%; height: 100%; min-height: 0; padding: 0; background: transparent; }
-#edgeReveal span { position: absolute; top: 2px; left: 50%; width: 48px; height: 3px; transform: translateX(-50%); border-radius: 3px; background: var(--thumb); box-shadow: 0 0 0 1px var(--panel); }
+.collapsed #edgeReveal { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); display: block; width: min(68px, 100%); height: min(5px, 100%); min-height: 0; padding: 0; border: 0; border-radius: 9999px; clip-path: inset(0 round 9999px); background: transparent; }
+#edgeReveal span { position: absolute; inset: 0; }
 #edgeReveal:hover span, #edgeReveal:focus-visible span { background: var(--accent); }
 #edgeReveal:focus-visible { outline-offset: -2px; }
 .insight-open .topbar { display: none; }
@@ -585,19 +585,27 @@ body.mini-open:not(.workspace-open):not(.insight-open) .island {
 .mini-author { display: grid; flex: 0 1 auto; min-width: 0; max-width: 27%; line-height: 1.15; }
 .mini-author span { color: #9ca3af; font-size: calc(10px * var(--s)); }
 #miniTitle { font-size: calc(14px * var(--s)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-summary-frame {
+  display: block;
+  flex: 1;
+  min-width: 20px;
+  max-height: 47px;
+  overflow: hidden;
+}
 #miniSummary {
   display: -webkit-box;
-  flex: 1;
-  min-width: 0;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
   overflow: hidden;
   overflow-wrap: anywhere;
   color: #e5e5e5;
-  font-size: calc(11.5px * var(--s));
-  line-height: 1.35;
+  font-size: min(15px, calc(12px * var(--s)));
+  line-height: 1.25;
 }
-body[data-scale="130"] #miniSummary, body[data-scale="150"] #miniSummary { -webkit-line-clamp: 2; }
+#miniSummary[data-fit="1"] { font-size: 12px; }
+#miniSummary[data-fit="2"] { font-size: 11px; }
+#miniSummary[data-fit="3"] { font-size: 10px; }
+#miniSummary.measuring { display: block; overflow: visible; }
 #miniLink {
   display: grid;
   place-items: center;
@@ -724,6 +732,9 @@ body:not(.workspace-open) :is(.connection-dot,.status,.pick-range) {
   padding: 2px 4px;
   clip-path: none;
 }
+#discoveryPanel .identity-title { align-items: start; }
+#discoveryPanel .repo-name { margin-top: 4px; }
+.repo-slot { overflow: clip; }
 body:not(.workspace-open) footer {
   position: relative;
   justify-content: flex-start;
@@ -767,7 +778,10 @@ body:not(.workspace-open) footer {
 }
 body:not(.workspace-open) #notifications { background: transparent; }
 @media (max-width: 640px) {
-  body:not(.workspace-open) .topbar, #discoveryPanel, body:not(.workspace-open) footer { padding-inline: 18px; }
+  body:not(.workspace-open) .topbar, #discoveryPanel, #discoveryPanel .identity-title { align-items: start; }
+#discoveryPanel .repo-name { margin-top: 4px; }
+.repo-slot { overflow: clip; }
+body:not(.workspace-open) footer { padding-inline: 18px; }
   #discoveryPanel #feed { column-gap: 24px; }
   #discoveryPanel .repo-name { font-size: calc(25px * var(--s)); }
   #discoveryPanel .identity-title { gap: 10px; }
