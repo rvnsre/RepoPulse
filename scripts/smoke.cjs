@@ -273,7 +273,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  store.state.daily={day:'2000-01-01',repos:[]};
  await evaluate("window.pulse.settings({autoHide:false,dynamicRefresh:false})");
  await until(()=>evaluate("document.querySelectorAll('.repo-row').length===4"));
- assert.equal(store.state.daily.repos.length,4);assert.ok(store.state.daily.repos.every(r=>r.stargazers_count>=50000));
+ assert.equal(store.state.daily.repos.length,4);assert.ok(store.state.daily.repos.every(r=>r.stargazers_count>=5000));
  await evaluate("document.getElementById('next').click()");await until(()=>evaluate("document.querySelectorAll('.repo-row').length===4"));
  assert.equal(store.state.history.length,recoveryHistory);assert.equal(JSON.stringify(store.state.profile.weights),recoveryWeights);
  await evaluate("window.pulse.settings({languages:['NotARealLanguage']})");await until(()=>evaluate("!!document.querySelector('#feed>.empty')"));
@@ -282,7 +282,7 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await capture('empty-filter-preview.png');
  await evaluate("document.querySelector('#feed>.empty button').click()");await until(()=>evaluate("document.querySelectorAll('.repo-row').length===4"));
  await capture('catalog-recovery-preview.png');
- console.log('11.2 recovery checks passed: fully seen new-day catalog refills automatically, 50K hard floor, no phantom visits, readable filter-empty recovery and reset to four cards.');
+ console.log('11.2 recovery checks passed: fully seen new-day catalog refills automatically, 5K hard floor, no phantom visits, readable filter-empty recovery and reset to four cards.');
 
  // Real measured geometry across narrow widths, large fonts and command visibility.
  await evaluate("window.pulse.settings({autoHide:false,dynamicRefresh:false,motion:'none',hoverLift:false})");

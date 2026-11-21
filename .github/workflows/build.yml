@@ -23,8 +23,26 @@ jobs:
           node-version: '24'
       - run: npm test
       - run: npm run check
+  catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Collect and validate real GitHub repositories
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/prepare-catalog.cjs src/catalog-seed.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RepoPulse-catalog
+          path: src/catalog-seed.json
+          if-no-files-found: error
   package:
-    needs: verify
+    needs: [verify, catalog]
     strategy:
       fail-fast: false
       matrix:
@@ -63,6 +81,10 @@ jobs:
           name: RepoPulse-dependency-lock
           path: package-lock.json
           if-no-files-found: error
+      - uses: actions/download-artifact@v4
+        with:
+          name: RepoPulse-catalog
+          path: src
       - name: Package desktop app
         run: npm run dist
       - name: Start the packaged Windows app
@@ -95,7 +117,7 @@ jobs:
           path: extension/
           retention-days: 30
   release:
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'Release RepoPulse v12.0.4')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'Release RepoPulse v12.1.0')
     needs: [verify, package]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -119,13 +141,17 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             test "$tag" = "$REF_NAME"
           else
-            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "RepoPulse $tag" --notes-file docs/RELEASE-v12.0.4.md
+            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "RepoPulse $tag" --notes-file docs/RELEASE-v12.1.0.md
           fi
           echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
       - name: Attach verified installers and SHA-256 checksums to the tagged release
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/release.cjs release-artifacts
+      - name: Publish the verified catalog snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" release-artifacts/RepoPulse-catalog/catalog-seed.json
 
 
       - name: Publish the complete release

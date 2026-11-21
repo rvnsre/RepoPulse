@@ -100,12 +100,17 @@ function refreshVisibleActivity(){
  })().finally(()=>{visibleActivityPromise=null;});
  return visibleActivityPromise;
 }
+const CATALOG_REFRESH_MS=86400000;
+function catalogDue(state,now=Date.now()){
+ const checkedAt=Date.parse(state.cacheAt||state.catalogInfo?.checkedAt);
+ return !Number.isFinite(checkedAt)||now-checkedAt>=CATALOG_REFRESH_MS;
+}
 async function refresh(force=false){
  if(refreshPromise)return refreshPromise;
  refreshPromise=(async()=>{
   if(store.state.daily?.day!==localDay()){store.update(s=>{discovery.present(s);});emit();}
   maybeNotify();
-  if(force||(!Number.isFinite(Date.parse(store.state.cacheAt))||Date.now()-Date.parse(store.state.cacheAt)>=240000)&&Date.now()-lastSyncAttempt>=240000){lastSyncAttempt=Date.now();try{const cache=await fetchCatalog(store.state.cache,github.request,{delayMs:6500,cachePages:true});store.update(s=>{s.cache=cache;s.catalogInfo={...fetchCatalog.info,source:'github'};if(fetchCatalog.info.freshPages>0){s.cacheAt=new Date().toISOString();s.starSamples=observe(s.starSamples,fetchCatalog.observations,Date.now(),cache);}discovery.present(s);});lastError=null;}catch(e){lastError=e.message;}}
+  if(force||catalogDue(store.state)&&Date.now()-lastSyncAttempt>=240000){lastSyncAttempt=Date.now();try{const cache=await fetchCatalog(store.state.cache,github.request,{delayMs:6500,cachePages:true});store.update(s=>{s.cache=cache;s.catalogInfo={...fetchCatalog.info,source:'github'};if(fetchCatalog.info.freshPages>0){s.cacheAt=new Date().toISOString();s.starSamples=observe(s.starSamples,fetchCatalog.observations,Date.now(),cache,8);}discovery.present(s);});lastError=null;}catch(e){lastError=e.message;}}
   emit();
   if(!smokeMode)void refreshVisibleActivity().catch(error=>console.error('Background release refresh failed:',error.message));
   return {state:snapshot(),error:lastError};
@@ -303,7 +308,7 @@ if(singleton)app.whenReady().then(()=>{
  powerMonitor.on('lock-screen',()=>{screenLocked=true;context={topic:null,status:'locked'};if(mode==='insight'){insight=null;resize('collapsed');}});
  powerMonitor.on('unlock-screen',()=>{screenLocked=false;keepOnTop(true);});
  if(!smokeMode){contextTimer=setInterval(()=>{if(powerMonitor.getSystemIdleTime()<480)void collectContext();},60000);advisorTimer=setInterval(()=>{const busy=mode==='workspace'||opening.size>0||!window.isVisible();if(idleGate.tick(powerMonitor.getSystemIdleTime(),{enabled:store.state.settings.idleAdvisor,locked:screenLocked,busy}))showInsight();},15000);if(store.state.settings.screenContext)void collectContext();}
- powerMonitor.on('resume',()=>{if(!quitting){keepOnTop(true);void refreshLicense();}if(!quitting)refresh().catch(error=>{lastError=error.message;emit();});});timer=setInterval(()=>{if(!smokeMode&&(store.state.daily?.day!==localDay()||(!Number.isFinite(Date.parse(store.state.cacheAt))||Date.now()-Date.parse(store.state.cacheAt)>=240000)))void refresh().catch(error=>{lastError=error.message;emit();});},60000);app.on('second-instance',show);app.on('activate',show);
+ powerMonitor.on('resume',()=>{if(!quitting){keepOnTop(true);void refreshLicense();}if(!quitting)refresh().catch(error=>{lastError=error.message;emit();});});timer=setInterval(()=>{if(!smokeMode&&(store.state.daily?.day!==localDay()||catalogDue(store.state)))void refresh().catch(error=>{lastError=error.message;emit();});},60000);app.on('second-instance',show);app.on('activate',show);
  if(smokeMode)require('../scripts/smoke.cjs').smoke({app,window,store,resize,TOPICS,snapshot}).catch(error=>{console.error(error);app.exit(1);});
 }).catch(error=>{dialog.showErrorBox('RepoPulse could not start',error.message);app.quit();});
 app.on('before-quit',()=>{quitting=true;notifier?.close();github?.close();clearInterval(timer);clearInterval(pointerTimer);clearInterval(advisorTimer);clearInterval(contextTimer);clearInterval(licenseTimer);clearTimeout(moveTimer);});app.on('will-quit',()=>globalShortcut.unregisterAll());app.on('window-all-closed',()=>{});

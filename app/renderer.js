@@ -256,11 +256,12 @@ function row(repo,index){
 }
 function empty(title,body,action,label){const box=el('div',{class:'empty'});box.append(el('h2',{},title),el('p',{},body));if(action)box.append(btn(label,action,'secondary'));return box;}
 function rowKey(repo){return JSON.stringify([repo.full_name,repo.description,repo.stargazers_count,repo.language,repo.reason,state.settings.showCommands,state.settings.showDescriptions,state.settings.showOwners,state.settings.showReasons,state.settings.exactStars,state.settings.showQuickActions,state.settings.showBadges,!!state.license?.active,!!state.plusRepos?.some(item=>item.id===repo.id),state.workspace?.records?.[repo.id]]);}
+function catalogMinimum(){return state.catalogPolicy?.MIN_STARS||5000;}
 function reconcile(){
  const desired=visible();
  const batchSwap=slots.filter((slot,index)=>slot.id!==null&&desired[index]&&slot.id!==desired[index].id).length>1;
  $('feed').querySelector('.empty')?.remove();
- if(!desired.length){for(const slot of slots){slot.version++;slot.effect?.cancel();slot.element.remove();}slots.length=0;$('feed').append(empty('No 50K+ projects match these filters.','Seen projects are reused automatically. Change language filters or restore hidden projects in Settings.',()=>changeSettings({minStars:50000,languages:[],topics:[]}), 'Reset feed filters'));return;}
+ if(!desired.length){for(const slot of slots){slot.version++;slot.effect?.cancel();slot.element.remove();}slots.length=0;$('feed').append(empty('No projects match these filters.','Seen projects are reused automatically. Change language filters or restore hidden projects in Settings.',()=>changeSettings({minStars:catalogMinimum(),languages:[],topics:[]}), 'Reset feed filters'));return;}
  for(let i=0;i<desired.length;i++){
   const repo=desired[i],key=rowKey(repo);let slot=slots[i];
   if(!slot){slot={element:el('div',{class:'repo-slot'}),version:0,id:null,key:null,desired:null,effect:null};slots[i]=slot;$('feed').append(slot.element);}
@@ -345,7 +346,7 @@ function settingsView(root){heading(root,'Settings',[btn('Export RSS',()=>api.ex
  setting(grid,'cooldownWindowMs','Replay cooldown','','select',[[1800000,'30 minutes'],[43200000,'12 hours'],[86400000,'24 hours']]);
  for(const [key,title,detail]of [['autoReplace','Replace after opening','The clicked row is replaced with a new unseen project.'],['pinned','Always on top','Keep the panel above other windows.'],['hoverExpand','Expand on hover','Reveal a collapsed panel when the pointer enters.'],['reducedMotion','Reduced motion','Disable entry animations.'],['pausedLearning','Pause reaction learning','Keep manual interests without learning from opens and likes.'],['notifications','New-day notification','Notify when a new day of discoveries is ready.'],['launchAtLogin','Launch at login','Start RepoPulse when you sign in.']])setting(grid,key,title,detail);
 
-setting(grid,'density','Density','','select',[['comfortable','Comfortable'],['compact','Compact']]);setting(grid,'minStars','Minimum stars','','select',[[50000,'50K+'],[70000,'70K+'],[75000,'75K+'],[100000,'100K+'],[200000,'200K+']]);
+setting(grid,'density','Density','','select',[['comfortable','Comfortable'],['compact','Compact']]);setting(grid,'minStars','Minimum stars','','select',[[5000,'5K+'],[10000,'10K+'],[25000,'25K+'],[50000,'50K+'],[70000,'70K+'],[75000,'75K+'],[100000,'100K+'],[200000,'200K+']]);
  const display=el('div',{class:'settings-grid'});
  setting(display,'theme','Panel theme','','select',[['reference','RSS dark'],['light','Light'],['graphite','Dark'],['contrast','High contrast']]);
  setting(display,'textScale','Text size','Readable sizes across the entire interface.','select',[[100,'100%'],[115,'115%'],[130,'130%'],[150,'150%']]);
@@ -356,7 +357,7 @@ setting(grid,'density','Density','','select',[['comfortable','Comfortable'],['co
  setting(display,'toastSeconds','Message duration','','select',[[3,'3 seconds'],[5,'5 seconds'],[8,'8 seconds']]);
  for(const [key,title,description]of [['showCommands','Show source commands','Hide code blocks for a calmer feed.'],['showDescriptions','Show descriptions','Keep or hide project summaries.'],['showReasons','Show relevance explanations','Explain why a project is recommended.'],['shortcuts','Keyboard shortcuts','Disable letter shortcuts if preferred.'],['exactStars','Exact star counts','Display full cached counts instead of compact notation.'],['uniqueHistory','Unique history view','Show only the newest visit per project.']])setting(display,key,title,description);
  root.append(el('h3',{class:'subheading'},'Appearance'),display,el('h3',{class:'subheading'},'Discovery and startup'),grid);
- const resets=el('div',{class:'stack'});resets.append(btn('Reset appearance',()=>changeSettings({textScale:100,motion:'system',motionDuration:80,visibleRows:2,panelWidth:920,showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,theme:'reference',density:'compact',opacity:100,reducedMotion:false}),'secondary'),btn('Reset feed filters',()=>changeSettings({minStars:50000,languages:[]}),'secondary'));root.append(resets);
+ const resets=el('div',{class:'stack'});resets.append(btn('Reset appearance',()=>changeSettings({textScale:100,motion:'system',motionDuration:80,visibleRows:2,panelWidth:920,showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,theme:'reference',density:'compact',opacity:100,reducedMotion:false}),'secondary'),btn('Reset feed filters',()=>changeSettings({minStars:catalogMinimum(),languages:[]}),'secondary'));root.append(resets);
  ultimateSettings(root);
  if(api.testNotification){
   const messages={shown:'Test notification sent.',requested:'Notification requested. Check your system notification center.',failed:'System notification failed. Check OS permissions for RepoPulse.',unavailable:'System notifications are unavailable.'};

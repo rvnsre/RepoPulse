@@ -7,8 +7,8 @@ function sampleDay(sample) {
  if(Number.isSafeInteger(sample?.at)&&Math.abs(sample.at)<=8640000000000000)return new Date(sample.at).toISOString().slice(0,10);
  return null;
 }
-function observe(previous={},repos=[],now=Date.now(),catalog=repos){
- const today=new Date(now).toISOString().slice(0,10),first=new Date(now-89*DAY).toISOString().slice(0,10);
+function observe(previous={},repos=[],now=Date.now(),catalog=repos,retentionDays=90){
+ const today=new Date(now).toISOString().slice(0,10),first=new Date(now-(retentionDays-1)*DAY).toISOString().slice(0,10);
  const out={},observations=new Map(repos.map(repo=>[repo.id,repo.stargazers_count]));
  for(const repo of catalog){
   const days=new Map();
