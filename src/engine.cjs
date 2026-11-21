@@ -1,5 +1,5 @@
 'use strict';
-const {MIN_STARS}=require('./catalog-policy.cjs');
+const {MIN_STARS,MAX_CATALOG}=require('./catalog-policy.cjs');
 const crypto = require('node:crypto');
 const TOPICS = {
   ai: { label: 'Artificial intelligence', terms: ['artificial intelligence','machine learning','llm','neural','pytorch','tensorflow','huggingface','openai','langchain','ollama','deep learning'], github: ['ai','machine-learning','llm','deep-learning'] },
@@ -13,10 +13,10 @@ const TOPICS = {
 };
 function localDay(date = new Date()) { return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; }
 function classify(text) {
-  const s = String(text).toLowerCase().replace(/[^a-z0-9.+-]+/g,' ');
+  const s = ' ' + String(text).toLowerCase().replace(/[^a-z0-9.+-]+/g,' ') + ' ';
   const result = {};
   for (const [key,t] of Object.entries(TOPICS)) {
-    const hits = t.terms.filter(term => (` ${s} `).includes(` ${term} `)).length;
+    const hits = t.terms.filter(term => s.includes(` ${term} `)).length;
     if (hits) result[key] = Math.min(hits,4);
   }
   return result;
@@ -45,13 +45,26 @@ function repoTopics(r) {
   return detected;
 }
 function tierWeight(stars){return stars>=200000?6:stars>=100000?2.5:1;}
+const rankingFeatures=new Map();
+function features(repo,day,withTopics){
+  const topicsKey=withTopics?[repo.full_name,repo.description,repo.language,repo.topics?.join(' ')].join('\0'):null;
+  const saved=rankingFeatures.get(repo.id);
+  if(saved?.day===day&&saved.topicsKey===topicsKey)return saved;
+  const row={
+    day,topicsKey,
+    tags:withTopics?repoTopics(repo):{},
+    jitter:saved?.day===day?saved.jitter:crypto.createHash('sha256').update(`${day}:${repo.id}`).digest().readUInt32BE(0)/0xffffffff
+  };
+  rankingFeatures.set(repo.id,row);
+  if(rankingFeatures.size>MAX_CATALOG)rankingFeatures.delete(rankingFeatures.keys().next().value);
+  return row;
+}
 function ranked(repos, profile, day) {
-  const weights = validWeights(profile), maximum = Math.max(1,...Object.values(weights));
+  const weights = validWeights(profile), values=Object.values(weights), maximum = Math.max(1,...values);
   return repos.filter(eligible).map(repo=>{
-    const tags = repoTopics(repo);
+    const {tags,jitter}=features(repo,day,values.length>0);
     const matches = Object.keys(tags).filter(k=>weights[k]).sort((a,b)=>weights[b]*tags[b]-weights[a]*tags[a]);
     const affinity = matches.reduce((sum,k)=>sum+(weights[k]/maximum)*Math.min(tags[k],4),0);
-    const jitter = crypto.createHash('sha256').update(`${day}:${repo.id}`).digest().readUInt32BE(0)/0xffffffff;
     return {...repo, score:affinity*12+tierWeight(repo.stargazers_count)*7+Math.log10(repo.stargazers_count)+jitter*2, reason:matches.length?`Matches your interest in ${TOPICS[matches[0]].label.toLowerCase()}.`:'A widely adopted project to broaden your open-source radar.', matchedTopics:matches};
   }).sort((a,b)=>b.score-a.score || a.id-b.id);
 }
