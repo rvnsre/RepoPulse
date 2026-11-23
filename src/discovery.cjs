@@ -68,10 +68,10 @@ function feedPools(state,visible,now,pool=filteredCatalog(state.cache,state,now)
  }).sort((a,b)=>lastSeen(a)-lastSeen(b)||b.score-a.score);
  return {ranking,available,unseen,replay};
 }
-function manualPool(state,pool,visible) {
+function manualPool(state,pool,visible,{restart=false}={}) {
  const skipped=(state.seenHistory||[]).filter(entry=>entry.action==='skipped');
  const excluded=identityIndex([...(state.saved||[]),...skipped.map(entry=>({id:entry.id,full_name:entry.key}))]);
- const visited=identityIndex([...(state.manualVisited||[]),...visible]);
+ const visited=identityIndex([...(restart?[]:state.manualVisited||[]),...visible]);
  return pool.filter(repo=>!excluded(repo)&&!visited(repo));
 }
 function recordManualVisits(state,repos) {
@@ -108,7 +108,10 @@ function markPresented(state,repos,now) {
 }
 function saveFeed(state,now,phase='ready',bump=true,pool=filteredCatalog(state.cache,state,now),ranking) {
  const {unseen,replay}=feedPools(state,state.daily?.repos||[],now,pool,state.daily?.day,ranking);
- state.feed={schemaVersion:1,phase,epoch:(state.feed?.epoch||0)+Number(bump),visibleIds:(state.daily?.repos||[]).map(repo=>repo.id),queueIds:unseen.map(repo=>repo.id),hasReplay:replay.length>0,matchingCount:pool.length,manualRemaining:manualPool(state,pool,state.daily?.repos||[]).length};
+ const visible=state.daily?.repos||[];
+ const manualRemaining=manualPool(state,pool,visible).length;
+ const canRestartManual=manualRemaining===0&&manualPool(state,pool,visible,{restart:true}).length>0;
+ state.feed={schemaVersion:1,phase,epoch:(state.feed?.epoch||0)+Number(bump),visibleIds:(state.daily?.repos||[]).map(repo=>repo.id),queueIds:unseen.map(repo=>repo.id),hasReplay:replay.length>0,matchingCount:pool.length,manualRemaining,canRestartManual};
  return state.feed;
 }
 function present(state,now=Date.now()) {
@@ -147,17 +150,20 @@ function advance(state,index,now) {
  saveFeed(state,now,revisited?'rebuilding':'ready',true,filtered,ranking);
  return {changed:true,count:chosen.length,revisited,browsing:false,id:chosen[0].id,index};
 }
-function nextBatch(state,now=Date.now(),{manualBrowse=false}={}) {
+function nextBatch(state,now=Date.now(),{manualBrowse=false,restart=false}={}) {
  if(!manualBrowse)return advance(state,null,now);
  const day=state.daily?.day||localDay(),pool=filteredCatalog(state.cache,state,now);
  const previous=hydrate(pool,state.daily?.repos||[]);
- const remaining=manualPool(state,pool,previous);
+ let remaining=manualPool(state,pool,previous);
+ const restarted=restart&&!remaining.length;
+ if(restarted)remaining=manualPool(state,pool,previous,{restart:true});
  if(!remaining.length)return {changed:false,exhausted:true,reason:'exhausted'};
  const ordered=ranked(pool,state.profile?.weights||{},day);
  const matches=identityIndex(remaining);
  const {available,unseen}=feedPools(state,previous,now,remaining,day,ordered.filter(matches));
  const newPick=identityIndex(unseen);
  const chosen=[...unseen,...available.filter(repo=>!newPick(repo))].slice(0,PAGE_SIZE);
+ if(restarted)state.manualVisited=[];
  state.manualVisited??=[];
  state.manualPageSize=PAGE_SIZE;
  recordManualVisits(state,previous);
@@ -165,7 +171,7 @@ function nextBatch(state,now=Date.now(),{manualBrowse=false}={}) {
  state.daily={day,repos:chosen};
  markPresented(state,chosen,now);
  saveFeed(state,now,'ready',true,pool,ordered);
- return {changed:true,count:chosen.length,revisited:chosen.some(repo=>!newPick(repo)),browsing:true,id:chosen[0].id,index:null};
+ return {changed:true,count:chosen.length,revisited:restarted||chosen.some(repo=>!newPick(repo)),restarted,browsing:true,id:chosen[0].id,index:null};
 }
 function rotate(state,id,now=Date.now()) {
  const index=state.daily?.repos.findIndex(repo=>repo.id===id)??-1;
