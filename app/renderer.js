@@ -2,6 +2,8 @@
 const UI=window.RepoPulseUI,raw=window.pulse,$=id=>document.getElementById(id);
 let miniRepoId=null,miniTimer=null,miniAnimation=null,miniOpen=false,insightOpen=false,morphing=false,sceneSequence=0,manualPaging=false;
 let state,section='details',expanded=true,drawer=false,selectedId=null,pair=0,draft={},toastTimer,busy=false,search='',sort='recent',savedLanguage='',transition=0,rootAnimation=null,drawerStamp='',releaseTimer;
+const surfaceAnimations=[];
+function cancelSurfaceAnimations(){for(const animation of surfaceAnimations)animation.cancel();surfaceAnimations.length=0;}
 const pending=new Set(),slots=[],releaseStates=new Map(),releaseRequests=new Map();
 const api=raw?{...raw}:null;
 function adopt(next){state=UI.accept(state,next);return state;}
@@ -76,7 +78,7 @@ async function showMini(focus=false){
 }
 async function windowMode(){
  fitKey='';const serial=++transition,currentTransform=getComputedStyle($('island')).transform;
- rootAnimation?.cancel();hoverAnimation?.cancel();morphing=true;
+ rootAnimation?.cancel();cancelSurfaceAnimations();hoverAnimation?.cancel();morphing=true;
  const node=$('island'),mode=miniOpen?'mini':insightOpen?'insight':expanded?(drawer?'workspace':'panel'):'collapsed',before=pointerBounds||state.windowBounds;
  const surfacePadding=state.windowPolicy?.padding??8,fromHidden=before?.height<=16;
  const duration=Math.max(220,IslandMorph.duration(state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches));
@@ -96,7 +98,7 @@ async function windowMode(){
    rootAnimation=node.animate([{transform:IslandMorph.transform(reply.bounds,fromHidden?IslandMorph.revealBounds(before):before,surfacePadding,fromHidden?0:surfacePadding),opacity:.85},
     {transform:'none',opacity:1}],{duration,easing:'cubic-bezier(.16,1,.3,1)'});
    const contents=mode==='mini'?[$('miniIsland')]:[document.querySelector('.topbar'),$('expanded')];
-   for(const content of contents)content.animate([{opacity:0},{opacity:0,offset:.18},{opacity:1}],{duration,easing:'ease-out'});
+   for(const content of contents)surfaceAnimations.push(content.animate([{opacity:0},{opacity:0,offset:.18},{opacity:1}],{duration,easing:'ease-out'}));
    try{await rootAnimation.finished;}catch{}if(serial!==transition)return;rootAnimation.cancel();
   }
  }finally{if(serial===transition){rootAnimation?.cancel();morphing=false;ultimateStatus();ultimateMagnify(!!islandController?.pointer);requestFit();}}
@@ -148,8 +150,7 @@ function updateMini(preferredId=miniRepoId){
  const summary=repo?UI.compactSummary(repo.description):'Open the panel to discover projects.';
  $('miniTitle').textContent=repo?.full_name.split('/')[1]||'RepoPulse';
  $('miniTitle').title=repo?.full_name||'RepoPulse';
- if(text.textContent!==summary){text.textContent=summary;text.title=summary;}
- fitMiniSummary();
+ if(text.textContent!==summary){text.textContent=summary;text.title=summary;fitMiniSummary();}
  $('miniLink').disabled=!repo;
  const label=tag?'Open '+tag+' on GitHub':'Open GitHub releases';
  $('miniLink').title=label;
@@ -179,7 +180,7 @@ function syncMiniTimer(){
  if(miniTimer!==null)return;
  miniTimer=setInterval(()=>{
   const picks=compactProjects();
-  if(picks.length<2)return;
+  if(picks.length<2||$('miniSummary').matches(':hover')||(uKeyboardFocus&&$('miniIsland').contains(document.activeElement)))return;
   const index=picks.findIndex(repo=>repo.id===miniRepoId);
   updateMini(picks[(index+1)%picks.length].id);
  },5000);
@@ -304,7 +305,7 @@ function renderNow(){
  if(!drawer&&!repos().some(r=>r.id===selectedId))selectedId=repos()[0]?.id??null;
  $('systemInfo').textContent='SYS: '+(state.systemLabel||({win32:'Windows',darwin:'macOS',linux:'Linux'})[state.platform]||'Unknown OS');
  renderSync();if(expanded&&!drawer)for(const repo of repos())void requestActivity(repo);renderPagination();
- dynamicSync();if(!canAnimate()){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}reconcile();updateActions();if(drawer)renderDrawer(false);requestFit();
+ dynamicSync();if(!canAnimate()){rootAnimation?.cancel();cancelSurfaceAnimations();miniAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}reconcile();updateActions();if(drawer)renderDrawer(false);requestFit();
  // Release checks are demand-driven: live rotation must not poll GitHub for every card.
  clearTimeout(releaseTimer);
 }
@@ -431,18 +432,41 @@ function plusView(root){
  if(!watch.length)list.append(el('p',{class:'intro'},'Select a repository in the feed, then add it here.'));
  root.append(list,btn('Remove key from this device',async()=>{adopt(await api.plusClear());render();},'secondary'));
 }
+function releaseView(root){
+ const entries=state.releaseInbox||[],unread=entries.filter(entry=>!entry.read).length;
+ heading(root,'Release inbox',unread&&api.plusRead?[btn('Mark all as read',async()=>{adopt(await api.plusRead(null));render();},'secondary')]:[]);
+ if(!state.license?.active){
+  root.append(el('p',{class:'intro'},'Follow GitHub releases through your RSS+ watchlist.'),btn('Open RSS+',()=>openDrawer('plus'),'primary'));
+  return;
+ }
+ if(!entries.length){
+  root.append(el('p',{class:'intro'},'New releases appear here after the first check of each watched repository. You can read updates here during Quiet mode.'),
+   btn('Open watchlist',()=>openDrawer('plus'),'secondary'));
+  return;
+ }
+ const list=el('ul',{class:'release-inbox'});
+ for(const entry of entries){
+  const item=el('li',{class:'release-entry'+(entry.read?'':' unread')}),copy=el('div',{class:'release-entry-copy'});
+  copy.append(el('strong',{},entry.title||entry.tag),el('span',{},entry.repo.full_name+' · '+entry.tag+' · '+new Date(entry.releasedAt).toLocaleDateString()),
+   el('span',{class:'sr-only'},entry.read?'Read':'Unread'));
+  item.append(copy,btn('Open release ↗',async()=>{adopt(await api.plusOpenRelease(entry.id));render();},'secondary','Open '+entry.repo.full_name+' '+entry.tag));
+  list.append(item);
+ }
+ root.append(list);
+}
 function renderDrawer(force=true){
  if(!state||!drawer)return;
  document.querySelectorAll('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===section);b.setAttribute('aria-current',b.dataset.tab===section?'page':'false');});
- const stamp=JSON.stringify([section,section==='history'?[state.settings.uniqueHistory,state.settings.exactStars]:section==='saved'?state.settings.exactStars:null,section==='details'?[selected(),releaseStates.get(selected()?.id),state.settings.showCommands]:null,section==='saved'?state.saved:null,section==='history'?state.history:null,section==='tune'?state.profile:null,section==='settings'?[state.settings,state.githubTokenConfigured,state.saved.length,state.history.length,state.catalogSize]:null,section==='exclusions'?state.exclusions:null,section==='plus'?[state.license,state.plusRepos,selectedId]:null,['library','collections','compare','insights'].includes(section)?[state.workspace,state.saved,state.history,state.analytics]:null,section==='details'?state.workspace?.records?.[selected()?.id]:null]);
+ const stamp=JSON.stringify([section,section==='releases'?[state.releaseInbox,state.license?.active]:null,section==='history'?[state.settings.uniqueHistory,state.settings.exactStars]:section==='saved'?state.settings.exactStars:null,section==='details'?[selected(),releaseStates.get(selected()?.id),state.settings.showCommands]:null,section==='saved'?state.saved:null,section==='history'?state.history:null,section==='tune'?state.profile:null,section==='settings'?[state.settings,state.githubTokenConfigured,state.saved.length,state.history.length,state.catalogSize]:null,section==='exclusions'?state.exclusions:null,section==='plus'?[state.license,state.plusRepos,selectedId]:null,['library','collections','compare','insights'].includes(section)?[state.workspace,state.saved,state.history,state.analytics]:null,section==='details'?state.workspace?.records?.[selected()?.id]:null]);
  if(!force&&stamp===drawerStamp)return;drawerStamp=stamp;
  $('drawer').dataset.view=section;const root=$('drawerContent'),active=document.activeElement,within=root.contains(active),key=within?(active.dataset.focusKey||active.id):null,scroll=root.scrollTop;
  let cursor=null;try{if(within&&typeof active.selectionStart==='number')cursor=[active.selectionStart,active.selectionEnd];}catch{}
- root.replaceChildren();({details:overview,saved:r=>collectionView(r,false),history:r=>collectionView(r,true),tune,settings:settingsView,exclusions:exclusionsView,plus:plusView,library:ultimateLibrary,collections:ultimateCollections,compare:ultimateCompare,insights:ultimateInsights,commands:ultimateCommands})[section](root);
+ root.replaceChildren();({details:overview,saved:r=>collectionView(r,false),history:r=>collectionView(r,true),tune,settings:settingsView,exclusions:exclusionsView,plus:plusView,releases:releaseView,library:ultimateLibrary,collections:ultimateCollections,compare:ultimateCompare,insights:ultimateInsights,commands:ultimateCommands})[section](root);
  if(key){const replacement=Array.from(root.querySelectorAll('[data-focus-key],input[id]')).find(n=>(n.dataset.focusKey||n.id)===key);if(replacement){replacement.focus({preventScroll:true});if(cursor)try{replacement.setSelectionRange(...cursor);}catch{}}}root.scrollTop=scroll;
 }
 async function refresh(force=false){if(busy)return;busy=true;$('refresh').disabled=true;try{const result=await api.refresh(force);adopt(result.state);render();if(result.error)toast(result.error);else if(force)toast(result.state.cacheAt?'Catalog checked.':'Catalog metadata is unavailable.');}finally{busy=false;$('refresh').disabled=false;}}
 $('browseLibrary').addEventListener('click',()=>run(()=>openDrawer('library')));
+$('inboxButton').addEventListener('click',()=>run(()=>openDrawer('releases')));
 $('plusButton').addEventListener('click',()=>run(()=>openDrawer('plus')));
 $('miniButton').addEventListener('click',()=>run(()=>showMini(true)));
 $('miniExpand').addEventListener('click',()=>run(async()=>{
@@ -460,6 +484,8 @@ $('closeDrawer').addEventListener('click',()=>run(closeDrawer));
 $('refresh').addEventListener('click',()=>run(()=>refresh(true)));
 $('pinButton').addEventListener('click',()=>run(()=>changeSettings({pinned:!state.settings.pinned})));
 function renderPagination(){
+ const unread=(state.releaseInbox||[]).filter(entry=>!entry.read).length;
+ $('inboxButton').textContent=unread?'Releases · '+unread:'Releases';
  const remaining=state.feed?.manualRemaining;
  const loading=pending.has('next');
  $('next').disabled=loading||!state.catalogSize||remaining===0;
@@ -470,7 +496,6 @@ function renderPagination(){
 $('next').addEventListener('click',()=>run(async()=>{
  if(pending.has('next')||!state.catalogSize)return;
  pending.add('next');
- manualPaging=true;
  renderPagination();
  islandController?.hold('next picks',true);
  try{
@@ -481,6 +506,7 @@ $('next').addEventListener('click',()=>run(async()=>{
    if(result.reason!=='stale')break;
   }
   if(!result.changed){render();return;}
+  manualPaging=true;
   $('feed').scrollTop=0;
   pair=0;
   selectedId=repos()[0]?.id??null;
@@ -494,7 +520,7 @@ $('next').addEventListener('click',()=>run(async()=>{
 }));
 
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>run(()=>openDrawer(b.dataset.tab))));
-document.addEventListener('visibilitychange',()=>{syncMiniTimer();if(document.hidden){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}});
+document.addEventListener('visibilitychange',()=>{syncMiniTimer();if(document.hidden){rootAnimation?.cancel();cancelSurfaceAnimations();for(const slot of slots)slot.effect?.cancel();}});
 for(const query of ['(prefers-reduced-motion: reduce)','(prefers-color-scheme: dark)'])matchMedia(query).addEventListener('change',render);
 window.addEventListener('keydown',e=>{
  if(!state)return;
@@ -521,7 +547,7 @@ window.addEventListener('keydown',e=>{
  if(!api){$('feed').append(empty('RepoPulse desktop','Open this interface in the desktop app.'));return;}
  adopt(await api.state());draft={...state.profile.weights};selectedId=repos()[0]?.id??null;
  const stopState=api.onState(next=>{adopt(next);render();});
- const stopMode=api.onMode?.(message=>{const next=UI.externalMode(message);if(!next||Number.isSafeInteger(message?.requestId)&&message.requestId<transition)return;if(message?.insight){state={...state,insight:message.insight};renderInsight();}if(message?.bounds)pointerBounds=message.bounds;const nextExpanded=next!=='collapsed',nextDrawer=next==='workspace',nextInsight=next==='insight',nextMini=next==='mini';if(nextExpanded===expanded&&nextDrawer===drawer&&nextInsight===insightOpen&&nextMini===miniOpen)return;transition++;rootAnimation?.cancel();hoverAnimation?.cancel();morphing=false;expanded=nextExpanded;drawer=nextDrawer;insightOpen=nextInsight;miniOpen=nextMini;applyMode();if(nextInsight&&canAnimate())$('idleInsight').animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:200,easing:'cubic-bezier(.16,1,.3,1)'});islandController?.configure(state.settings,next==='mini'?'panel':next);if(next==='panel')islandController?.pause(1200);ultimateStatus();updatePointerBounds(pointerBounds);requestFit();if(drawer)renderDrawer(false);});
+ const stopMode=api.onMode?.(message=>{const next=UI.externalMode(message);if(!next||Number.isSafeInteger(message?.requestId)&&message.requestId<transition)return;if(message?.insight){state={...state,insight:message.insight};renderInsight();}if(message?.bounds)pointerBounds=message.bounds;const nextExpanded=next!=='collapsed',nextDrawer=next==='workspace',nextInsight=next==='insight',nextMini=next==='mini';if(nextExpanded===expanded&&nextDrawer===drawer&&nextInsight===insightOpen&&nextMini===miniOpen)return;transition++;rootAnimation?.cancel();cancelSurfaceAnimations();hoverAnimation?.cancel();morphing=false;expanded=nextExpanded;drawer=nextDrawer;insightOpen=nextInsight;miniOpen=nextMini;applyMode();if(nextInsight&&canAnimate())$('idleInsight').animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:200,easing:'cubic-bezier(.16,1,.3,1)'});islandController?.configure(state.settings,next==='mini'?'panel':next);if(next==='panel')islandController?.pause(1200);ultimateStatus();updatePointerBounds(pointerBounds);requestFit();if(drawer)renderDrawer(false);});
  const observer=new ResizeObserver(()=>{fitMiniSummary();requestFit();updatePickRange();});observer.observe($('island'));observer.observe($('notifications'));observer.observe($('miniExpand'));$('feed').addEventListener('scroll',()=>{updatePickRange();dynamicHoldUntil=Date.now()+1000;},{passive:true});const syncTimer=setInterval(renderSync,30000);window.addEventListener('beforeunload',()=>{observer.disconnect();clearInterval(miniTimer);clearInterval(syncTimer);clearTimeout(toastTimer);clearTimeout(releaseTimer);if(typeof stopState==='function')stopState();if(typeof stopMode==='function')stopMode();},{once:true});expanded=state.windowMode!=='collapsed';miniOpen=state.windowMode==='mini';drawer=state.windowMode==='workspace';applyMode();ultimateInit();render();if(state.recoveryNotice)toast(state.recoveryNotice);await refresh();
 })().catch(e=>toast(e.message));
 

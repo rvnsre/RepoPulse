@@ -3,7 +3,7 @@
 function createNotifier(Notification,onOpen){
  const active=new Set();
 
- function send(title,body){
+ function send(title,body,onClick=onOpen){
   if(!Notification.isSupported())return Promise.resolve('unavailable');
   return new Promise(resolve=>{
    const item=new Notification({title,body});
@@ -16,8 +16,8 @@ function createNotifier(Notification,onOpen){
    const cleanup=()=>{clearTimeout(release);active.delete(item);};
    item.once('show',()=>finish('shown'));
    item.once('failed',()=>{finish('failed');cleanup();});
-   item.once('close',cleanup);
-   item.once('click',()=>{cleanup();onOpen();});
+   item.once('close',()=>{finish('closed');cleanup();});
+   item.once('click',()=>{finish('shown');cleanup();Promise.resolve().then(onClick).catch(error=>console.error('Notification action failed:',error.message));});
    try{item.show();}
    catch{finish('failed');cleanup();}
   });

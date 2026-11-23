@@ -777,11 +777,28 @@ body:not(.workspace-open) footer {
   white-space: nowrap;
 }
 body:not(.workspace-open) #notifications { background: transparent; }
+#inboxButton, #liveToggle {
+  min-height: 32px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+.release-inbox { display: grid; gap: 8px; padding: 0; list-style: none; }
+.release-entry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.release-entry.unread { border-inline-start: 3px solid var(--accent); }
+.release-entry-copy { display: grid; flex: 1 1 160px; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.release-entry-copy span { color: var(--muted); font-size: calc(12px * var(--s)); }
 @media (max-width: 640px) {
-  body:not(.workspace-open) .topbar, #discoveryPanel, #discoveryPanel .identity-title { align-items: start; }
-#discoveryPanel .repo-name { margin-top: 4px; }
-.repo-slot { overflow: clip; }
-body:not(.workspace-open) footer { padding-inline: 18px; }
+  body:not(.workspace-open) .topbar, #discoveryPanel, body:not(.workspace-open) footer { padding-inline: 18px; }
+  body:not(.workspace-open) footer { flex-wrap: wrap; row-gap: 8px; }
+  .feed-pagination { flex-wrap: wrap; justify-content: start; margin-inline-start: 0; }
   #discoveryPanel #feed { column-gap: 24px; }
   #discoveryPanel .repo-name { font-size: calc(25px * var(--s)); }
   #discoveryPanel .identity-title { gap: 10px; }
