@@ -26,6 +26,7 @@ test('A delivered notification retains its click action and failed delivery is r
  const service=createNotifier(Notification,()=>opened++);
  assert.equal(await service.send('RepoPulse','Daily picks'),'shown');
  notification.emit('click');
+ await Promise.resolve();
  assert.equal(opened,1);
  fail=true;
  assert.equal(await service.send('RepoPulse','Test'),'failed');

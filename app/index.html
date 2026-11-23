@@ -55,9 +55,6 @@
           <h1>Discover</h1>
           <p><span id="editionLabel"></span><span class="muted-separator" aria-hidden="true">·</span><span id="libraryStat"></span></p>
         </div>
-        <div class="live-controls">
-          <button id="liveToggle" aria-label="Pause automatic repository rotation" aria-pressed="true">Live</button>
-        </div>
         <button id="browseLibrary" class="browse-button" title="Open the cached project library">Library</button>
       </div>
       <main id="discoveryPanel" aria-label="Personalized repositories">
@@ -67,6 +64,8 @@
         <span id="systemInfo" class="system-info"></span>
         <span id="pickRange" class="pick-range" role="status"></span>
         <div class="feed-pagination" aria-label="Browse repositories">
+          <button id="inboxButton" class="secondary" type="button">Releases</button>
+          <button id="liveToggle" class="secondary" type="button" aria-label="Pause automatic repository rotation" aria-pressed="true">Live</button>
           <span id="nextStatus" role="status"></span>
           <button id="next" type="button" aria-controls="feed" title="Show the next repositories">Next <span aria-hidden="true">→</span></button>
         </div>
@@ -88,6 +87,7 @@
           <button data-tab="history">History</button>
           <button data-tab="tune">Interests</button>
           <button data-tab="plus">RSS+</button>
+          <button data-tab="releases">Release inbox</button>
           <button data-tab="settings">Settings</button>
           <button data-tab="exclusions">Exclusions</button>
           <button id="closeDrawer" aria-label="Close workspace">Discover</button>

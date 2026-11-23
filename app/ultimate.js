@@ -203,7 +203,7 @@ function dynamicBlocked(){
  if(miniOpen)return 'compact view';
  if(manualPaging)return 'manual browsing';
  if(Date.now()<dynamicHoldUntil)return 'interaction';
- if(busy||pending.size||slots.some(slot=>slot.desired))return 'busy';
+ if(pending.size||slots.some(slot=>slot.desired))return 'busy';
  if(uFocusUntil>Date.now())return 'focus session';
  if(state.settings.cyclePauseHover&&document.querySelector('.repo-row:hover,#dockOpen:hover'))return 'hover';
  const active=document.activeElement;
@@ -213,10 +213,11 @@ function dynamicBlocked(){
 }
 function dynamicStatus(status){
  const control=$('liveToggle');if(!control||!state)return;
- control.setAttribute('aria-pressed',String(status.enabled));
- control.setAttribute('aria-label',status.enabled?'Pause automatic repository rotation':'Resume automatic repository rotation');
+ const active=status.enabled&&!manualPaging;
+ control.setAttribute('aria-pressed',String(active));
+ control.setAttribute('aria-label',active?'Pause automatic repository rotation':'Resume automatic repository rotation');
  const sync=FeedUI.sync(state),prefix=sync.fresh?'Live':'Cached';if(!repos().length){control.textContent=state.catalogSize?'No filter matches':'Loading catalog';control.title='Use Reset feed filters or restore exclusions in Settings.';return;}
- control.textContent=!status.enabled?'Rotation paused':status.reason==='exhausted'?prefix+' · no alternatives':status.busy?prefix+' · changing':status.reason?prefix+' · paused':prefix+(state.settings.cycleCountdown?' · '+Math.ceil(status.remaining/1000)+'s':' · rotating');
+ control.textContent=manualPaging?'Resume':!status.enabled?'Rotation paused':status.reason==='exhausted'?prefix+' · no alternatives':status.busy?prefix+' · changing':status.reason?prefix+' · paused':prefix+(state.settings.cycleCountdown?' · '+Math.ceil(status.remaining/1000)+'s':' · rotating');
  control.title=(sync.fresh?'Recently synced. ':sync.label+'. ')+(status.error||status.reason||'Automatic rotation')+'. Click to pause or resume.';
 
 }
@@ -235,7 +236,12 @@ function dynamicInit(){
   if(result.changed){if(selectedId===repo.id)selectedId=result.id;render();}
   return result;
  }});
- $('liveToggle').addEventListener('click',()=>run(()=>changeSettings({dynamicRefresh:!state.settings.dynamicRefresh})));
+ $('liveToggle').addEventListener('click',()=>run(async()=>{
+  const resuming=manualPaging;
+  manualPaging=false;
+  if(!resuming||!state.settings.dynamicRefresh)await changeSettings({dynamicRefresh:resuming||!state.settings.dynamicRefresh});
+  dynamicSync();
+ }));
  document.addEventListener('pointerdown',()=>{dynamicHoldUntil=Date.now()+800;},true);
  const syncTimer=setInterval(dynamicSync,15000);
  window.addEventListener('beforeunload',()=>{clearInterval(syncTimer);dynamicScheduler.destroy();},{once:true});
@@ -271,6 +277,7 @@ function iconSVG(name){
   insights:'<path d="M4 5v14h16M8 16v-4m4 4V8m4 8v-6m4 6V6"/>',
   saved:'<path d="M7 4.5h10a1 1 0 0 1 1 1v14l-6-4-6 4v-14a1 1 0 0 1 1-1Z"/>',
   tune:'<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="2" fill="var(--panel)"/><circle cx="15" cy="12" r="2" fill="var(--panel)"/><circle cx="10" cy="17" r="2" fill="var(--panel)"/>',
+  releases:'<path d="M5 17h14l-2-3v-3a5 5 0 0 0-10 0v3l-2 3Zm5 3h4"/>',
   exclusions:'<circle cx="12" cy="12" r="8"/><path d="m6.5 17.5 11-11"/>',
   back:'<path d="M20 12H4m6-6-6 6 6 6"/>'};
  return '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(paths[name]||paths.clock)+'</svg>';

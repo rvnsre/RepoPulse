@@ -11,6 +11,12 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  async function movePointer(x,y){const b=window.getBounds();await moveScreen(b.x+x,b.y+y);}
  await evaluate("window.originalRAF=window.requestAnimationFrame;window.requestAnimationFrame=()=>0;queueRender.cancel();queueFit.cancel();document.getElementById('status').textContent='Waiting for a withheld frame';render()");
  await until(()=>evaluate(`!!document.querySelector('.repo-row')&&document.getElementById('status').textContent!=='Waiting for a withheld frame'`));
+ assert.equal(await evaluate("document.getElementById('liveToggle').getBoundingClientRect().width>0"),true,'Rotation control must be visible in the main panel');
+ await evaluate("document.getElementById('inboxButton').click()");
+ await until(()=>evaluate("document.getElementById('drawerContent').textContent.includes('Release inbox')"));
+ await evaluate("document.getElementById('closeDrawer').click()");
+ await until(()=>evaluate("document.getElementById('drawer').hidden"));
+
  await evaluate("window.requestAnimationFrame=window.originalRAF;render();requestFit()");
  console.log('Native withheld-frame regression passed: cards and status render without compositor callbacks.');
  window.show();window.focus();window.webContents.focus();

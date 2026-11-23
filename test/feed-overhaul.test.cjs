@@ -169,3 +169,15 @@ test('A persisted three-card manual page gains its fourth eligible card on upgra
  assert.equal(upgraded.daily.repos.length,4);
  assert.equal(new Set(upgraded.daily.repos.map(r=>r.id)).size,4);
 });
+
+test('A mixed catalog search drops private and internal repositories',async()=>{
+ const rows=[
+  {id:101,full_name:'org/public',stargazers_count:6500,visibility:'public'},
+  {id:102,full_name:'org/private',stargazers_count:6500,private:true},
+  {id:103,full_name:'org/internal',stargazers_count:6500,visibility:'internal'}
+ ];
+ const {fetchCatalog}=require('../src/github.cjs');
+ const results=await fetchCatalog([],async()=>({ok:true,json:async()=>({total_count:3,items:rows})}),{requireComplete:false,cachePages:false});
+ assert.deepEqual(results.map(repo=>repo.id),[101]);
+ assert.equal(fetchCatalog.info.complete,false);
+});
