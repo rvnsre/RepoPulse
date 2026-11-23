@@ -11,17 +11,16 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  async function movePointer(x,y){const b=window.getBounds();await moveScreen(b.x+x,b.y+y);}
  await evaluate("window.originalRAF=window.requestAnimationFrame;window.requestAnimationFrame=()=>0;queueRender.cancel();queueFit.cancel();document.getElementById('status').textContent='Waiting for a withheld frame';render()");
  await until(()=>evaluate(`!!document.querySelector('.repo-row')&&document.getElementById('status').textContent!=='Waiting for a withheld frame'`));
- assert.equal(await evaluate("document.getElementById('liveToggle').getBoundingClientRect().width>0"),true,'Rotation control must be visible in the main panel');
- await evaluate("document.getElementById('inboxButton').click()");
- await until(()=>evaluate("document.getElementById('drawerContent').textContent.includes('Release inbox')"));
- await evaluate("document.getElementById('closeDrawer').click()");
- await until(()=>evaluate("document.getElementById('drawer').hidden"));
-
  await evaluate("window.requestAnimationFrame=window.originalRAF;render();requestFit()");
  console.log('Native withheld-frame regression passed: cards and status render without compositor callbacks.');
  window.show();window.focus();window.webContents.focus();
  await new Promise(r=>setTimeout(r,500));let dimensions=await evaluate(`({rows:document.querySelectorAll('.repo-row').length,width:innerWidth,height:innerHeight,natural:document.getElementById('expanded').scrollHeight,island:document.getElementById('island').offsetHeight,footer:document.querySelector('footer').getBoundingClientRect().bottom})`);
  assert.equal(dimensions.rows,4);assert.ok(dimensions.width>=900&&dimensions.width<=960);assert.ok(dimensions.height<=650,JSON.stringify(dimensions));assert.ok(dimensions.footer<=dimensions.height+1,JSON.stringify(dimensions));
+ assert.equal(await evaluate("document.getElementById('liveToggle').getBoundingClientRect().width>0"),true,'Rotation control must be visible in the main panel');
+ await evaluate("document.getElementById('inboxButton').click()");
+ await until(()=>evaluate("document.getElementById('drawerContent').textContent.includes('Release inbox')"));
+ await evaluate("document.getElementById('closeDrawer').click()");
+ await until(()=>evaluate("document.getElementById('drawer').hidden"));
 
  async function capture(name){
   window.show();window.focus();window.webContents.focus();let png=null;
