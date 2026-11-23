@@ -22,6 +22,16 @@ function releaseRepository(env=process.env, readOrigin=()=>require('node:child_p
  if(!repo)throw Error('Pass GITHUB_REPOSITORY=owner/repo or configure a GitHub origin.');
  return repo;
 }
+function fileSha256(file){
+ const hash=crypto.createHash('sha256');
+ const buffer=Buffer.allocUnsafe(1024*1024);
+ const fd=fs.openSync(file,'r');
+ try{
+  let bytes;
+  while((bytes=fs.readSync(fd,buffer,0,buffer.length,null))>0)hash.update(buffer.subarray(0,bytes));
+ }finally{fs.closeSync(fd);}
+ return hash.digest('hex');
+}
 function prepare(root,version,tag,{requireMacArchitectures=false}={}){
 
  if(!/^\d+\.\d+\.\d+$/.test(version)||tag!=='v'+version)throw Error('Release tag must match package.json version.');
@@ -43,7 +53,7 @@ function prepare(root,version,tag,{requireMacArchitectures=false}={}){
  }
  files.sort((a,b)=>path.basename(a).localeCompare(path.basename(b),'en'));
  const checksumFile=path.join(root,'SHA256SUMS.txt');
- fs.writeFileSync(checksumFile,files.map(file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')+'  '+path.basename(file)).join('\n')+'\n');
+ fs.writeFileSync(checksumFile,files.map(file=>fileSha256(file)+'  '+path.basename(file)).join('\n')+'\n');
  return [...files,checksumFile];
 }
 if(require.main===module){
