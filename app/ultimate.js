@@ -43,7 +43,7 @@ function leaveSurface(){
  uKeyboardFocus=false;islandController.focus(false);islandController.leave();
 }
 function ultimateInit(){
- uFilters.pinnedFirst=state.settings.pinnedFirst;installIcons();dynamicInit();
+ uFilters.pinnedFirst=state.settings.pinnedFirst;installIcons();initDockListeners();dynamicInit();
  islandController=new IslandMotion.Controller({onExpand:()=>run(()=>showMini()),onCollapse:()=>run(async()=>{miniOpen=false;expanded=false;drawer=false;await windowMode();}),onChange:ultimateStatus});
  islandController.configure(state.settings,expanded?'panel':'collapsed');
  // Native pointer samples are independent of animated DOM hit boundaries.
@@ -60,27 +60,27 @@ function ultimateInit(){
    else if(before||islandController.focused||uKeyboardFocus)leaveSurface();
    if(before!==inside)ultimateMagnify(inside);
   };
-  const stopPointer=api.onPointer(acceptPointer);run(async()=>acceptPointer(await api.pointerState()));window.addEventListener('beforeunload',stopPointer);
+  const stopPointer=api.onPointer(acceptPointer);run(async()=>acceptPointer(await api.pointerState()));onRendererCleanup(stopPointer);
  }else{
   // Browser fixture has no native window; its viewport never resizes for island modes.
   const surface=$('island');
-  surface.addEventListener('pointerenter',e=>{if(e.pointerType!=='touch'){if(expanded){islandController.enter(false);ultimateMagnify(true);}}});
-  surface.addEventListener('pointerleave',e=>{if(e.pointerType!=='touch'){leaveSurface();ultimateMagnify(false);}});
-  $('edgeReveal').addEventListener('pointerenter',e=>{if(e.pointerType!=='touch')islandController.enter();});
-  $('edgeReveal').addEventListener('pointerleave',e=>{if(!expanded&&e.pointerType!=='touch')leaveSurface();});
+  listen(surface,'pointerenter',e=>{if(e.pointerType!=='touch'){if(expanded){islandController.enter(false);ultimateMagnify(true);}}});
+  listen(surface,'pointerleave',e=>{if(e.pointerType!=='touch'){leaveSurface();ultimateMagnify(false);}});
+  listen($('edgeReveal'),'pointerenter',e=>{if(e.pointerType!=='touch')islandController.enter();});
+  listen($('edgeReveal'),'pointerleave',e=>{if(!expanded&&e.pointerType!=='touch')leaveSurface();});
  }
- $('island').addEventListener('pointerdown',()=>{uKeyboardFocus=false;islandController.focus(false);islandController.activity();});$('island').addEventListener('wheel',()=>islandController.activity(),{passive:true});
- document.addEventListener('keydown',()=>{uKeyboardFocus=true;islandController.focus(true);islandController.activity();});
- document.addEventListener('focusin',e=>{islandController.focus(uKeyboardFocus||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName));islandController.hold('editing',state.settings.protectEditing&&['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName));});
- document.addEventListener('focusout',()=>queueMicrotask(()=>{const active=document.activeElement;islandController.focus($('island').contains(active)&&(uKeyboardFocus||['INPUT','TEXTAREA','SELECT'].includes(active?.tagName)));islandController.hold('editing',state.settings.protectEditing&&['INPUT','TEXTAREA','SELECT'].includes(active?.tagName));}));
+ listen($('island'),'pointerdown',()=>{uKeyboardFocus=false;islandController.focus(false);islandController.activity();});listen($('island'),'wheel',()=>islandController.activity(),{passive:true});
+ listen(document,'keydown',()=>{uKeyboardFocus=true;islandController.focus(true);islandController.activity();});
+ listen(document,'focusin',e=>{islandController.focus(uKeyboardFocus||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName));islandController.hold('editing',state.settings.protectEditing&&['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName));});
+ listen(document,'focusout',()=>queueMicrotask(()=>{const active=document.activeElement;islandController.focus($('island').contains(active)&&(uKeyboardFocus||['INPUT','TEXTAREA','SELECT'].includes(active?.tagName)));islandController.hold('editing',state.settings.protectEditing&&['INPUT','TEXTAREA','SELECT'].includes(active?.tagName));}));
  window.addEventListener('blur',()=>{uKeyboardFocus=false;islandController.focus(false);islandController.hold('editing',false);});
- document.addEventListener('visibilitychange',()=>{if(document.hidden)hoverAnimation?.cancel();});
+ listen(document,'visibilitychange',()=>{if(document.hidden)hoverAnimation?.cancel();});
  matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',()=>{if(state.settings.motion!=='full'||state.settings.reducedMotion){hoverAnimation?.cancel();document.body.classList.remove('pointer-near');}});
- $('edgeReveal').addEventListener('click',()=>run(async()=>{if(!islandController.pointer)islandController.pause(1200);await showMini(true);}));
- $('commandButton').addEventListener('click',()=>run(()=>openDrawer('commands')));$('focusButton').addEventListener('click',()=>run(ultimateFocus));
- $('autoHideButton').addEventListener('click',()=>run(()=>{const enabled=!state.settings.autoHide;if(enabled)islandController.pause(0);return changeSettings({autoHide:enabled,...(enabled?{collapseOnLeave:true,hoverExpand:true}:{})});}));$('historyButton').addEventListener('click',()=>run(()=>openDrawer('history')));
- $('queueButton').addEventListener('click',()=>run(async()=>{await openDrawer('library');}));
- window.addEventListener('beforeunload',()=>{islandController.destroy();clearInterval(uFocusTimer);clearTimeout(releaseTimer);clearTimeout(toastTimer);hoverAnimation?.cancel();});
+ listen($('edgeReveal'),'click',()=>run(async()=>{if(!islandController.pointer)islandController.pause(1200);await showMini(true);}));
+ listen($('commandButton'),'click',()=>run(()=>openDrawer('commands')));listen($('focusButton'),'click',()=>run(ultimateFocus));
+ listen($('autoHideButton'),'click',()=>run(()=>{const enabled=!state.settings.autoHide;if(enabled)islandController.pause(0);return changeSettings({autoHide:enabled,...(enabled?{collapseOnLeave:true,hoverExpand:true}:{})});}));listen($('historyButton'),'click',()=>run(()=>openDrawer('history')));
+ listen($('queueButton'),'click',()=>run(async()=>{await openDrawer('library');}));
+ onRendererCleanup(()=>{islandController.destroy();clearInterval(uFocusTimer);hoverAnimation?.cancel();});
 }
 function ultimateSelect(label,values,value,onChange){const select=el('select',{'aria-label':label});for(const [v,text]of values)select.append(el('option',{value:v},text));select.value=String(value??'');select.addEventListener('change',()=>run(()=>onChange(select.value)));return select;}
 function ultimateToggleCompare(repo){if(uCompare.has(repo.id))uCompare.delete(repo.id);else{if(uCompare.size>=3){toast('Compare up to three repositories. Remove one first.');return;}uCompare.add(repo.id);}drawerStamp='';if(drawer)renderDrawer();toast(uCompare.size+' repositories selected for comparison.');}
@@ -157,7 +157,7 @@ function ultimateSettings(root){
  root.append(el('h3',{class:'subheading'},'After 8 minutes away'));
  const advice=el('div',{class:'settings-grid'});
  setting(advice,'idleAdvisor','Quiet work recommendations','One compact suggestion after 8 minutes with no keyboard or mouse activity. No focus stealing.');
- setting(advice,'screenContext','Use active-window context (Windows)','Optional local title analysis while active. No screenshots, raw title storage, cookie access or cloud upload. Sensitive titles are omitted. Other systems use your selected topic.');
+ setting(advice,'screenContext','Use active-window context (Windows)','Uses the category of a recognized foreground app while enabled. Window titles and browser activity are never read. Other systems use your selected topic.');
  setting(advice,'workTopic','Work topic fallback','','select',Object.entries(state.topics).map(([key,t])=>[key,t.label]));
  advice.append(btn('Preview recommendation',async()=>{adopt(await api.previewInsight());render();},'secondary'));root.append(advice,el('p',{class:'intro'},'Context: '+state.contextStatus+'. Automatic suggestions pause while locked, hidden or in a workspace.'));
  root.append(el('h3',{class:'subheading'},'Live discovery / 3–10 seconds'));
@@ -235,30 +235,32 @@ function dynamicInit(){
   if(result.changed){if(selectedId===repo.id)selectedId=result.id;render();}
   return result;
  }});
- $('liveToggle').addEventListener('click',()=>run(()=>changeSettings({dynamicRefresh:!state.settings.dynamicRefresh})));
- document.addEventListener('pointerdown',()=>{dynamicHoldUntil=Date.now()+800;},true);
+ listen($('liveToggle'),'click',()=>run(()=>changeSettings({dynamicRefresh:!state.settings.dynamicRefresh})));
+ listen(document,'pointerdown',()=>{dynamicHoldUntil=Date.now()+800;},{capture:true});
  const syncTimer=setInterval(dynamicSync,15000);
- window.addEventListener('beforeunload',()=>{clearInterval(syncTimer);dynamicScheduler.destroy();},{once:true});
+ onRendererCleanup(()=>{clearInterval(syncTimer);dynamicScheduler.destroy();});
  dynamicSync();
 }
 
 let dockPressed=null;
-document.getElementById('dockOpen').addEventListener('pointerdown',()=>{
- const id=Number(document.getElementById('dockOpen').dataset.repoId);
- dockPressed=[...repos(),...(state?.catalog||[])].find(r=>r.id===id)||null;
- dynamicHoldUntil=Date.now()+1000;
-});
-document.getElementById('dockOpen').addEventListener('pointercancel',()=>{dockPressed=null;});
-document.getElementById('dockOpen').addEventListener('keydown',()=>{dockPressed=null;});
-document.getElementById('dockOpen').addEventListener('click',e=>{
- e.stopPropagation();if(e.detail>1)return;
- const repo=dockPressed||UI.dockModel(repos(),selectedId).repo;dockPressed=null;
- if(repo)run(()=>openRepo(repo,'learn'));
-});
-document.querySelector('.topbar').addEventListener('click',e=>{
- if(!state||expanded||e.target.closest('button')||e.detail>1)return;
- run(async()=>{expanded=true;drawer=false;await windowMode();});
-});
+function initDockListeners(){
+ listen(document.getElementById('dockOpen'),'pointerdown',()=>{
+  const id=Number(document.getElementById('dockOpen').dataset.repoId);
+  dockPressed=[...repos(),...(state?.catalog||[])].find(r=>r.id===id)||null;
+  dynamicHoldUntil=Date.now()+1000;
+ });
+ listen(document.getElementById('dockOpen'),'pointercancel',()=>{dockPressed=null;});
+ listen(document.getElementById('dockOpen'),'keydown',()=>{dockPressed=null;});
+ listen(document.getElementById('dockOpen'),'click',e=>{
+  e.stopPropagation();if(e.detail>1)return;
+  const repo=dockPressed||UI.dockModel(repos(),selectedId).repo;dockPressed=null;
+  if(repo)run(()=>openRepo(repo,'learn'));
+ });
+ listen(document.querySelector('.topbar'),'click',e=>{
+  if(!state||expanded||e.target.closest('button')||e.detail>1)return;
+  run(async()=>{expanded=true;drawer=false;await windowMode();});
+ });
+}
 
 function updatePointerBounds(bounds){if(bounds&&['x','y','width','height'].every(k=>Number.isFinite(bounds[k])))pointerBounds=bounds;}
 
@@ -288,8 +290,8 @@ function renderInsight(){
  $('insightReason').textContent=value.reason+' '+compact(value.repo.stargazers_count)+' stars.';
 }
 function initInsightButtons(){
-$('insightDismiss').addEventListener('click',()=>run(async()=>{adopt(await api.dismissInsight());insightOpen=false;expanded=false;applyMode();render();}));
-$('insightDisable').addEventListener('click',()=>run(async()=>{await changeSettings({idleAdvisor:false});adopt(await api.dismissInsight());insightOpen=false;expanded=false;applyMode();render();}));
-for(const id of ['insightOpen','insightName'])$(id).addEventListener('click',e=>{e.preventDefault();run(async()=>{const repo=state.insight?.repo;if(repo)await openRepo(repo,'learn');adopt(await api.dismissInsight());insightOpen=false;expanded=false;applyMode();render();});});
+listen($('insightDismiss'),'click',()=>run(async()=>{adopt(await api.dismissInsight());insightOpen=false;expanded=false;applyMode();render();}));
+listen($('insightDisable'),'click',()=>run(async()=>{await changeSettings({idleAdvisor:false});adopt(await api.dismissInsight());insightOpen=false;expanded=false;applyMode();render();}));
+for(const id of ['insightOpen','insightName'])listen($(id),'click',e=>{e.preventDefault();run(async()=>{const repo=state.insight?.repo;if(repo)await openRepo(repo,'learn');adopt(await api.dismissInsight());insightOpen=false;expanded=false;applyMode();render();});});
 
 }

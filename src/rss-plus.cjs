@@ -5,8 +5,8 @@ const CHECKOUT='https://ravansariyev.gumroad.com/l/rss';
 const PRODUCT_ID='2fUpm0yYjNHhRoLT597Reg==';
 const VERIFY='https://api.gumroad.com/v2/licenses/verify';
 const RECHECK=6*60*60*1000;
-const RETRY=15*60*1000;
-const OFFLINE=24*60*60*1000;
+const RETRY=RECHECK;
+const OFFLINE=14*24*60*60*1000;
 
 function normalizeKey(value){
  if(typeof value!=='string'||value.length>256)return null;
@@ -59,10 +59,21 @@ async function verify(key,fetcher=fetch,now=Date.now){
 
 function createLicense({safeStorage,file,fetcher=fetch,now=Date.now}){
  let key=null,verified=null,status='free',persistent=false,next=0,generation=0,inflight=null,pending=0;
- const available=()=>safeStorage.isEncryptionAvailable()&&safeStorage.getSelectedStorageBackend?.()!=='basic_text';
+ function available(){
+  try{return safeStorage.isEncryptionAvailable()&&safeStorage.getSelectedStorageBackend?.()!=='basic_text';}
+  catch{return false;}
+ }
  function load(){
   if(!available()||!fs.existsSync(file))return;
-  try{key=normalizeKey(safeStorage.decryptString(fs.readFileSync(file)));persistent=!!key;if(key)status='unverified';}
+  try{
+   const raw=safeStorage.decryptString(fs.readFileSync(file));
+   const data=raw.startsWith('{')?JSON.parse(raw):{key:raw};
+   key=normalizeKey(data.key);persistent=!!key;if(!key)return;
+   const {checkedAt,endsAt}=data.verified||{};
+   if(Number.isFinite(checkedAt)&&checkedAt>0&&checkedAt<=now()&&(endsAt===null||Number.isFinite(endsAt))){
+    verified={checkedAt,endsAt};next=checkedAt+RECHECK;status='active';
+   }else status='unverified';
+  }
   catch{status='unverified';}
  }
  function save(value){
@@ -70,7 +81,7 @@ function createLicense({safeStorage,file,fetcher=fetch,now=Date.now}){
   const temporary=file+'.tmp';
   try{
    fs.mkdirSync(path.dirname(file),{recursive:true});
-   fs.writeFileSync(temporary,safeStorage.encryptString(value),{mode:0o600});
+   fs.writeFileSync(temporary,safeStorage.encryptString(JSON.stringify({key:value,verified})),{mode:0o600});
    fs.renameSync(temporary,file);
    return true;
   }catch{return false;}
@@ -92,6 +103,10 @@ function createLicense({safeStorage,file,fetcher=fetch,now=Date.now}){
    next=now()+(status==='unavailable'?RETRY:RECHECK);
    if(status==='active')verified={...result,checkedAt:now()};
    else if(status!=='unavailable')verified=null;
+   if(status!=='unavailable'&&persistent&&!save(key)){
+    persistent=false;
+    try{fs.rmSync(file,{force:true});}catch{}
+   }
    return snapshot();
   }).finally(()=>{if(inflight===work)inflight=null;});
   inflight=work;
@@ -118,4 +133,4 @@ function createLicense({safeStorage,file,fetcher=fetch,now=Date.now}){
  return {load,activate,refresh,clear,snapshot};
 }
 
-module.exports={CHECKOUT,PRODUCT_ID,assess,verify,createLicense};
+module.exports={RECHECK,CHECKOUT,PRODUCT_ID,assess,verify,createLicense};

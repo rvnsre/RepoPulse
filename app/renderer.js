@@ -4,7 +4,20 @@ let miniRepoId=null,miniTimer=null,miniAnimation=null,miniOpen=false,insightOpen
 let state,section='details',expanded=true,drawer=false,selectedId=null,pair=0,draft={},toastTimer,busy=false,search='',sort='recent',savedLanguage='',transition=0,rootAnimation=null,drawerStamp='',releaseTimer;
 const pending=new Set(),slots=[],releaseStates=new Map(),releaseRequests=new Map();
 const api=raw?{...raw}:null;
-function adopt(next){state=UI.accept(state,next);return state;}
+const rendererLifetime=new AbortController(),rendererCleanup=[];
+function listen(target,event,callback,options={}){
+ target.addEventListener(event,callback,{...options,signal:rendererLifetime.signal});
+}
+function onRendererCleanup(callback){if(typeof callback==='function')rendererCleanup.push(callback);}
+window.addEventListener('beforeunload',()=>{
+ rendererLifetime.abort();
+ for(const cleanup of rendererCleanup.splice(0).reverse()){
+  try{cleanup();}catch(error){console.error('Renderer cleanup failed:',error);}
+ }
+ for(const animation of document.getAnimations())animation.cancel();
+},{once:true});
+function adopt(next){if(!rendererLifetime.signal.aborted)state=UI.accept(state,next);return state;}
+
 if(api)for(const name of ['state','open','react','undo','settings','profile','importProfile','importData','clear','clearHistory','resetControls','removeHistory','removeExclusion','workspacePatch','workspaceBulk','workspaceCollection'])if(raw[name])api[name]=async(...args)=>{const value=await raw[name](...args);return value?.settings&&value?.profile?adopt(value):value;};
 function el(tag,props={},text){const e=document.createElement(tag);for(const [k,v]of Object.entries(props))e.setAttribute(k,v);if(text!==undefined)e.textContent=text;if(props['aria-label'])e.dataset.focusKey=props['aria-label'];return e;}
 function btn(text,action,cls='',label){const e=el('button',{class:cls},text);e.dataset.focusKey=label||text;if(label){e.setAttribute('aria-label',label);e.title=label;}e.addEventListener('click',()=>run(action));return e;}
@@ -23,10 +36,10 @@ function scheduleToast(){
  toastDeadline=Date.now()+toastRemaining;
  toastTimer=setTimeout(dismissToast,toastRemaining);
 }
-toastNotice.addEventListener('pointerenter',()=>{toastHovered=true;scheduleToast();});
-toastNotice.addEventListener('pointerleave',()=>{toastHovered=false;scheduleToast();});
-toastNotice.addEventListener('focusin',scheduleToast);
-toastNotice.addEventListener('focusout',()=>queueMicrotask(scheduleToast));
+listen(toastNotice,'pointerenter',()=>{toastHovered=true;scheduleToast();});
+listen(toastNotice,'pointerleave',()=>{toastHovered=false;scheduleToast();});
+listen(toastNotice,'focusin',scheduleToast);
+listen(toastNotice,'focusout',()=>queueMicrotask(scheduleToast));
 function toast(message){
  if(insightOpen){dismissToast();$('insightReason').textContent=message;$('announcer').textContent=message;return;}
  clearTimeout(toastTimer);toastTimer=null;
@@ -35,7 +48,7 @@ function toast(message){
  toastRemaining=(state?.settings.toastSeconds||5)*1000;
  scheduleToast();
 }
-async function run(fn){try{await fn();}catch(error){toast(error.message||'Unable to complete this action.');}}
+async function run(fn){if(rendererLifetime.signal.aborted)return;try{await fn();}catch(error){if(!rendererLifetime.signal.aborted)toast(error.message||'Unable to complete this action.');}}
 function repos(){return state?.daily?.repos||[];}
 function selected(){return [...repos(),...(state?.saved||[]),...(state?.history||[]).map(h=>h.repo),...(state?.catalog||[])].find(r=>r.id===selectedId)||repos()[0]||null;}
 function visible(){return repos();}
@@ -292,7 +305,7 @@ const queueFit=UI.renderQueue(()=>{
 function requestFit(){if(!api||morphing||insightOpen||miniOpen||expanded&&drawer)return;queueFit();}
 const queueRender=UI.renderQueue(()=>renderNow());
 function render(){queueRender();}
-window.addEventListener('beforeunload',()=>{queueFit.cancel();queueRender.cancel();});
+onRendererCleanup(()=>{queueFit.cancel();queueRender.cancel();});
 function renderNow(){
  if(!state)return;fitKey='';const prefs=state.settings;document.body.classList.toggle('rss-dark',!['light','contrast'].includes(prefs.theme));renderInsight();ultimateRender();
  document.body.classList.toggle('graphite',prefs.theme==='graphite'||prefs.theme==='reference'&&matchMedia('(prefers-color-scheme: dark)').matches);
@@ -372,7 +385,7 @@ setting(grid,'density','Density','','select',[['comfortable','Comfortable'],['co
    toast(result.error||'GitHub credential settings updated.');
   }
   security.append(credential,btn('Save token',()=>updateToken(credential.value),'secondary'),btn('Remove token',()=>updateToken(''),'secondary'));
-  root.append(el('h3',{class:'subheading'},'GitHub authentication'),el('p',{class:'intro'},state.githubTokenConfigured?'Token protected by the OS keychain.':'Public GitHub API access.'),security);
+  root.append(el('h3',{class:'subheading'},'GitHub authentication'),el('p',{class:'intro'},state.githubTokenNotice||(state.githubTokenConfigured?'Token protected by the OS keychain.':'Public GitHub API access.')),security);
  }
  if(api.recover){
   const recovery=el('div',{class:'stack'});
@@ -434,7 +447,7 @@ function plusView(root){
 function renderDrawer(force=true){
  if(!state||!drawer)return;
  document.querySelectorAll('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===section);b.setAttribute('aria-current',b.dataset.tab===section?'page':'false');});
- const stamp=JSON.stringify([section,section==='history'?[state.settings.uniqueHistory,state.settings.exactStars]:section==='saved'?state.settings.exactStars:null,section==='details'?[selected(),releaseStates.get(selected()?.id),state.settings.showCommands]:null,section==='saved'?state.saved:null,section==='history'?state.history:null,section==='tune'?state.profile:null,section==='settings'?[state.settings,state.githubTokenConfigured,state.saved.length,state.history.length,state.catalogSize]:null,section==='exclusions'?state.exclusions:null,section==='plus'?[state.license,state.plusRepos,selectedId]:null,['library','collections','compare','insights'].includes(section)?[state.workspace,state.saved,state.history,state.analytics]:null,section==='details'?state.workspace?.records?.[selected()?.id]:null]);
+ const stamp=JSON.stringify([section,section==='history'?[state.settings.uniqueHistory,state.settings.exactStars]:section==='saved'?state.settings.exactStars:null,section==='details'?[selected(),releaseStates.get(selected()?.id),state.settings.showCommands]:null,section==='saved'?state.saved:null,section==='history'?state.history:null,section==='tune'?state.profile:null,section==='settings'?[state.settings,state.githubTokenConfigured,state.githubTokenNotice,state.saved.length,state.history.length,state.catalogSize]:null,section==='exclusions'?state.exclusions:null,section==='plus'?[state.license,state.plusRepos,selectedId]:null,['library','collections','compare','insights'].includes(section)?[state.workspace,state.saved,state.history,state.analytics]:null,section==='details'?state.workspace?.records?.[selected()?.id]:null]);
  if(!force&&stamp===drawerStamp)return;drawerStamp=stamp;
  $('drawer').dataset.view=section;const root=$('drawerContent'),active=document.activeElement,within=root.contains(active),key=within?(active.dataset.focusKey||active.id):null,scroll=root.scrollTop;
  let cursor=null;try{if(within&&typeof active.selectionStart==='number')cursor=[active.selectionStart,active.selectionEnd];}catch{}
@@ -442,45 +455,51 @@ function renderDrawer(force=true){
  if(key){const replacement=Array.from(root.querySelectorAll('[data-focus-key],input[id]')).find(n=>(n.dataset.focusKey||n.id)===key);if(replacement){replacement.focus({preventScroll:true});if(cursor)try{replacement.setSelectionRange(...cursor);}catch{}}}root.scrollTop=scroll;
 }
 async function refresh(force=false){if(busy)return;busy=true;$('refresh').disabled=true;try{const result=await api.refresh(force);adopt(result.state);render();if(result.error)toast(result.error);else if(force)toast(result.state.cacheAt?'Catalog checked.':'Catalog metadata is unavailable.');}finally{busy=false;$('refresh').disabled=false;}}
-$('browseLibrary').addEventListener('click',()=>run(()=>openDrawer('library')));
-$('plusButton').addEventListener('click',()=>run(()=>openDrawer('plus')));
-$('miniButton').addEventListener('click',()=>run(()=>showMini(true)));
-$('miniExpand').addEventListener('click',()=>run(async()=>{
+listen($('browseLibrary'),'click',()=>run(()=>openDrawer('library')));
+listen($('plusButton'),'click',()=>run(()=>openDrawer('plus')));
+listen($('miniButton'),'click',()=>run(()=>showMini(true)));
+listen($('miniExpand'),'click',()=>run(async()=>{
  miniOpen=false;expanded=true;await windowMode();$('toggle').focus({preventScroll:true});
 }));
-$('miniIsland').addEventListener('click',event=>{if(event.target===$('miniIsland'))$('miniExpand').click();});
-$('miniLink').addEventListener('click',()=>run(async()=>{
+listen($('miniIsland'),'click',event=>{if(event.target===$('miniIsland'))$('miniExpand').click();});
+listen($('miniLink'),'click',()=>run(async()=>{
  const repo=compactRepo();
  if(repo)await api.open(repo.id,'latest-release');
 }));
-$('toggle').addEventListener('click',()=>run(()=>drawer?closeDrawer():openDrawer('commands')));
-$('collapse').addEventListener('click',()=>run(async()=>{insightOpen=false;expanded=false;drawer=false;await windowMode();}));
-$('menu').addEventListener('click',()=>run(()=>drawer?closeDrawer():openDrawer('settings')));
-$('closeDrawer').addEventListener('click',()=>run(closeDrawer));
-$('refresh').addEventListener('click',()=>run(()=>refresh(true)));
-$('pinButton').addEventListener('click',()=>run(()=>changeSettings({pinned:!state.settings.pinned})));
+listen($('toggle'),'click',()=>run(()=>drawer?closeDrawer():openDrawer('commands')));
+listen($('collapse'),'click',()=>run(async()=>{insightOpen=false;expanded=false;drawer=false;await windowMode();}));
+listen($('menu'),'click',()=>run(()=>drawer?closeDrawer():openDrawer('settings')));
+listen($('closeDrawer'),'click',()=>run(closeDrawer));
+listen($('refresh'),'click',()=>run(()=>refresh(true)));
+listen($('pinButton'),'click',()=>run(()=>changeSettings({pinned:!state.settings.pinned})));
 function renderPagination(){
- const remaining=state.feed?.manualRemaining;
- const loading=pending.has('next');
- $('next').disabled=loading||!state.catalogSize||remaining===0;
- $('next').setAttribute('aria-busy',String(loading));
- $('nextStatus').textContent=remaining===0&&state.catalogSize?(repos().length?'All matching picks shown':'No matching picks'):
+ const {manualRemaining:remaining,canRestartManual}=state.feed||{};
+ const loading=pending.has('next'),finished=remaining===0;
+ const button=$('next');
+ const label=finished?(canRestartManual?'Browse again':'Open library'):'Next';
+ button.disabled=loading||!state.catalogSize;
+ if(button.firstChild.textContent!==label+' ')button.firstChild.textContent=label+' ';
+ button.title=finished?(canRestartManual?'Start another pass with the same filters':'Browse the full cached catalog'):'Show the next repositories';
+ button.setAttribute('aria-busy',String(loading));
+ $('nextStatus').textContent=finished&&state.catalogSize?(repos().length?'End of matching picks':'No projects match your feed filters'):
   remaining>0?Intl.NumberFormat().format(remaining)+' left':'';
 }
-$('next').addEventListener('click',()=>run(async()=>{
+listen($('next'),'click',()=>run(async()=>{
  if(pending.has('next')||!state.catalogSize)return;
+ const restart=state.feed?.manualRemaining===0;
+ if(restart&&!state.feed.canRestartManual){await openDrawer('library');return;}
  pending.add('next');
- manualPaging=true;
  renderPagination();
  islandController?.hold('next picks',true);
  try{
   let result;
   for(let attempt=0;attempt<2;attempt++){
-   result=await api.next(state.feed?.epoch);
+   result=await api.next(state.feed?.epoch,restart);
    if(result.state)adopt(result.state);
    if(result.reason!=='stale')break;
   }
   if(!result.changed){render();return;}
+  manualPaging=true;
   $('feed').scrollTop=0;
   pair=0;
   selectedId=repos()[0]?.id??null;
@@ -493,10 +512,10 @@ $('next').addEventListener('click',()=>run(async()=>{
  }
 }));
 
-document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>run(()=>openDrawer(b.dataset.tab))));
-document.addEventListener('visibilitychange',()=>{syncMiniTimer();if(document.hidden){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}});
-for(const query of ['(prefers-reduced-motion: reduce)','(prefers-color-scheme: dark)'])matchMedia(query).addEventListener('change',render);
-window.addEventListener('keydown',e=>{
+document.querySelectorAll('[data-tab]').forEach(b=>listen(b,'click',()=>run(()=>openDrawer(b.dataset.tab))));
+listen(document,'visibilitychange',()=>{syncMiniTimer();if(document.hidden){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}});
+for(const query of ['(prefers-reduced-motion: reduce)','(prefers-color-scheme: dark)'])listen(matchMedia(query),'change',render);
+listen(window,'keydown',e=>{
  if(!state)return;
  const key=e.key.toLowerCase(),typing=e.target.isContentEditable||['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName);
  if(key==='escape'){islandController?.pause(600);e.preventDefault();run(async()=>{if(drawer)await closeDrawer();else{miniOpen=false;insightOpen=false;expanded=false;await windowMode();}});return;}
@@ -519,10 +538,10 @@ window.addEventListener('keydown',e=>{
 });
 (async()=>{
  if(!api){$('feed').append(empty('RepoPulse desktop','Open this interface in the desktop app.'));return;}
- adopt(await api.state());draft={...state.profile.weights};selectedId=repos()[0]?.id??null;
+ adopt(await api.state());if(rendererLifetime.signal.aborted)return;draft={...state.profile.weights};selectedId=repos()[0]?.id??null;
  const stopState=api.onState(next=>{adopt(next);render();});
  const stopMode=api.onMode?.(message=>{const next=UI.externalMode(message);if(!next||Number.isSafeInteger(message?.requestId)&&message.requestId<transition)return;if(message?.insight){state={...state,insight:message.insight};renderInsight();}if(message?.bounds)pointerBounds=message.bounds;const nextExpanded=next!=='collapsed',nextDrawer=next==='workspace',nextInsight=next==='insight',nextMini=next==='mini';if(nextExpanded===expanded&&nextDrawer===drawer&&nextInsight===insightOpen&&nextMini===miniOpen)return;transition++;rootAnimation?.cancel();hoverAnimation?.cancel();morphing=false;expanded=nextExpanded;drawer=nextDrawer;insightOpen=nextInsight;miniOpen=nextMini;applyMode();if(nextInsight&&canAnimate())$('idleInsight').animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:200,easing:'cubic-bezier(.16,1,.3,1)'});islandController?.configure(state.settings,next==='mini'?'panel':next);if(next==='panel')islandController?.pause(1200);ultimateStatus();updatePointerBounds(pointerBounds);requestFit();if(drawer)renderDrawer(false);});
- const observer=new ResizeObserver(()=>{fitMiniSummary();requestFit();updatePickRange();});observer.observe($('island'));observer.observe($('notifications'));observer.observe($('miniExpand'));$('feed').addEventListener('scroll',()=>{updatePickRange();dynamicHoldUntil=Date.now()+1000;},{passive:true});const syncTimer=setInterval(renderSync,30000);window.addEventListener('beforeunload',()=>{observer.disconnect();clearInterval(miniTimer);clearInterval(syncTimer);clearTimeout(toastTimer);clearTimeout(releaseTimer);if(typeof stopState==='function')stopState();if(typeof stopMode==='function')stopMode();},{once:true});expanded=state.windowMode!=='collapsed';miniOpen=state.windowMode==='mini';drawer=state.windowMode==='workspace';applyMode();ultimateInit();render();if(state.recoveryNotice)toast(state.recoveryNotice);await refresh();
+ const observer=new ResizeObserver(()=>{fitMiniSummary();requestFit();updatePickRange();});observer.observe($('island'));observer.observe($('notifications'));observer.observe($('miniExpand'));listen($('feed'),'scroll',()=>{updatePickRange();dynamicHoldUntil=Date.now()+1000;},{passive:true});const syncTimer=setInterval(renderSync,30000);onRendererCleanup(stopState);onRendererCleanup(stopMode);onRendererCleanup(()=>{observer.disconnect();clearInterval(miniTimer);clearInterval(syncTimer);clearTimeout(toastTimer);clearTimeout(releaseTimer);});expanded=state.windowMode!=='collapsed';miniOpen=state.windowMode==='mini';drawer=state.windowMode==='workspace';applyMode();ultimateInit();render();if(state.recoveryNotice)toast(state.recoveryNotice);await refresh();
 })().catch(e=>toast(e.message));
 
 

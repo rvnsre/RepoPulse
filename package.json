@@ -1,6 +1,6 @@
 {
   "name": "repopulse",
-  "version": "12.1.0",
+  "version": "12.1.1",
   "description": "Your daily open-source signal. A private, personalized GitHub discovery island.",
   "main": "app/main.cjs",
   "license": "UNLICENSED",
@@ -59,13 +59,15 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         }
       ],
@@ -99,6 +101,10 @@
     "portable": {
       "artifactName": "RepoPulse-${version}-Windows-${arch}-Portable.${ext}"
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rvnsre/RepoPulse.git"
   },
   "homepage": "https://github.com/rvnsre/RepoPulse",
   "overrides": {

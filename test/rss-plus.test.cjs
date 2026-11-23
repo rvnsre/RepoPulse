@@ -47,7 +47,7 @@ test('A timeout preserves a recent activation; known expiry and revocation remov
   assert.equal(fs.existsSync(file),false);
   state=null;
   assert.equal((await license.refresh(true)).status,'offline');
-  timestamp+=24*60*60*1000;
+  timestamp+=14*24*60*60*1000;
   assert.equal(license.snapshot().active,false);
   state=purchase();
   assert.equal((await license.refresh(true)).active,true);
@@ -79,4 +79,28 @@ test('Dynamic Island is wider and taller than the hidden edge handle and fits a 
  const compact=bounds(area,{},'mini'),hidden=bounds(area,{},'collapsed');
  assert.equal(compact.height,74);
  assert.ok(compact.width>hidden.width&&compact.x>=area.x&&compact.x+compact.width<=area.x+area.width);
+});
+
+test('Verified licenses survive restart offline and recheck after six hours',async()=>{
+ const folder=fs.mkdtempSync(path.join(os.tmpdir(),'rp-license-persist-'));
+ const file=path.join(folder,'license');
+ const safeStorage={isEncryptionAvailable:()=>true,encryptString:value=>Buffer.from(value),decryptString:value=>value.toString()};
+ let time=now,requests=0,online=true;
+ const options={safeStorage,file,now:()=>time,fetcher:async()=>{
+  requests++;
+  if(!online)throw Error('offline');
+  return response(purchase());
+ }};
+ try{
+  await createLicense(options).activate(key);
+  const license=createLicense(options);license.load();
+  assert.equal(license.snapshot().active,true);
+  await license.refresh();
+  assert.equal(requests,1);
+  time+=6*60*60*1000;online=false;
+  assert.equal((await license.refresh()).status,'offline');
+  assert.equal(requests,2);
+  time=now+14*24*60*60*1000;
+  assert.equal(license.snapshot().active,false);
+ }finally{fs.rmSync(folder,{recursive:true,force:true});}
 });

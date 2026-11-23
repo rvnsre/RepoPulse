@@ -169,3 +169,29 @@ test('A persisted three-card manual page gains its fourth eligible card on upgra
  assert.equal(upgraded.daily.repos.length,4);
  assert.equal(new Set(upgraded.daily.repos.map(r=>r.id)).size,4);
 });
+
+test('Browse again is explicit and preserves active filters and exclusions',()=>{
+ const s=state([...Array.from({length:10},(_,i)=>repo(i+1)),repo(11,'other/low',81021)]);
+ s.hidden=[10];
+ D.present(s,now);
+ assert.equal(s.feed.canRestartManual,false);
+ assert.equal(D.nextBatch(s,now+1,{manualBrowse:true,restart:true}).restarted,false);
+ while(D.nextBatch(s,now+2,{manualBrowse:true}).changed){}
+ s.saved=[repo(2)];
+ D.present(s,now+3);
+ assert.equal(s.feed.manualRemaining,0);
+ assert.equal(s.feed.canRestartManual,true);
+ const before=s.daily.repos.map(r=>r.id);
+ const result=D.nextBatch(s,now+4,{manualBrowse:true,restart:true});
+ assert.equal(result.restarted,true);
+ assert.ok(s.daily.repos.every(r=>![2,10,11,...before].includes(r.id)));
+ assert.equal(s.settings.minStars,100000);
+ assert.equal(s.saved[0].id,2);
+});
+
+test('No restart is offered if the visible cards are the only matching picks',()=>{
+ const s=state([repo(1),repo(2),repo(3),repo(4)]);
+ assert.equal(s.feed.manualRemaining,0);
+ assert.equal(s.feed.canRestartManual,false);
+ assert.equal(D.nextBatch(s,now+1,{manualBrowse:true,restart:true}).changed,false);
+});

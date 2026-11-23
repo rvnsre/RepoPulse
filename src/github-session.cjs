@@ -2,34 +2,43 @@
 const fs=require('node:fs');
 
 function createGitHubSession({safeStorage,tokenPath,fetchImpl=fetch,now=Date.now}){
- let token='',loaded=false;
+ let token='',loaded=false,warning=null;
  const limits=new Map();
  const active=new AbortController();
+ const valid=value=>typeof value==='string'&&/^[-A-Za-z0-9_]{20,255}$/.test(value);
  function encryptionAvailable(){
-  return safeStorage.isEncryptionAvailable()&&safeStorage.getSelectedStorageBackend?.()!=='basic_text';
+  try{return safeStorage.isEncryptionAvailable()&&safeStorage.getSelectedStorageBackend?.()!=='basic_text';}
+  catch{return false;}
  }
  function load(){
   if(loaded)return token;
-  if(fs.existsSync(tokenPath)){
-   if(!encryptionAvailable())throw new Error('The OS keychain is unavailable.');
-   try{token=safeStorage.decryptString(fs.readFileSync(tokenPath));}
-   catch{throw new Error('Stored GitHub credential could not be unlocked. Replace or remove it in Settings.');}
-  }
   loaded=true;
+  if(!fs.existsSync(tokenPath))return token;
+  if(!encryptionAvailable()){
+   warning='The OS keychain is unavailable. GitHub requests are anonymous until you enter a session token.';
+   return token;
+  }
+  try{
+   const stored=safeStorage.decryptString(fs.readFileSync(tokenPath));
+   if(!valid(stored))throw Error('Invalid stored token');
+   token=stored;
+  }catch{warning='The saved GitHub token could not be unlocked. Requests are anonymous until you replace it.';}
   return token;
  }
  function set(value){
   if(typeof value!=='string')throw new Error('Invalid GitHub token.');
   const next=value.trim();
-  if(next&&!/^[-A-Za-z0-9_]{20,255}$/.test(next))throw new Error('Invalid GitHub token format.');
+  if(next&&!valid(next))throw new Error('Invalid GitHub token format.');
+  let notice=null;
   if(!next)fs.rmSync(tokenPath,{force:true});
-  else{
-   if(!encryptionAvailable())throw new Error('The OS keychain is unavailable.');
-   const temp=tokenPath+'.tmp';
-   try{fs.writeFileSync(temp,safeStorage.encryptString(next),{mode:0o600});fs.renameSync(temp,tokenPath);}
+  else if(!encryptionAvailable()){
+   notice='The OS keychain is unavailable. This token is kept in memory for this session only.';
+  }else{
+   const temp=tokenPath+'.'+require('node:crypto').randomUUID()+'.tmp';
+   try{fs.writeFileSync(temp,safeStorage.encryptString(next),{mode:0o600,flag:'wx'});fs.renameSync(temp,tokenPath);}
    finally{fs.rmSync(temp,{force:true});}
   }
-  token=next;loaded=true;limits.clear();
+  token=next;loaded=true;warning=notice;limits.clear();
  }
  async function request(input,options={}){
   const url=new URL(input);
@@ -51,6 +60,6 @@ function createGitHubSession({safeStorage,tokenPath,fetchImpl=fetch,now=Date.now
   if(response.ok||response.status===304)limits.delete(scope);
   return response;
  }
- return {request,set,retryAt:()=>Math.max(0,...[...limits.values()].map(limit=>limit.until)),close:()=>active.abort(),configured:()=>fs.existsSync(tokenPath)};
+ return {request,set,retryAt:()=>Math.max(0,...[...limits.values()].map(limit=>limit.until)),close:()=>active.abort(),configured:()=>Boolean(load()),notice:()=>{load();return warning;}};
 }
 module.exports={createGitHubSession};

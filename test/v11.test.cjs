@@ -17,12 +17,24 @@ test('Idle insight is compact and stays inside small displays',()=>{for(const wi
 test('Eight minute idle gate waits exactly 480 seconds and only fires once',()=>{const gate=new A.IdleGate();assert.equal(gate.tick(479),false);assert.equal(gate.tick(480),true);assert.equal(gate.tick(1000),false);gate.tick(0);assert.equal(gate.tick(480),true);});
 test('Idle gate never fires when disabled, locked or busy',()=>{for(const flags of [{enabled:false},{locked:true},{busy:true}]){const gate=new A.IdleGate();assert.equal(gate.tick(480,flags),false);assert.equal(gate.tick(480),true);}});
 test('Dismiss snoozes recommendations for eight minutes',()=>{const gate=new A.IdleGate();gate.dismiss(1000);gate.tick(0,{now:2000});assert.equal(gate.tick(480,{now:480999}),false);assert.equal(gate.tick(480,{now:481000}),true);});
-test('Window context returns aggregate topics without raw titles',()=>{const value=A.infer('private-client-file.ts - Visual Studio Code');assert.equal(value.topic,'tools');assert.ok(!JSON.stringify(value).includes('private-client'));assert.equal(A.infer('Account Password - Chrome').topic,null);assert.equal(A.infer('ChatGPT - InPrivate').status,'omitted');});
+test('Foreground categories accept only known process names',()=>{const value=A.infer('Code');assert.equal(value.topic,'tools');assert.ok(!JSON.stringify(value).includes('private-client'));assert.equal(A.infer('Account Password - Chrome').topic,null);assert.equal(A.infer('msedge').status,'omitted');assert.equal(A.infer('private-client-file.ts - Visual Studio Code').status,'omitted');});
 test('Unsupported context platform never executes a collector',async()=>{let called=false;const value=await A.foreground({platform:'linux',exec:()=>{called=true;}});assert.equal(called,false);assert.equal(value.status,'unsupported');});
-test('Foreground collector is hidden, bounded and returns topics only',async()=>{let options;const value=await A.foreground({platform:'win32',exec:(file,args,opts,done)=>{options=opts;done(null,'my-private-project - Figma');}});assert.equal(value.topic,'design');assert.equal(options.windowsHide,true);assert.equal(options.timeout,4000);assert.ok(!JSON.stringify(value).includes('my-private-project'));});
+test('Foreground collector is hidden, bounded and returns topics only',async()=>{let options;const value=await A.foreground({platform:'win32',exec:(file,args,opts,done)=>{options=opts;done(null,'Figma');}});assert.equal(value.topic,'design');assert.equal(options.windowsHide,true);assert.equal(options.timeout,4000);assert.ok(!JSON.stringify(value).includes('my-private-project'));});
 test('Context failures use a truthful unavailable status',async()=>{const value=await A.foreground({platform:'win32',exec:(file,args,opts,done)=>done(new Error('denied'))});assert.equal(value.status,'unavailable');});
 test('Advisor defaults to manually selected topic without enabling collection',()=>{const s=start();assert.equal(s.settings.screenContext,false);s.settings.workTopic='design';const result=A.recommend(s);assert.equal(result.topic,'design');assert.equal(result.source,'manual');});
 test('Advice obeys exclusions and has no browser or history side effects',()=>{const s=start();s.hidden=s.cache.map(r=>r.id);const before=JSON.stringify(s);assert.equal(A.recommend(s),null);assert.equal(JSON.stringify(s),before);});
 test('New settings only accept valid enums, topic keys and booleans',()=>{const p=D.settings({cycleMotion:'evil',windowMotionDuration:9000,screenContext:'true',workTopic:'passwords'});assert.equal(p.cycleMotion,'adaptive');assert.equal(p.windowMotionDuration,160);assert.equal(p.screenContext,false);assert.equal(p.workTopic,'tools');});
 
 test('RepoPulse itself is omitted from work classification',()=>assert.equal(A.infer('RepoPulse 11.0.0').status,'self'));
+
+test('Action history appends in place and trims only when the buffer limit is reached',()=>{
+ const s=start();
+ const repo=s.daily.repos[0],history=Array(20000).fill({id:repo.id,key:repo.full_name,timestamp:1,action:'shown'});
+ s.seenHistory=history;
+ for(let i=0;i<500;i++)D.recordAction(s,repo,'shown',i+2);
+ assert.equal(s.seenHistory,history);
+ assert.equal(history.length,20500);
+ D.recordAction(s,repo,'shown',999);
+ assert.equal(s.seenHistory.length,20000);
+ assert.equal(s.seenHistory.at(-1).timestamp,999);
+});

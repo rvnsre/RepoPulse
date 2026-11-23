@@ -4,8 +4,6 @@ on:
     branches: [main]
     paths-ignore: ['**/*.md', 'docs/**']
     tags: ['v*']
-  release:
-    types: [published]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -46,7 +44,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-15, ubuntu-24.04]
+        os: [windows-latest, macos-15, macos-15-intel, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
@@ -87,6 +85,10 @@ jobs:
           path: src
       - name: Package desktop app
         run: npm run dist
+        if: runner.os != 'macOS'
+      - name: Package macOS for the runner architecture
+        if: runner.os == 'macOS'
+        run: npm run dist -- --mac --${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
       - name: Start the packaged Windows app
         if: runner.os == 'Windows'
         shell: pwsh
@@ -94,7 +96,7 @@ jobs:
       - name: Upload installers and dependency lock
         uses: actions/upload-artifact@v4
         with:
-          name: RepoPulse-${{ runner.os }}
+          name: RepoPulse-${{ runner.os }}${{ matrix.os == 'macos-15-intel' && '-Intel' || '' }}
           path: |
             dist/*.png
             dist/*.exe
@@ -117,45 +119,11 @@ jobs:
           path: extension/
           retention-days: 30
   release:
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'Release RepoPulse v12.1.0')
-    needs: [verify, package]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
+    needs: [verify, catalog, package, extension]
     permissions:
       contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: RepoPulse-*
-          path: release-artifacts
-      - name: Prepare the release tag
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          tag=v$(node -p "require('./package.json').version")
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            test "$tag" = "$REF_NAME"
-          else
-            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "RepoPulse $tag" --notes-file docs/RELEASE-v12.1.0.md
-          fi
-          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
-      - name: Attach verified installers and SHA-256 checksums to the tagged release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/release.cjs release-artifacts
-      - name: Publish the verified catalog snapshot
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$RELEASE_TAG" release-artifacts/RepoPulse-catalog/catalog-seed.json
-
-
-      - name: Publish the complete release
-        if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release edit "$RELEASE_TAG" --draft=false --latest
+      actions: read
+    uses: ./.github/workflows/publish.yml
+    with:
+      tag: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}

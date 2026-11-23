@@ -2,6 +2,19 @@
 const {MIN_STARS,MAX_CATALOG,TARGET_CATALOG,CATALOG_REVISION}=require('./catalog-policy.cjs');
 const {ranked, eligible, localDay, normalizeRepo, defaults}=require('./engine.cjs');
 const PAGE_SIZE=4;
+const HISTORY_CAPACITY=20000,HISTORY_TRIM_AT=20500;
+const seenIndexes=new WeakMap(),manualIndexes=new WeakMap();
+function indexFor(cache,list,create){
+ const cached=cache.get(list);
+ if(cached?.size===list.length)return cached.index;
+ const index=create(list);
+ cache.set(list,{size:list.length,index});
+ return index;
+}
+function seenIndex(list){return indexFor(seenIndexes,list,items=>new Set(items));}
+function manualIndex(list){
+ return indexFor(manualIndexes,list,items=>({ids:new Set(items.map(r=>r.id)),names:new Set(items.map(canonicalKey))}));
+}
 const SETTINGS={...{"autoHide":true,"hoverExpand":true,"collapseOnLeave":true,"idleCollapse":true,"hideDelay":80,"idleSeconds":30,"hoverDelay":0,"keepOnFocus":false,"keepOnHover":true,"hoverScale":102,"motionPreset":"snappy","subtleMotion":false,"hoverLift":true,"glow":true,"showBadges":true,"showQuickActions":true,"showStatus":true,"showQueueCount":true,"pinnedFirst":true,"markReadOnOpen":false,"quietMode":false,"focusMinutes":25,"accent":"sand","cardStyle":"soft","roundness":20,"stagger":true,"startCollapsed":true,"protectEditing":true,"showHints":true},pinned:true,reducedMotion:false,launchAtLogin:false,autoReplace:true,notifications:false,pausedLearning:false,opacity:100,anchor:'center',theme:'reference',density:'compact',minStars:MIN_STARS,languages:[],topics:[],cooldownWindowMs:43200000,textScale:100,motion:'system',motionDuration:80,visibleRows:2,panelWidth:920,compactRevision:1,dynamicRefresh:true,cycleMin:3,cycleMax:10,transitionStyle:'auto',cyclePauseHover:false,cyclePauseFocus:true,cycleCountdown:true,cycleAccent:true,liveRevision:2,dockRevision:1,catalogRevision:CATALOG_REVISION,edgeRevision:1,cycleMotion:'adaptive',windowMotionDuration:160,idleAdvisor:true,screenContext:false,workTopic:'tools',showCommands:true,showDescriptions:true,showOwners:true,showReasons:false,wrapNames:true,codeWrap:true,shortcuts:true,exactStars:false,toastSeconds:5,uniqueHistory:false};
 function settings(input={}) {
  input=input&&typeof input==='object'&&!Array.isArray(input)?input:{};const out={...SETTINGS};
@@ -52,7 +65,7 @@ function identityIndex(repos) {
 }
 function feedPools(state,visible,now,pool=filteredCatalog(state.cache,state,now),day=state.daily?.day||localDay(),priorRanking) {
  const isVisible=identityIndex(visible),isBookmarked=identityIndex(state.saved||[]);
- const seen=new Set(state.seen||[]),recentIds=new Map(),recentNames=new Map();
+ const seen=seenIndex(state.seen||[]),recentIds=new Map(),recentNames=new Map();
  for(const entry of state.seenHistory||[]){
   recentIds.set(entry.id,Math.max(recentIds.get(entry.id)||0,entry.timestamp));
   recentNames.set(entry.key,Math.max(recentNames.get(entry.key)||0,entry.timestamp));
@@ -68,17 +81,24 @@ function feedPools(state,visible,now,pool=filteredCatalog(state.cache,state,now)
  }).sort((a,b)=>lastSeen(a)-lastSeen(b)||b.score-a.score);
  return {ranking,available,unseen,replay};
 }
-function manualPool(state,pool,visible) {
+function manualPool(state,pool,visible,{restart=false}={}) {
  const skipped=(state.seenHistory||[]).filter(entry=>entry.action==='skipped');
  const excluded=identityIndex([...(state.saved||[]),...skipped.map(entry=>({id:entry.id,full_name:entry.key}))]);
- const visited=identityIndex([...(state.manualVisited||[]),...visible]);
- return pool.filter(repo=>!excluded(repo)&&!visited(repo));
+ const visited=manualIndex(restart?[]:state.manualVisited||[]),isVisible=identityIndex(visible);
+ return pool.filter(repo=>!excluded(repo)&&!isVisible(repo)&&!visited.ids.has(repo.id)&&!visited.names.has(canonicalKey(repo)));
 }
 function recordManualVisits(state,repos) {
  if(!state.manualVisited||!repos.length)return;
- const visited=identityIndex(state.manualVisited);
- state.manualVisited.push(...repos.filter(repo=>!visited(repo)).map(repo=>({id:repo.id,full_name:canonicalKey(repo)})));
- if(state.manualVisited.length>MAX_CATALOG*2)state.manualVisited.splice(0,state.manualVisited.length-MAX_CATALOG*2);
+ const visited=manualIndex(state.manualVisited);
+ for(const repo of repos){
+  const name=canonicalKey(repo);
+  if(visited.ids.has(repo.id)||visited.names.has(name))continue;
+  visited.ids.add(repo.id);visited.names.add(name);
+  state.manualVisited.push({id:repo.id,full_name:name});
+ }
+ if(state.manualVisited.length>MAX_CATALOG*2){
+  state.manualVisited=state.manualVisited.slice(-MAX_CATALOG*2);
+ }else manualIndexes.set(state.manualVisited,{size:state.manualVisited.length,index:visited});
 }
 function hydrate(pool,repos) {
  const byId=new Map(pool.map(repo=>[repo.id,repo])),byName=new Map(pool.map(repo=>[canonicalKey(repo),repo]));
@@ -95,20 +115,27 @@ function selectFeed(pool,state,day=localDay(),now=Date.now()) {
  return {day,repos:[...visible,...(unseen.length?unseen:replay)].slice(0,PAGE_SIZE)};
 }
 function recordAction(state,repo,action,now=Date.now()) {
- state.seenHistory=[...(state.seenHistory||[]),{id:repo.id,key:canonicalKey(repo),timestamp:now,action}].slice(-20000);
+ const history=state.seenHistory??=[];
+ history.push({id:repo.id,key:canonicalKey(repo),timestamp:now,action});
+ if(history.length>HISTORY_TRIM_AT)state.seenHistory=history.slice(-HISTORY_CAPACITY);
 }
 function markPresented(state,repos,now) {
  recordManualVisits(state,repos);
  state.presentedAt=state.presentedAt||{};
- state.seen=[...new Set([...(state.seen||[]),...repos.map(repo=>repo.id)])];
+ const seen=state.seen??=[],ids=seenIndex(seen);
  for(const repo of repos){
+  if(!ids.has(repo.id)){seen.push(repo.id);ids.add(repo.id);}
   state.presentedAt[repo.id]=now;
   recordAction(state,repo,'shown',now);
  }
+ seenIndexes.set(seen,{size:seen.length,index:ids});
 }
 function saveFeed(state,now,phase='ready',bump=true,pool=filteredCatalog(state.cache,state,now),ranking) {
  const {unseen,replay}=feedPools(state,state.daily?.repos||[],now,pool,state.daily?.day,ranking);
- state.feed={schemaVersion:1,phase,epoch:(state.feed?.epoch||0)+Number(bump),visibleIds:(state.daily?.repos||[]).map(repo=>repo.id),queueIds:unseen.map(repo=>repo.id),hasReplay:replay.length>0,matchingCount:pool.length,manualRemaining:manualPool(state,pool,state.daily?.repos||[]).length};
+ const visible=state.daily?.repos||[];
+ const manualRemaining=manualPool(state,pool,visible).length;
+ const canRestartManual=manualRemaining===0&&manualPool(state,pool,visible,{restart:true}).length>0;
+ state.feed={schemaVersion:1,phase,epoch:(state.feed?.epoch||0)+Number(bump),visibleIds:(state.daily?.repos||[]).map(repo=>repo.id),queueIds:unseen.map(repo=>repo.id),hasReplay:replay.length>0,matchingCount:pool.length,manualRemaining,canRestartManual};
  return state.feed;
 }
 function present(state,now=Date.now()) {
@@ -147,17 +174,20 @@ function advance(state,index,now) {
  saveFeed(state,now,revisited?'rebuilding':'ready',true,filtered,ranking);
  return {changed:true,count:chosen.length,revisited,browsing:false,id:chosen[0].id,index};
 }
-function nextBatch(state,now=Date.now(),{manualBrowse=false}={}) {
+function nextBatch(state,now=Date.now(),{manualBrowse=false,restart=false}={}) {
  if(!manualBrowse)return advance(state,null,now);
  const day=state.daily?.day||localDay(),pool=filteredCatalog(state.cache,state,now);
  const previous=hydrate(pool,state.daily?.repos||[]);
- const remaining=manualPool(state,pool,previous);
+ let remaining=manualPool(state,pool,previous);
+ const restarted=restart&&!remaining.length;
+ if(restarted)remaining=manualPool(state,pool,previous,{restart:true});
  if(!remaining.length)return {changed:false,exhausted:true,reason:'exhausted'};
  const ordered=ranked(pool,state.profile?.weights||{},day);
  const matches=identityIndex(remaining);
  const {available,unseen}=feedPools(state,previous,now,remaining,day,ordered.filter(matches));
  const newPick=identityIndex(unseen);
  const chosen=[...unseen,...available.filter(repo=>!newPick(repo))].slice(0,PAGE_SIZE);
+ if(restarted)state.manualVisited=[];
  state.manualVisited??=[];
  state.manualPageSize=PAGE_SIZE;
  recordManualVisits(state,previous);
@@ -165,7 +195,7 @@ function nextBatch(state,now=Date.now(),{manualBrowse=false}={}) {
  state.daily={day,repos:chosen};
  markPresented(state,chosen,now);
  saveFeed(state,now,'ready',true,pool,ordered);
- return {changed:true,count:chosen.length,revisited:chosen.some(repo=>!newPick(repo)),browsing:true,id:chosen[0].id,index:null};
+ return {changed:true,count:chosen.length,revisited:restarted||chosen.some(repo=>!newPick(repo)),restarted,browsing:true,id:chosen[0].id,index:null};
 }
 function rotate(state,id,now=Date.now()) {
  const index=state.daily?.repos.findIndex(repo=>repo.id===id)??-1;

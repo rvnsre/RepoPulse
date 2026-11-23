@@ -1,80 +1,114 @@
 name: Publish verified release assets
 on:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/publish.yml']
+  workflow_call:
+    inputs:
+      tag:
+        required: false
+        type: string
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag, for example v11.7.1
-        required: true
-        type: string
-      run_id:
-        description: Build run for this exact tag and source commit
-        required: true
+        description: Existing version tag. Leave blank to use package.json.
+        required: false
         type: string
 permissions:
   contents: read
   actions: read
 jobs:
   publish:
-    if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Publish RepoPulse v11.8.0'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
       actions: read
+    concurrency:
+      group: release-${{ inputs.tag || github.sha }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: npm test
-      - run: npm run check
-      - name: Verify exact tag source and all required build jobs
+      - name: Resolve exact tag and verified build
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag || 'v11.8.0' }}
-          VERIFIED_SHA: ${{ github.event_name == 'push' && '9ec65ab3268b6102c6fbc533dd2e398b60f5a494' || '' }}
-          BUILD_RUN: ${{ inputs.run_id || '44324388465' }}
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
           node <<'JS'
-          const fs=require('node:fs'),{execFileSync}=require('node:child_process');
-          const tag=process.env.RELEASE_TAG,id=process.env.BUILD_RUN,repo=process.env.GITHUB_REPOSITORY;
-          if(!/^v\d+\.\d+\.\d+$/.test(tag)||!/^\d+$/.test(id))throw Error('Invalid release inputs');
-          const api=url=>JSON.parse(execFileSync('gh',['api',url],{encoding:'utf8'}));
-          const sha=execFileSync('git',['rev-parse',(process.env.VERIFIED_SHA||tag)+'^{commit}'],{encoding:'utf8'}).trim();
-          const run=api('repos/'+repo+'/actions/runs/'+id);
-          if(run.head_sha!==sha||run.path!=='.github/workflows/build.yml')throw Error('Build does not match the tagged source');
-          const jobs=api('repos/'+repo+'/actions/runs/'+id+'/jobs?filter=latest&per_page=100').jobs;
-          for(const name of ['verify','package (windows-latest)','package (macos-15)','package (ubuntu-24.04)'])if(!jobs.some(j=>j.name===name&&j.conclusion==='success'))throw Error('Required build has not passed: '+name);
-          const source=JSON.parse(execFileSync('git',['show',sha+':package.json'],{encoding:'utf8'}));
-          if('v'+source.version!==tag)throw Error('Tagged package version mismatch');
-          fs.appendFileSync(process.env.GITHUB_ENV,'RELEASE_VERSION='+source.version+'\n');
-          console.log('Verified tagged source '+sha+' and every platform build.');
+          const fs = require('node:fs');
+          const {execFileSync} = require('node:child_process');
+          const command = (name, ...args) => execFileSync(name, args, {encoding:'utf8'}).trim();
+          const api = endpoint => JSON.parse(command('gh', 'api', endpoint));
+          const repo = process.env.GITHUB_REPOSITORY;
+          const tag = process.env.INPUT_TAG || 'v' + require('./package.json').version;
+          if (!/^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(tag)) throw Error('Expected a stable version tag.');
+          const sameBuild = process.env.GITHUB_EVENT_NAME === 'push';
+          const mainBuild = sameBuild && process.env.GITHUB_REF === 'refs/heads/main';
+          let taggedSha;
+          try {taggedSha = command('git', 'rev-parse', '--verify', '--quiet', 'refs/tags/' + tag + '^{commit}');} catch {}
+          if (mainBuild && taggedSha && taggedSha !== process.env.GITHUB_SHA) {
+            console.log('Version ' + tag + ' already belongs to another commit. Bump package.json to release this commit.');
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'skip=true\n');
+            process.exit(0);
+          }
+          const sha = taggedSha || (mainBuild && process.env.GITHUB_SHA);
+          if (!sha) throw Error('No existing tag found for ' + tag);
+          const source = JSON.parse(command('git', 'show', sha + ':package.json'));
+          if ('v' + source.version !== tag) throw Error('Tag must match the tagged package.json version.');
+          const root = 'repos/' + repo + '/actions/';
+          if (sameBuild && ((!mainBuild && process.env.GITHUB_REF !== 'refs/tags/' + tag) || process.env.GITHUB_SHA !== sha)) throw Error('Release commit changed during build.');
+          const runs = sameBuild ? [{id:Number(process.env.GITHUB_RUN_ID),run_attempt:Number(process.env.GITHUB_RUN_ATTEMPT)}] :
+            api(root + 'workflows/build.yml/runs?event=push&status=completed&head_sha=' + sha + '&per_page=100').workflow_runs.filter(run => (run.head_branch === tag || run.head_branch === 'main') && run.head_sha === sha);
+          const required = ['verify','catalog','extension','package (windows-latest)','package (macos-15)','package (macos-15-intel)','package (ubuntu-24.04)'];
+          const build = runs.find(run => {
+            const jobs = api(root + 'runs/' + run.id + '/attempts/' + run.run_attempt + '/jobs?per_page=100').jobs;
+            return required.every(name => jobs.some(job => job.name === name && job.conclusion === 'success'));
+          });
+          if (!build) throw Error('No successful package build was found for the exact tag.');
+          let notes = '';
+          try {notes = command('git', 'show', sha + ':docs/RELEASE-' + tag + '.md');} catch {}
+          if (notes) fs.writeFileSync(process.env.RUNNER_TEMP + '/repopulse-release.md', notes + '\n');
+          fs.appendFileSync(process.env.GITHUB_ENV, 'RELEASE_TAG=' + tag + '\nRELEASE_VERSION=' + source.version + '\nRELEASE_SHA=' + sha + '\n');
+          console.log('Verified build ' + build.id + ' for ' + tag);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'run_id=' + build.id + '\n');
           JS
+        id: build
       - uses: actions/download-artifact@v4
+        if: steps.build.outputs.skip != 'true'
         with:
           github-token: ${{ github.token }}
-          run-id: ${{ inputs.run_id || '44324388465' }}
+          run-id: ${{ steps.build.outputs.run_id }}
           pattern: RepoPulse-*
           path: release-artifacts
-      - name: Create draft for the verified source
-        if: github.event_name == 'push'
+      - name: Validate artifacts, then publish a complete draft
+        if: steps.build.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          VERIFIED_SHA: '9ec65ab3268b6102c6fbc533dd2e398b60f5a494'
         run: |
-          gh release create v11.8.0 --draft --target "$VERIFIED_SHA" --title "RepoPulse 11.8.0 — Discovery and download overhaul" --notes-file docs/RELEASE-v11.8.0.md
-      - name: Attach installers and checksums
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag || 'v11.8.0' }}
-        run: node scripts/release.cjs release-artifacts
-      - name: Publish the complete release
-        if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release edit v11.8.0 --draft=false --latest
+          set -euo pipefail
+          test -s release-artifacts/RepoPulse-catalog/catalog-seed.json
+          node scripts/release.cjs release-artifacts --validate-only --require-mac-architectures
+          if ! git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$RELEASE_TAG" -f sha="$RELEASE_SHA" >/dev/null
+          fi
+          actual="$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha)"
+          test "$actual" = "$RELEASE_SHA"
+          if gh release view "$RELEASE_TAG" --json isDraft > "$RUNNER_TEMP/repopulse-release.json"; then
+            if [[ "$(jq -r .isDraft "$RUNNER_TEMP/repopulse-release.json")" != true ]]; then
+              echo "::notice::Release $RELEASE_TAG is already published."
+              exit 0
+            fi
+          else
+            notes="$RUNNER_TEMP/repopulse-release.md"
+            if [[ -s "$notes" ]]; then
+              gh release create "$RELEASE_TAG" --verify-tag --draft --title "RepoPulse $RELEASE_TAG" --notes-file "$notes"
+            else
+              gh release create "$RELEASE_TAG" --verify-tag --draft --title "RepoPulse $RELEASE_TAG" --generate-notes
+            fi
+          fi
+          node scripts/release.cjs release-artifacts --require-mac-architectures
+          gh release upload "$RELEASE_TAG" release-artifacts/RepoPulse-catalog/catalog-seed.json --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --latest

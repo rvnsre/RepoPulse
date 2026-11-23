@@ -11,7 +11,7 @@ function createPreviewServer({platform='linux',repos:fixtureRepos}={}){
  async function command(name,args=[]){
   if(name==='activity'){const repo=find(args[0]);return{status:'ready',tag:'v1.0.0',releasedAt:new Date().toISOString(),committedAt:new Date().toISOString(),checkedAt:new Date().toISOString(),install:require('../src/install.cjs').plan(repo,platform)};}
   if(name==='previewBounds')return require('../src/layout.cjs').bounds({x:0,y:0,width:1280,height:800},state.settings,args[0]);
-  if(name==='next'){const result=D.nextBatch(state,Date.now(),{manualBrowse:true});if(result.changed)revision++;return{...result,state:snapshot()};}
+  if(name==='next'){const result=D.nextBatch(state,Date.now(),{manualBrowse:true,restart:args[1]===true});if(result.changed)revision++;return{...result,state:snapshot()};}
   if(name==='previewInsight'){insight=advisor.recommend(state);mode='insight';revision++;return snapshot();}
   if(name==='dismissInsight'){insight=null;mode='collapsed';revision++;return snapshot();}
   if(name==='state')return snapshot();if(name==='refresh')return{state:snapshot(),error:null};

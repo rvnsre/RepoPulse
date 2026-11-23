@@ -21,3 +21,19 @@ test('Card rendering completes when the compositor withholds animation frames',(
 test('A visible-frame render coalesces updates and cancels its fallback timer',()=>{const f=queueFixture();f.queue();f.queue();f.queue();assert.equal(f.frames.size,1);[...f.frames.values()][0]();assert.equal(f.count(),1);assert.equal(f.timers.size,0);});
 test('A late frame from a completed fallback cannot consume a newer state update',()=>{const f=queueFixture();f.queue();const stale=[...f.frames.values()][0];[...f.timers.values()][0]();f.queue();stale();assert.equal(f.count(),1);[...f.timers.values()][0]();assert.equal(f.count(),2);});
 test('Cancelled render work cannot update an unloaded widget',()=>{const f=queueFixture();f.queue();const callbacks=[...f.frames.values(),...f.timers.values()];f.queue.cancel();callbacks.forEach(fn=>fn());assert.equal(f.count(),0);assert.equal(f.frames.size+f.timers.size,0);});
+
+test('Release target falls back to the GitHub origin or package metadata',()=>{
+ const {releaseRepository}=require('../scripts/release.cjs');
+ assert.equal(releaseRepository({},()=> 'git@github.com:some/project.git\n'),'some/project');
+ assert.equal(releaseRepository({},()=>{throw Error('no git');}),'rvnsre/RepoPulse');
+ assert.throws(()=>releaseRepository({GITHUB_REPOSITORY:'https://github.com/x/y'}),/Invalid/);
+});
+
+test('Architecture-aware release assembly requires both macOS artifacts',()=>temporary(dir=>{
+ fixture(dir);
+ assert.throws(()=>prepare(dir,'11.7.3','v11.7.3',{requireMacArchitectures:true}),/RepoPulse-macOS-Intel/);
+ const intel=path.join(dir,'RepoPulse-macOS-Intel');
+ fs.mkdirSync(intel);
+ for(const ext of ['zip','dmg'])fs.writeFileSync(path.join(intel,'RepoPulse-11.7.3-macOS-x64.'+ext),Buffer.alloc(2048));
+ assert.equal(prepare(dir,'11.7.3','v11.7.3',{requireMacArchitectures:true}).length,10);
+}));

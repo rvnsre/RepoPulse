@@ -16,3 +16,16 @@ test('A 10,105-repo fixture exercises actual sharded pagination without shipping
 
 test('Overlapping star partitions cannot claim a complete catalog',async()=>{await assert.rejects(fetchCatalog([],async url=>{const u=new URL(url),q=u.searchParams.get('q'),page=Number(u.searchParams.get('page'));if(q==='stars:>=5000 archived:false fork:false is:public')return{ok:true,json:async()=>({total_count:1001,items:Array.from({length:100},(_,i)=>repo(i+1,80000+i))})};const lower=q.includes('..'),count=lower?500:501,items=Array.from({length:count},(_,i)=>repo(i+1));return{ok:true,json:async()=>({total_count:count,items:items.slice((page-1)*100,page*100)})};}),/fewer unique/);});
 test('Annotation capacity treats zero-padded imported IDs as the same repository',()=>{const w=require('../src/workspace.cjs'),records=Object.fromEntries(Array.from({length:2000},(_,i)=>[i+1,{}]));assert.doesNotThrow(()=>w.ensureCapacity(records,['0001','0002']));});
+
+test('Small search-index drift retains cached entries without claiming completeness',async()=>{
+ const previous=[repo(1),repo(2),repo(3)];
+ const result=await fetchCatalog(previous,async()=>({ok:true,json:async()=>({total_count:3,items:previous.slice(0,2)})}));
+ assert.deepEqual(new Set(result.map(item=>item.id)),new Set([1,2,3]));
+ assert.equal(fetchCatalog.info.complete,false);
+});
+
+test('A large catalog shortfall refuses to replace the existing cache',async()=>{
+ const previous=Array.from({length:20},(_,i)=>repo(i+1));
+ await assert.rejects(fetchCatalog(previous,async()=>({ok:true,json:async()=>({total_count:20,items:previous.slice(0,15)})})),/Cached projects remain available/);
+ assert.equal(previous.length,20);
+});

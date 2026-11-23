@@ -14,10 +14,10 @@ const advisor=require('../src/advisor.cjs');const idleGate=new advisor.IdleGate(
 const {policy,activeDisplay,topAnchor,dockShape,registerShortcuts,bindInitialVisibility,syncTopmost}=require('../src/window-policy.cjs');const windowPolicy=policy(process.platform,process.env,smokeFlag());function smokeFlag(){return !app.isPackaged&&process.argv.includes('--smoke-test');}
 const {ActivityClient,observe,velocity,rememberRelease}=require('../src/activity.cjs');const install=require('../src/install.cjs');let github,activityClient,lastSyncAttempt=0,shortcutAvailable=false,trayAvailable=false;
 if(process.platform==='linux'&&process.env.WAYLAND_DISPLAY){if(process.env.DISPLAY)app.commandLine.appendSwitch('ozone-platform','x11');else app.commandLine.appendSwitch('enable-features','GlobalShortcutsPortal');}
-const pointerTracker=new PointerTracker();let pointerTimer;
+const pointerTracker=new PointerTracker();let pointerTimer,lastPointerSent=0;
 let lastExternal=null,revision=0;
 let releaseClient,notifier,lastAutomaticAt=0,windowAnchor=null,lastWindowRequest=0;
-const {CHECKOUT,createLicense}=require('../src/rss-plus.cjs'),watchlist=require('../src/watchlist.cjs');
+const {RECHECK,CHECKOUT,createLicense}=require('../src/rss-plus.cjs'),watchlist=require('../src/watchlist.cjs');
 let license,licenseTimer;
 let window,store,tray,timer,refreshPromise,quitting=false,mode='panel',lastError=null,moveTimer,lastProgrammaticPosition=null;
 const opening=new Map(),smokeMode=!app.isPackaged&&process.argv.includes('--smoke-test');
@@ -33,7 +33,7 @@ const systemLabel=(()=>{
  if(process.platform==='darwin')return 'macOS '+(process.getSystemVersion?.()||release);
  return process.platform==='linux'?'Linux '+release:process.platform+' '+release;
 })();
-function snapshot(){const s=store.state;return {license:license?.snapshot()||{active:false,status:'free'},plusRepos:license?.snapshot().active?watchlist.list(s.plusRepos,s.cache):[],catalogPolicy:require('../src/catalog-policy.cjs'),windowPolicy:{...windowPolicy,options:undefined},shortcutAvailable,trayAvailable,insight,contextStatus:context.status,windowMode:mode,windowBounds:window?.getBounds(),workspace:s.workspace,catalog:[...new Map([...s.cache,...s.saved,...Object.values(s.workspace?.records||{}).map(r=>r.repo)].map(r=>[r.id,r])).values()],analytics:workspace.analytics(s.history,s.workspace),revision,rateLimitUntil:github?.retryAt()||0,githubTokenConfigured:github?.configured()||false,feed:s.feed,releaseMetadata:s.releaseMetadata,starTrends:Object.fromEntries((s.daily?.repos||[]).map(repo=>[repo.id,{velocity:velocity(s.starSamples?.[repo.id]),baseline:Array.isArray(s.starSamples?.[repo.id])?s.starSamples[repo.id].at(-1)?.dateUtc??null:null}])),daily:s.daily,saved:s.saved,history:s.history,settings:s.settings,profile:s.profile,topics:TOPICS,cacheAt:s.cacheAt,catalogSize:s.cache.length,catalogInfo:s.catalogInfo||null,languages:[...new Set(s.cache.map(r=>r.language).filter(Boolean))].sort(),blockedOwners:s.blockedOwners,snoozedCount:Object.values(s.snoozed).filter(t=>t>Date.now()).length,canUndo:!!s.lastRotation&&s.lastRotation.day===localDay(),lastError,version:app.getVersion(),platform:process.platform,arch:process.arch,systemLabel,recoveryNotice:s.recoveryNotice||null,...(smokeMode?{lastExternal,fixture:true}:{}),exclusions:{hidden:s.hidden.map(id=>({id,name:findRepo(id)?.full_name||String(id)})),snoozed:Object.entries(s.snoozed).filter(([,until])=>until>Date.now()).map(([id,until])=>({id:Number(id),name:findRepo(Number(id))?.full_name||id,until})),owners:s.blockedOwners}};}
+function snapshot(){const s=store.state;return {license:license?.snapshot()||{active:false,status:'free'},plusRepos:license?.snapshot().active?watchlist.list(s.plusRepos,s.cache):[],catalogPolicy:require('../src/catalog-policy.cjs'),windowPolicy:{...windowPolicy,options:undefined},shortcutAvailable,trayAvailable,insight,contextStatus:context.status,windowMode:mode,windowBounds:window?.getBounds(),workspace:s.workspace,catalog:[...new Map([...s.cache,...s.saved,...Object.values(s.workspace?.records||{}).map(r=>r.repo)].map(r=>[r.id,r])).values()],analytics:workspace.analytics(s.history,s.workspace),revision,rateLimitUntil:github?.retryAt()||0,githubTokenConfigured:github?.configured()||false,githubTokenNotice:github?.notice()||null,feed:s.feed,releaseMetadata:s.releaseMetadata,starTrends:Object.fromEntries((s.daily?.repos||[]).map(repo=>[repo.id,{velocity:velocity(s.starSamples?.[repo.id]),baseline:Array.isArray(s.starSamples?.[repo.id])?s.starSamples[repo.id].at(-1)?.dateUtc??null:null}])),daily:s.daily,saved:s.saved,history:s.history,settings:s.settings,profile:s.profile,topics:TOPICS,cacheAt:s.cacheAt,catalogSize:s.cache.length,catalogInfo:s.catalogInfo||null,languages:[...new Set(s.cache.map(r=>r.language).filter(Boolean))].sort(),blockedOwners:s.blockedOwners,snoozedCount:Object.values(s.snoozed).filter(t=>t>Date.now()).length,canUndo:!!s.lastRotation&&s.lastRotation.day===localDay(),lastError,version:app.getVersion(),platform:process.platform,arch:process.arch,systemLabel,recoveryNotice:s.recoveryNotice||null,...(smokeMode?{lastExternal,fixture:true}:{}),exclusions:{hidden:s.hidden.map(id=>({id,name:findRepo(id)?.full_name||String(id)})),snoozed:Object.entries(s.snoozed).filter(([,until])=>until>Date.now()).map(([id,until])=>({id:Number(id),name:findRepo(Number(id))?.full_name||id,until})),owners:s.blockedOwners}};}
 function emit(){revision++;if(window&&!window.isDestroyed())window.webContents.send('state:changed',snapshot());}
 function findRepo(id){return [...(store.state.daily?.repos||[]),...store.state.saved,...store.state.cache,...(store.state.plusRepos||[]),...store.state.history.map(h=>h.repo),...Object.values(store.state.workspace?.records||{}).map(r=>r.repo)].find(r=>r?.id===id);}
 let lastShape='';function applyWindowShape(){if(!window||window.isDestroyed())return;if(process.platform==='darwin')window.invalidateShadow();if(process.platform!=='linux'||windowPolicy.nativeWayland||windowPolicy.transparent)return;const b=window.getBounds(),key=b.width+':'+b.height+':'+mode;if(key===lastShape)return;try{window.setShape(dockShape(b.width,b.height,mode));windowPolicy.shaped=true;lastShape=key;}catch{windowPolicy.shaped=false;}}
@@ -45,14 +45,52 @@ function resize(next='panel',anchor=false,requestId=null,height=null){
  if(['x','y','width','height'].some(k=>rect[k]!==current[k])){clearTimeout(moveTimer);lastProgrammaticPosition={x:rect.x,y:rect.y};window.setBounds(rect,false);}
  try{window.setHasShadow(mode!=='collapsed'&&process.platform!=='linux');}catch{}applyWindowShape();
  window.webContents.send('window:mode',{mode,requestId,bounds:window.getBounds(),...(mode==='insight'?{insight}:{})});
+ schedulePointer();
 }
-function samplePointer(){
- if(!windowPolicy.pointer||!window||window.isDestroyed()||!window.isVisible())return null;
- let point;
- try{if(smokeMode&&process.platform==='linux'){const output=require('node:child_process').execFileSync('xdotool',['getmouselocation','--shell'],{encoding:'utf8',timeout:1000});const values=Object.fromEntries(output.trim().split(/\r?\n/).map(line=>line.split('=')));point={x:Number(values.X),y:Number(values.Y)};}else point=screen.getCursorScreenPoint();}catch{return null;}
- const nativeBounds=window.getBounds();
- const hitShape=mode==='collapsed'?dockShape(nativeBounds.width,nativeBounds.height,'collapsed'):undefined;
- const value=pointerTracker.update(point,nativeBounds,hitShape);if(value?.changed)window.webContents.send('pointer:state',value);return value;
+function pointerActive(){
+ return !quitting&&!screenLocked&&windowPolicy.pointer&&window&&!window.isDestroyed()&&window.isVisible()&&!window.isMinimized();
+}
+function readPointer(){
+ if(!smokeMode||process.platform!=='linux')return screen.getCursorScreenPoint();
+ return new Promise((resolve,reject)=>require('node:child_process').execFile('xdotool',['getmouselocation','--shell'],{encoding:'utf8',timeout:1000},(error,output)=>{
+  if(error){reject(error);return;}
+  const values=Object.fromEntries(output.trim().split(/\r?\n/).map(line=>line.split('=')));
+  resolve({x:Number(values.X),y:Number(values.Y)});
+ }));
+}
+function trackPointer(point){
+ const bounds=window.getBounds();
+ const shape=mode==='collapsed'?dockShape(bounds.width,bounds.height,'collapsed'):undefined;
+ const sample=pointerTracker.update(point,bounds,shape),now=Date.now();
+ if(sample&&(sample.entered||sample.left||sample.geometry||sample.inside&&sample.moved&&now-lastPointerSent>=120)){
+  lastPointerSent=now;window.webContents.send('pointer:state',sample);
+ }
+ return sample;
+}
+let pointerGeneration=0,pointerRead=null;
+async function samplePointer(){
+ if(!pointerActive())return null;
+ const generation=pointerGeneration;
+ try{
+  if(!pointerRead)pointerRead=Promise.resolve(readPointer()).finally(()=>{pointerRead=null;});
+  const point=await pointerRead;
+  return pointerActive()&&generation===pointerGeneration?trackPointer(point):null;
+ }catch{return null;}
+}
+function schedulePointer(){
+ clearTimeout(pointerTimer);pointerTimer=null;
+ const generation=++pointerGeneration;
+ if(!pointerActive()){
+  pointerTracker.last=null;return;
+ }
+ const tick=async()=>{
+  const sample=await samplePointer();
+  if(generation!==pointerGeneration||!pointerActive())return;
+  const wait=smokeMode?40:PointerTracker.interval(sample,mode);
+  pointerTimer=setTimeout(tick,wait);
+  pointerTimer.unref();
+ };
+ void tick();
 }
 function keepOnTop(reassert=false){
  if(!quitting)syncTopmost(window,store.state.settings.pinned,process.platform,reassert);
@@ -110,7 +148,7 @@ async function refresh(force=false){
  refreshPromise=(async()=>{
   if(store.state.daily?.day!==localDay()){store.update(s=>{discovery.present(s);});emit();}
   maybeNotify();
-  if(force||catalogDue(store.state)&&Date.now()-lastSyncAttempt>=240000){lastSyncAttempt=Date.now();try{const cache=await fetchCatalog(store.state.cache,github.request,{delayMs:6500,cachePages:true});store.update(s=>{s.cache=cache;s.catalogInfo={...fetchCatalog.info,source:'github'};if(fetchCatalog.info.freshPages>0){s.cacheAt=new Date().toISOString();s.starSamples=observe(s.starSamples,fetchCatalog.observations,Date.now(),cache,8);}discovery.present(s);});lastError=null;}catch(e){lastError=e.message;}}
+  if(force||catalogDue(store.state)&&Date.now()-lastSyncAttempt>=240000){lastSyncAttempt=Date.now();try{const cache=await fetchCatalog(store.state.cache,github.request,{delayMs:6500,cachePages:true});if(quitting)return {state:snapshot(),error:null};store.update(s=>{s.cache=cache;s.catalogInfo={...fetchCatalog.info,source:'github'};if(fetchCatalog.info.freshPages>0){s.cacheAt=new Date().toISOString();s.starSamples=observe(s.starSamples,fetchCatalog.observations,Date.now(),cache,8);}discovery.present(s);});lastError=null;}catch(e){lastError=e.message;}}
   emit();
   if(!smokeMode)void refreshVisibleActivity().catch(error=>console.error('Background release refresh failed:',error.message));
   return {state:snapshot(),error:lastError};
@@ -144,6 +182,7 @@ function createWindow(){
  window=new BrowserWindow({...rect,...windowPolicy.options,paintWhenInitiallyHidden:true,alwaysOnTop:store.state.settings.pinned,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
  if(process.platform==='darwin'){app.dock?.hide();window.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:false});}keepOnTop(true);
  bindInitialVisibility(window);window.on('resize',applyWindowShape);
+ for(const event of ['show','hide','minimize','restore'])window.on(event,schedulePointer);
  for(const event of ['show','restore'])window.on(event,()=>keepOnTop(true));
  window.on('always-on-top-changed',()=>setImmediate(()=>keepOnTop()));
  window.setOpacity(store.state.settings.opacity/100);resize(initialMode);
@@ -175,7 +214,7 @@ async function importData(kind){
  store.update(s=>{if(kind==='workspace')s.workspace=data;else if(kind==='profile'){const initial=!Object.keys(s.profile.weights).length;s.profile=data;if(initial){s.daily=null;discovery.present(s);}}else s.saved=[...new Map([...data,...s.saved].map(r=>[r.id,r])).values()];});emit();return snapshot();
 }
 async function collectContext(){
- if(contextBusy||!store.state.settings.screenContext||screenLocked)return;contextBusy=true;
+ if(quitting||contextBusy||!store.state.settings.screenContext||screenLocked)return;contextBusy=true;
  try{const value=await advisor.foreground();if(store.state.settings.screenContext&&!screenLocked&&value.status!=='self')context=value;}finally{contextBusy=false;}
 }
 function showInsight(){
@@ -214,7 +253,7 @@ function attachIpc(){
  handle('insight:preview',()=>{showInsight();return snapshot();});
  handle('insight:dismiss',()=>{idleGate.dismiss();insight=null;resize('collapsed');emit();return snapshot();});
  handle('window:preview',next=>{if(!['panel','collapsed','mini','workspace','insight'].includes(next))throw new Error('Invalid window mode');return layoutBounds(screen.getDisplayMatching(window.getBounds()).workArea,store.state.settings,next,windowAnchor);});
- handle('feed:next',epoch=>{if(epoch!=null&&epoch!==store.state.feed?.epoch)return {changed:false,reason:'stale',state:snapshot()};let result;store.update(s=>{result=discovery.nextBatch(s,Date.now(),{manualBrowse:true});});if(result.changed)emit();return{...result,state:snapshot()};});
+ handle('feed:next',(epoch,restart)=>{if(epoch!=null&&epoch!==store.state.feed?.epoch)return {changed:false,reason:'stale',state:snapshot()};let result;store.update(s=>{result=discovery.nextBatch(s,Date.now(),{manualBrowse:true,restart:restart===true});});if(result.changed)emit();return{...result,state:snapshot()};});
  handle('pointer:get',()=>samplePointer());handle('state:get',()=>snapshot());handle('catalog:refresh',force=>refresh(force===true));
  handle('window:expand',input=>{const next=typeof input==='object'?input?.mode:input,requestId=typeof input==='object'?input?.requestId:null;if(!['panel','collapsed','mini','workspace','insight'].includes(next))throw new Error('Invalid window mode');if(requestId!=null){if(!Number.isSafeInteger(requestId)||requestId<=0)throw new Error('Invalid window request');if(requestId<=lastWindowRequest)return{mode,requestId,ignored:true,bounds:window.getBounds()};lastWindowRequest=requestId;}resize(next,false,requestId,typeof input==='object'?input.height:null);return{mode,requestId,bounds:window.getBounds()};});
  handle('window:fit',payload=>{if(!payload||payload.mode!==mode||!Number.isFinite(payload.height)||payload.requestId!=null&&payload.requestId<lastWindowRequest)return;const current=window.getBounds(),area=screen.getDisplayMatching(current).workArea,height=fittedHeight(payload.height,area.height,mode==='collapsed');if(Math.abs(current.height-height)>1){clearTimeout(moveTimer);const y=Math.round(Math.max(area.y,Math.min(windowAnchor?.y??current.y,area.y+area.height-height)));lastProgrammaticPosition={x:current.x,y};window.setBounds({height,y},false);}return{mode,bounds:window.getBounds()};});handle('window:hide',()=>window.hide());handle('app:quit',()=>{quitting=true;app.quit();});
@@ -281,16 +320,19 @@ function attachIpc(){
  handle('settings:set',input=>{
   const previous=store.state.settings,next=discovery.settings({...previous,...input});
   if(next.launchAtLogin!==previous.launchAtLogin)configureLogin(app,next.launchAtLogin);
-  store.update(s=>{s.settings=next;discovery.present(s);});if(!next.screenContext)context={topic:null,status:'off'};else if(!previous.screenContext)void collectContext();keepOnTop();window.setOpacity(next.opacity/100);resize(mode,next.anchor!==previous.anchor,lastWindowRequest);emit();return snapshot();
+  store.update(s=>{s.settings=next;discovery.present(s);});if(!next.screenContext){advisor.stopForeground();context={topic:null,status:'off'};}else if(!previous.screenContext)void collectContext();keepOnTop();window.setOpacity(next.opacity/100);resize(mode,next.anchor!==previous.anchor,lastWindowRequest);emit();return snapshot();
  });
  handle('history:remove',(id,time)=>{if(!Number.isSafeInteger(id)||typeof time!=='string')throw new Error('Invalid history item');store.update(s=>{s.history=s.history.filter(h=>!(h.repo.id===id&&h.openedAt===time));});emit();return snapshot();});
  handle('exclusion:remove',(kind,value)=>{store.update(s=>{if(kind==='owner')s.blockedOwners=s.blockedOwners.filter(v=>v!==value);else if(kind==='hidden'&&Number.isSafeInteger(value)){s.hidden=s.hidden.filter(v=>v!==value);s.seen=s.seen.filter(v=>v!==value);}else if(kind==='snoozed'&&Number.isSafeInteger(value)){delete s.snoozed[value];s.seen=s.seen.filter(v=>v!==value);}else throw new Error('Invalid exclusion');discovery.present(s);});emit();return snapshot();});
  handle('data:reset-controls',async()=>{if(!await confirm('Restore hidden, snoozed and blocked projects?','Previously opened projects remain in your discovery history.'))return null;store.update(s=>{const restore=new Set([...s.hidden,...Object.keys(s.snoozed).map(Number)]);s.seen=s.seen.filter(id=>!restore.has(id));s.hidden=[];s.snoozed={};s.blockedOwners=[];discovery.present(s);});emit();return snapshot();});
  handle('data:clear-history',async()=>{if(!await confirm('Clear your local viewing history?','No-repeat memory is retained so old projects do not reappear.'))return null;store.update(s=>{s.history=[];});emit();return snapshot();});
- handle('data:clear',async()=>{if(!await confirm('Delete all local RepoPulse data?','Interests, saved repositories and discovery history will be reset. Browser history and exported files are not deleted.'))return null;const next=discovery.initialize(defaults());discovery.bootstrap(next);license?.clear();licenseStatus=false;store.replace(next);github.set('');lastError=null;lastSyncAttempt=0;insight=null;context={topic:null,status:'off'};resize('panel',true);keepOnTop(true);window.setOpacity(1);configureLogin(app,false);emit();return snapshot();});
+ handle('data:clear',async()=>{if(!await confirm('Delete all local RepoPulse data?','Interests, saved repositories and discovery history will be reset. Browser history and exported files are not deleted.'))return null;const next=discovery.initialize(defaults());discovery.bootstrap(next);license?.clear();licenseStatus=false;store.replace(next);await store.flush();github.set('');lastError=null;lastSyncAttempt=0;insight=null;advisor.stopForeground();context={topic:null,status:'off'};resize('panel',true);keepOnTop(true);window.setOpacity(1);configureLogin(app,false);emit();return snapshot();});
 }
 if(singleton)app.whenReady().then(()=>{
- store=new Store(path.join(app.getPath('userData'),smokeMode?'smoke-state.json':'state.json'));discovery.initialize(store.state);
+ store=new Store(path.join(app.getPath('userData'),smokeMode?'smoke-state.json':'state.json'),{
+  deferred:!smokeMode,
+  onError:error=>{lastError='Local changes could not be saved: '+error.message;emit();}
+ });discovery.initialize(store.state);
  if(smokeMode){store.state=discovery.initialize(defaults());store.state.settings.autoHide=false;store.state.settings.dynamicRefresh=false;store.state.cache=require('../test/fixtures.cjs');store.state.cacheAt=new Date().toISOString();store.state.profile.weights={ai:10,tools:8,systems:6};discovery.present(store.state);}
  if(!smokeMode){
   store.state.notificationDay=store.state.notificationDay||store.state.daily?.day||localDay();
@@ -303,13 +345,24 @@ if(singleton)app.whenReady().then(()=>{
  github=require('../src/github-session.cjs').createGitHubSession({safeStorage,tokenPath:path.join(app.getPath('userData'),'github-token.enc')});
  activityClient=new ActivityClient(smokeMode?{fetchImpl:async url=>({ok:true,status:200,json:async()=>url.includes('commits?')?[{sha:'a'.repeat(40),commit:{committer:{date:new Date().toISOString()}}}]:{tag_name:'v1.0.0',published_at:new Date().toISOString()}})}:{fetchImpl:github.request});
  releaseClient=new ReleaseClient(smokeMode?{fetchImpl:async url=>({ok:true,json:async()=>[{tag_name:'v1.0.0',draft:false,assets:[{name:'fixture-linux-x64.deb',size:2048,state:'uploaded',browser_download_url:url.replace('api.github.com/repos/','github.com/').split('/releases?')[0]+'/releases/download/v1.0.0/fixture-linux-x64.deb'}]}]})}:{fetchImpl:github.request});
- createWindow();attachIpc();maybeNotify();if(license){void refreshLicense();licenseTimer=setInterval(refreshLicense,60000);}pointerTimer=setInterval(samplePointer,40);try{tray=new Tray(nativeImage.createFromDataURL(require('./tray-icon.cjs')));trayAvailable=true;tray.setToolTip('RepoPulse — GitHub feed');tray.setContextMenu(Menu.buildFromTemplate([{label:'Summon on active display',click:show},{label:'Collapse / expand',click:summon},{label:'Force GitHub sync',click:()=>void refresh(true)},{type:'separator'},{label:'Quit',click:()=>{quitting=true;app.quit();}}]));tray.on('click',summon);}catch{trayAvailable=false;}
+ createWindow();attachIpc();maybeNotify();if(license){void refreshLicense();licenseTimer=setInterval(refreshLicense,RECHECK);}schedulePointer();try{tray=new Tray(nativeImage.createFromDataURL(require('./tray-icon.cjs')));trayAvailable=true;tray.setToolTip('RepoPulse — GitHub feed');tray.setContextMenu(Menu.buildFromTemplate([{label:'Summon on active display',click:show},{label:'Collapse / expand',click:summon},{label:'Force GitHub sync',click:()=>void refresh(true)},{type:'separator'},{label:'Quit',click:()=>{quitting=true;app.quit();}}]));tray.on('click',summon);}catch{trayAvailable=false;}
  shortcutAvailable=registerShortcuts(globalShortcut,summon);
- powerMonitor.on('lock-screen',()=>{screenLocked=true;context={topic:null,status:'locked'};if(mode==='insight'){insight=null;resize('collapsed');}});
- powerMonitor.on('unlock-screen',()=>{screenLocked=false;keepOnTop(true);});
- if(!smokeMode){contextTimer=setInterval(()=>{if(powerMonitor.getSystemIdleTime()<480)void collectContext();},60000);advisorTimer=setInterval(()=>{const busy=mode==='workspace'||opening.size>0||!window.isVisible();if(idleGate.tick(powerMonitor.getSystemIdleTime(),{enabled:store.state.settings.idleAdvisor,locked:screenLocked,busy}))showInsight();},15000);if(store.state.settings.screenContext)void collectContext();}
- powerMonitor.on('resume',()=>{if(!quitting){keepOnTop(true);void refreshLicense();}if(!quitting)refresh().catch(error=>{lastError=error.message;emit();});});timer=setInterval(()=>{if(!smokeMode&&(store.state.daily?.day!==localDay()||catalogDue(store.state)))void refresh().catch(error=>{lastError=error.message;emit();});},60000);app.on('second-instance',show);app.on('activate',show);
+ powerMonitor.on('lock-screen',()=>{screenLocked=true;schedulePointer();advisor.stopForeground();context={topic:null,status:'locked'};if(mode==='insight'){insight=null;resize('collapsed');}});
+ powerMonitor.on('unlock-screen',()=>{screenLocked=false;schedulePointer();keepOnTop(true);});
+ if(!smokeMode){contextTimer=setInterval(()=>{if(store.state.settings.screenContext&&!screenLocked&&powerMonitor.getSystemIdleTime()<480)void collectContext();},60000);advisorTimer=setInterval(()=>{const busy=mode==='workspace'||opening.size>0||!window.isVisible();if(idleGate.tick(powerMonitor.getSystemIdleTime(),{enabled:store.state.settings.idleAdvisor,locked:screenLocked,busy}))showInsight();},15000);if(store.state.settings.screenContext)void collectContext();}
+ powerMonitor.on('suspend',()=>{advisor.stopForeground();context={topic:null,status:'off'};});
+ powerMonitor.on('resume',()=>{if(!quitting){keepOnTop(true);void refreshLicense();if(store.state.settings.screenContext)void collectContext();}if(!quitting)refresh().catch(error=>{lastError=error.message;emit();});});timer=setInterval(()=>{if(!smokeMode&&(store.state.daily?.day!==localDay()||catalogDue(store.state)))void refresh().catch(error=>{lastError=error.message;emit();});},60000);app.on('second-instance',show);app.on('activate',show);
  if(smokeMode)require('../scripts/smoke.cjs').smoke({app,window,store,resize,TOPICS,snapshot}).catch(error=>{console.error(error);app.exit(1);});
 }).catch(error=>{dialog.showErrorBox('RepoPulse could not start',error.message);app.quit();});
-app.on('before-quit',()=>{quitting=true;notifier?.close();github?.close();clearInterval(timer);clearInterval(pointerTimer);clearInterval(advisorTimer);clearInterval(contextTimer);clearInterval(licenseTimer);clearTimeout(moveTimer);});app.on('will-quit',()=>globalShortcut.unregisterAll());app.on('window-all-closed',()=>{});
-
+let quitAfterSave=false,quitSaving=false;
+app.on('before-quit',event=>{
+ quitting=true;notifier?.close();github?.close();advisor.stopForeground();
+ clearInterval(timer);clearTimeout(pointerTimer);clearInterval(advisorTimer);clearInterval(contextTimer);clearInterval(licenseTimer);clearTimeout(moveTimer);
+ if(quitAfterSave||!store?.deferred)return;
+ event.preventDefault();
+ if(quitSaving)return;
+ quitSaving=true;
+ void store.flushOnQuit().catch(error=>dialog.showErrorBox('RepoPulse could not save local changes',error.message))
+  .finally(()=>{quitAfterSave=true;app.quit();});
+});
+app.on('will-quit',()=>globalShortcut.unregisterAll());app.on('window-all-closed',()=>{});

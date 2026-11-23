@@ -1,4 +1,5 @@
 'use strict';
+const USER_AGENT='RepoPulse/'+require('../package.json').version;
 const {repositoryUrl}=require('./navigation.cjs');
 const validDate=value=>typeof value==='string'&&Number.isFinite(Date.parse(value))?value:null;
 const DAY=86400000;
@@ -43,7 +44,7 @@ class ActivityClient{
  constructor({fetchImpl=fetch,now=Date.now,limit=36,ttl=900000}={}){this.fetch=fetchImpl;this.now=now;this.limit=limit;this.ttl=ttl;this.used=[];this.cache=new Map();this.inflight=new Map();this.active=0;this.retryAt=0;}
  async get(repo){repositoryUrl(repo);const key=repo.full_name.toLowerCase(),now=this.now(),cached=this.cache.get(key);if(cached?.expires>now)return cached.value;if(this.inflight.has(key))return this.inflight.get(key);this.used=this.used.filter(t=>now-t<3600000);if(now<this.retryAt||this.used.length+(!require('./install.cjs').known(repo)&&['JavaScript','TypeScript'].includes(repo.language)?3:2)>this.limit||this.active>=2)return cached?.value||{status:'deferred'};
   const manifestRequired=!require('./install.cjs').known(repo)&&['JavaScript','TypeScript'].includes(repo.language);this.used.push(now,now,...(manifestRequired?[now]:[]));this.active++;
-  const task=(async()=>{try{const headers={Accept:'application/vnd.github+json','User-Agent':'RepoPulse/11.1'};const settled=await Promise.allSettled(['releases/latest','commits?per_page=1',...(manifestRequired?['contents/package.json']:[])].map(route=>this.fetch('https://api.github.com/repos/'+key+'/'+route,{headers:{...headers,...(route==='contents/package.json'?{Accept:'application/vnd.github.raw+json'}:{})},signal:AbortSignal.timeout(8000)})));
+  const task=(async()=>{try{const headers={Accept:'application/vnd.github+json','User-Agent':USER_AGENT};const settled=await Promise.allSettled(['releases/latest','commits?per_page=1',...(manifestRequired?['contents/package.json']:[])].map(route=>this.fetch('https://api.github.com/repos/'+key+'/'+route,{headers:{...headers,...(route==='contents/package.json'?{Accept:'application/vnd.github.raw+json'}:{})},signal:AbortSignal.timeout(8000)})));
    if(settled.every(r=>r.status==='rejected'))throw Error('GitHub activity unavailable');const responses=settled.map(r=>r.status==='fulfilled'?r.value:{ok:false,status:0});for(const r of responses)if([403,429].includes(r.status)){const reset=Number(r.headers?.get('x-ratelimit-reset'))*1000;this.retryAt=Math.max(now+60000,Number.isFinite(reset)?Math.min(reset,now+3600000):now+900000);throw Error('GitHub activity rate-limited');}
    const malformed=new Set();const [release,commits,manifest]=await Promise.all(responses.map(async (r,index)=>{if(!r.ok)return null;try{return await r.json();}catch{malformed.add(index);return null;}}));
    const commit=Array.isArray(commits)?commits[0]:null;
