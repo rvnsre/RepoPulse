@@ -460,27 +460,33 @@ $('closeDrawer').addEventListener('click',()=>run(closeDrawer));
 $('refresh').addEventListener('click',()=>run(()=>refresh(true)));
 $('pinButton').addEventListener('click',()=>run(()=>changeSettings({pinned:!state.settings.pinned})));
 function renderPagination(){
- const remaining=state.feed?.manualRemaining;
- const loading=pending.has('next');
- $('next').disabled=loading||!state.catalogSize||remaining===0;
- $('next').setAttribute('aria-busy',String(loading));
- $('nextStatus').textContent=remaining===0&&state.catalogSize?(repos().length?'All matching picks shown':'No matching picks'):
+ const {manualRemaining:remaining,canRestartManual}=state.feed||{};
+ const loading=pending.has('next'),finished=remaining===0;
+ const button=$('next');
+ const label=finished?(canRestartManual?'Browse again':'Open library'):'Next';
+ button.disabled=loading||!state.catalogSize;
+ if(button.firstChild.textContent!==label+' ')button.firstChild.textContent=label+' ';
+ button.title=finished?(canRestartManual?'Start another pass with the same filters':'Browse the full cached catalog'):'Show the next repositories';
+ button.setAttribute('aria-busy',String(loading));
+ $('nextStatus').textContent=finished&&state.catalogSize?(repos().length?'End of matching picks':'No projects match your feed filters'):
   remaining>0?Intl.NumberFormat().format(remaining)+' left':'';
 }
 $('next').addEventListener('click',()=>run(async()=>{
  if(pending.has('next')||!state.catalogSize)return;
+ const restart=state.feed?.manualRemaining===0;
+ if(restart&&!state.feed.canRestartManual){await openDrawer('library');return;}
  pending.add('next');
- manualPaging=true;
  renderPagination();
  islandController?.hold('next picks',true);
  try{
   let result;
   for(let attempt=0;attempt<2;attempt++){
-   result=await api.next(state.feed?.epoch);
+   result=await api.next(state.feed?.epoch,restart);
    if(result.state)adopt(result.state);
    if(result.reason!=='stale')break;
   }
   if(!result.changed){render();return;}
+  manualPaging=true;
   $('feed').scrollTop=0;
   pair=0;
   selectedId=repos()[0]?.id??null;
