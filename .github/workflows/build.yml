@@ -34,6 +34,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/prepare-catalog.cjs src/catalog-seed.json
+      - name: Preserve resumable public catalog pages
+        if: always() && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: RepoPulse-catalog-checkpoint
+          path: src/catalog-seed.json.checkpoint/
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         with:
           name: RepoPulse-catalog
