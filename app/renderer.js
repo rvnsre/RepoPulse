@@ -76,7 +76,7 @@ function desiredHeight(){
   px(discovery,'paddingTop')+px(discovery,'paddingBottom');
  return IslandMorph.panelHeight({
   header:document.querySelector('.topbar').offsetHeight,
-  heading:0,footer:document.querySelector('footer').offsetHeight+$('notifications').offsetHeight,
+  heading:document.querySelector('.feed-heading').offsetHeight,footer:document.querySelector('footer').offsetHeight+$('notifications').offsetHeight,
   padding:Math.max(0,padding-12),gap:parseFloat(style.rowGap)||0,count:state.settings.visibleRows,
   rows,empty:feed.querySelector('.empty')?.offsetHeight||100
  });

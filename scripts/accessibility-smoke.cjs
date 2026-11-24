@@ -3,6 +3,7 @@
 const {app,BrowserWindow}=require('electron');
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {createPreviewServer}=require('./preview.cjs');
+if(process.platform==='linux')app.disableHardwareAcceleration();
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 let window,server;
 async function main(){
@@ -54,7 +55,13 @@ async function main(){
   await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:mode==='forced-colors'?[{name:'forced-colors',value:'active'}]:[]});
   const results=await evaluate("axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','best-practice']}})");
   fs.writeFileSync(path.join(directory,'axe-'+mode+'.json'),JSON.stringify(results,null,2));
-  const screenshot=await window.webContents.capturePage();fs.writeFileSync(path.join(directory,'rotation-'+mode+'-fixture.png'),screenshot.toPNG());
+  let screenshot;
+  for(let attempt=0;attempt<8;attempt++){
+   try{screenshot=await window.webContents.capturePage();if(!screenshot.isEmpty())break;}catch(error){if(error.message!=='UnknownVizError'||attempt===7)throw error;}
+   await wait(200);
+  }
+  assert.ok(screenshot&&!screenshot.isEmpty(),'A painted screenshot is required');
+  fs.writeFileSync(path.join(directory,'rotation-'+mode+'-fixture.png'),screenshot.toPNG());
   console.log(JSON.stringify({mode,violations:results.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>n.target)})),incomplete:results.incomplete.length,rendererErrors:errors},null,2));
   assert.equal(results.violations.length,0,'Automated accessibility violations in '+mode+'; see dist/accessibility');
  }
