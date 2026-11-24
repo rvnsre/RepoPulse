@@ -77,7 +77,7 @@ class CardScheduler{
  report(){if(!this.destroyed)this.onStatus({enabled:this.enabled,busy:this.inFlight.size>0,reason:this.exhausted.size===4?'exhausted':this.blocked()||'',remaining:Math.max(0,Math.min(...this.deadlines.map(t=>t||this.now()+5000))-this.now()),period:5000,error:this.error});}
  configure(p={},key=''){
   if(this.destroyed)return;
-  if(this.key!==key){this.key=key;this.exhausted.clear();}
+  if(this.key!==key){this.key=key;this.exhausted.clear();for(let i=0;i<4;i++)if(this.enabled&&this.timers[i]===null&&!this.inFlight.has(i))this.arm(i);}
   const enabled=p.dynamicRefresh!==false;
   if(enabled===this.enabled&&this.deadlines[0]){this.report();return;}
   this.enabled=enabled;this.clear();
