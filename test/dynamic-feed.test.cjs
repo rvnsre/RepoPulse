@@ -60,7 +60,7 @@ test('Undo restores the last autonomous replacement without erasing no-repeat me
  const s=state(),before=structuredClone(s.daily);D.cycle(s,s.daily.repos[0].id);assert.equal(D.undo(s),true);assert.deepEqual(s.daily,before);assert.ok(s.seen.length>before.repos.length);
 });
 test('New rotation preferences validate and persist every supported scene',()=>{
- const s=D.settings({cycleMin:10,cycleMax:3,transitionStyle:'not-a-scene',dynamicRefresh:false});assert.equal(s.cycleMin,3);assert.equal(s.cycleMax,10);assert.equal(s.transitionStyle,'auto');assert.equal(s.dynamicRefresh,false);for(const [id]of styles)assert.equal(D.settings({transitionStyle:id}).transitionStyle,id);
+ const s=D.settings({cycleMin:10,cycleMax:3,transitionStyle:'not-a-scene',dynamicRefresh:false});assert.equal(s.cycleMin,3);assert.equal(s.cycleMax,10);assert.equal(s.transitionStyle,'soft-spring');assert.equal(s.dynamicRefresh,false);for(const [id]of styles)assert.equal(D.settings({transitionStyle:id}).transitionStyle,id);
 });
 
 test('Countdown progress has a full period and random endpoints stay inside 3–10 seconds',()=>{
