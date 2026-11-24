@@ -767,15 +767,7 @@ body:not(.workspace-open) footer {
 }
 #next:not(:disabled):hover { background: #363636; }
 #next:not(:disabled):active { background: #424242; }
-.system-info {
-  min-width: 0;
-  overflow: hidden;
-  color: #b3b3b3;
-  font-size: calc(10px * var(--s));
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+
 body:not(.workspace-open) #notifications { background: transparent; }
 @media (max-width: 640px) {
   body:not(.workspace-open) .topbar, #discoveryPanel, #discoveryPanel .identity-title { align-items: start; }
@@ -790,4 +782,18 @@ body:not(.workspace-open) footer { padding-inline: 18px; }
   #discoveryPanel #feed { --feed-columns: 1; row-gap: 24px; }
   #miniIsland, #miniExpand { gap: 8px; }
   #miniIsland { padding-inline: 10px; }
+}
+
+.repo-slot { position: relative; contain: layout paint; }
+.repo-row { backface-visibility: hidden; transform-origin: center; }
+.owner-avatar { transition: transform 360ms cubic-bezier(.22,1,.36,1); }
+.repo-row:hover .owner-avatar { transform: scale(1.065); }
+.repo-name { text-decoration: underline transparent; text-underline-offset: 5px; transition: text-decoration-color 260ms ease; }
+.repo-row:hover .repo-name { text-decoration-color: currentColor; }
+#next { transition: transform 230ms cubic-bezier(.22,1,.36,1),background-color 230ms ease,box-shadow 230ms ease; }
+#next:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgb(0 0 0 / 16%); }
+#next:not(:disabled):active { transform: translateY(1px) scale(.97); box-shadow: none; }
+@media (prefers-reduced-motion: reduce) {
+ .owner-avatar,.repo-name,#next { transition: none !important; }
+ #next:not(:disabled):hover,#next:not(:disabled):active,.repo-row:hover .owner-avatar { transform: none; }
 }

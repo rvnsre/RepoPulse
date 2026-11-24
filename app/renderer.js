@@ -253,7 +253,7 @@ function smartCode(repo){const block=el('div',{class:'code-block smart-code'}),t
  tabs.append(selector,copyButton);block.append(tabs,pre,info,assets,download);block.refresh=draw;draw();return block;}
 async function requestActivity(repo){if(!api.activity||activityPending.size>0||(activityStates.get(repo.id)?.expires||0)>Date.now())return;activityPending.add(repo.id);try{const entry=await api.activity(repo.id);activityStates.set(repo.id,{...entry,expires:Date.now()+(entry.status==='ready'?900000:60000)});if(activityStates.size>512)activityStates.delete(activityStates.keys().next().value);for(const node of document.querySelectorAll('[data-repo-id="'+repo.id+'"] .feed-activity'))fillActivity(repo,node);for(const code of document.querySelectorAll('[data-repo-id="'+repo.id+'"] .smart-code'))code.refresh?.();const row=document.querySelector('.repo-row[data-repo-id="'+repo.id+'"]');if(row){row.querySelector('.star-velocity').textContent=starTrend(repo);const action=row.querySelector('.row-install');if(action&&entry.install?.command)action.textContent='Copy install';}}catch(error){activityStates.set(repo.id,{status:'unavailable',error:error.message,expires:Date.now()+60000});}finally{activityPending.delete(repo.id);queueMicrotask(()=>{const next=repos().find(r=>(activityStates.get(r.id)?.expires||0)<=Date.now());if(next&&expanded&&!drawer)void requestActivity(next);});}}
 function row(repo,index){
- const article=el('article',{class:'repo-row','data-repo-id':String(repo.id),'aria-label':repo.full_name,tabindex:'-1'}),identity=el('div',{class:'repo-identity'}),title=el('div',{class:'identity-title'}),avatar=el('img',{class:'owner-avatar',src:state.fixture?'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32"%3E%3Ccircle cx="16" cy="16" r="16" fill="%23687285"/%3E%3C/svg%3E':repo.avatar_url||'https://github.com/'+encodeURIComponent(repo.full_name.split('/')[0])+'.png?size=64',alt:'','aria-hidden':'true',loading:'lazy',decoding:'async',referrerpolicy:'no-referrer'}),initial=el('span',{class:'avatar-fallback','aria-hidden':'true'},repo.full_name[0].toUpperCase());avatar.addEventListener('error',()=>{avatar.hidden=true;});
+ const article=el('article',{class:'repo-row','data-repo-id':String(repo.id),'aria-label':repo.full_name,tabindex:'-1'}),identity=el('div',{class:'repo-identity'}),title=el('div',{class:'identity-title'}),avatar=el('img',{class:'owner-avatar',src:state.fixture?'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32"%3E%3Ccircle cx="16" cy="16" r="16" fill="%23687285"/%3E%3C/svg%3E':repo.avatar_url||'https://github.com/'+encodeURIComponent(repo.full_name.split('/')[0])+'.png?size=64',alt:'','aria-hidden':'true',loading:'eager',decoding:'async',referrerpolicy:'no-referrer'}),initial=el('span',{class:'avatar-fallback','aria-hidden':'true'},repo.full_name[0].toUpperCase());avatar.addEventListener('error',()=>{avatar.hidden=true;});
  const name=el('button',{class:'repo-name',type:'button', 'aria-label':'Open '+repo.full_name+' on GitHub'},repo.full_name.split('/')[1]);name.title=repo.full_name;name.addEventListener('click',()=>run(()=>openRepo(repo)));avatar.hidden=!!state.fixture||!state.settings.showOwners;initial.hidden=!state.settings.showOwners;title.append(initial,avatar,name);identity.append(title);
  const meta=el('div',{class:'repo-meta'});meta.append(el('span',{title:Intl.NumberFormat('en').format(repo.stargazers_count)+' stars'},compact(repo.stargazers_count)+' stars'),el('span',{},repo.language||'Open source'));identity.append(meta);
  const activity=el('p',{class:'feed-activity'});fillActivity(repo,activity);identity.append(activity);
@@ -283,11 +283,11 @@ function reconcile(){
   const rowMotion=canAnimate()&&expanded&&!drawer&&!miniOpen;
   const scene=DynamicFeed.transition(state.settings.transitionStyle,repo.id+i,{...IslandMotion.config(state.settings,matchMedia('(prefers-reduced-motion: reduce)').matches),duration:canAnimate()?IslandMorph.tempo(state.settings.cycleMotion,sceneSequence++):0});
   (async()=>{
-   if(changed&&rowMotion&&old&&!batchSwap){slot.effect=old.animate(scene.exit,{...scene.options,duration:Math.round(scene.options.duration*.4)});try{await slot.effect.finished;}catch{}}
+   if(changed&&rowMotion&&old){slot.effect=old.animate([{opacity:1,transform:'translateY(0) scale(1)',filter:'blur(0px)'},{opacity:0,transform:'translateY(-10px) scale(.98)',filter:'blur(2px)'}],{duration:180,easing:'cubic-bezier(.22,1,.36,1)',fill:'forwards'});try{await slot.effect.finished;}catch{}}
    if(serial!==slot.version)return;
    const node=row(repo,i);slot.element.replaceChildren(node);slot.id=repo.id;slot.key=key;slot.desired=null;
    if(hadFocus)node.querySelector('.repo-name').focus({preventScroll:true});
-   if(changed&&rowMotion){const frames=batchSwap?[{opacity:.35,transform:'translateY(5px)'},{opacity:1,transform:'translateY(0)'}]:scene.enter;slot.effect=node.animate(frames,{...scene.options,...(batchSwap?{duration:260,easing:'cubic-bezier(.2,.75,.25,1)'}:{}),delay:state.settings.stagger?i*16:0});try{await slot.effect.finished;}catch{}}
+   if(changed&&rowMotion){slot.effect=node.animate([{opacity:0,transform:'translateY(10px) scale(.98)',filter:'blur(2px)'},{opacity:1,transform:'translateY(0) scale(1)',filter:'blur(0px)'}],{duration:360,easing:'cubic-bezier(.22,1,.36,1)',fill:'both'});try{await slot.effect.finished;}catch{}}
    if(serial!==slot.version)return;
    if(changed&&rowMotion&&state.settings.cycleAccent)node.animate([{outline:'1px solid '+getComputedStyle(node).getPropertyValue('--accent-border').trim(),outlineOffset:'-2px'},{outline:'1px solid transparent',outlineOffset:'-2px'}],{duration:Math.min(400,scene.options.duration*3),easing:'ease-out'});
    requestFit();updateActions();
@@ -315,7 +315,6 @@ function renderNow(){
  $('pinButton').setAttribute('aria-pressed',String(prefs.pinned));
  $('pinButton').title=prefs.pinned?'Turn off Always on top':'Turn on Always on top';
  if(!drawer&&!repos().some(r=>r.id===selectedId))selectedId=repos()[0]?.id??null;
- $('systemInfo').textContent='SYS: '+(state.systemLabel||({win32:'Windows',darwin:'macOS',linux:'Linux'})[state.platform]||'Unknown OS');
  renderSync();if(expanded&&!drawer)for(const repo of repos())void requestActivity(repo);renderPagination();
  dynamicSync();if(!canAnimate()){rootAnimation?.cancel();for(const slot of slots)slot.effect?.cancel();}reconcile();updateActions();if(drawer)renderDrawer(false);requestFit();
  // Release checks are demand-driven: live rotation must not poll GitHub for every card.
@@ -500,6 +499,7 @@ listen($('next'),'click',()=>run(async()=>{
   }
   if(!result.changed){render();return;}
   manualPaging=true;
+   dynamicScheduler?.reset?.();
   $('feed').scrollTop=0;
   pair=0;
   selectedId=repos()[0]?.id??null;

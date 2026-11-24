@@ -68,5 +68,33 @@ class Scheduler{
  }
  destroy(){this.destroyed=true;this.clear();}
 }
-return{styles,transition,interval,Scheduler};
+
+class CardScheduler{
+ constructor({rotate,blocked=()=>'',paused=()=>false,onStatus=()=>{},now=Date.now,setTimer=(fn,ms)=>setTimeout(fn,ms),clearTimer=id=>clearTimeout(id)}={}){
+  this.rotate=rotate;this.blocked=blocked;this.paused=paused;this.onStatus=onStatus;this.now=now;this.setTimer=setTimer;this.clearTimer=clearTimer;this.timers=Array(4).fill(null);this.deadlines=Array(4).fill(0);this.inFlight=new Set();this.enabled=false;this.destroyed=false;this.exhausted=new Set();this.key=null;this.error=null;
+ }
+ clear(){for(let i=0;i<4;i++){if(this.timers[i]!==null)this.clearTimer(this.timers[i]);this.timers[i]=null;}}
+ report(){if(!this.destroyed)this.onStatus({enabled:this.enabled,busy:this.inFlight.size>0,reason:this.exhausted.size===4?'exhausted':this.blocked()||'',remaining:Math.max(0,Math.min(...this.deadlines.map(t=>t||this.now()+5000))-this.now()),period:5000,error:this.error});}
+ configure(p={},key=''){
+  if(this.destroyed)return;
+  if(this.key!==key){this.key=key;this.exhausted.clear();for(let i=0;i<4;i++)if(this.enabled&&this.timers[i]===null&&!this.inFlight.has(i))this.arm(i);}
+  const enabled=p.dynamicRefresh!==false;
+  if(enabled===this.enabled&&this.deadlines[0]){this.report();return;}
+  this.enabled=enabled;this.clear();
+  if(enabled)this.reset();else this.report();
+ }
+ reset(){if(this.destroyed)return;this.clear();this.exhausted.clear();this.error=null;this.deadlines=Array.from({length:4},(_,i)=>this.now()+5000+i*300);if(this.enabled)for(let i=0;i<4;i++)this.arm(i);this.report();}
+ arm(i){if(this.destroyed||!this.enabled||this.exhausted.has(i))return;this.timers[i]=this.setTimer(()=>{this.timers[i]=null;void this.tick(i);},Math.max(25,Math.min(250,this.deadlines[i]-this.now())));}
+ async tick(i){
+  if(this.destroyed||!this.enabled||this.inFlight.has(i))return;
+  if(this.blocked()||this.paused(i)){this.deadlines[i]=this.now()+250;this.report();this.arm(i);return;}
+  if(this.now()<this.deadlines[i]){this.arm(i);return;}
+  if(this.inFlight.size){this.deadlines[i]=this.now()+300;this.arm(i);return;}
+  this.inFlight.add(i);this.report();
+  try{const result=await this.rotate(i);if(result?.exhausted)this.exhausted.add(i);this.error=null;}catch(e){this.error=e?.message||'Automatic rotation failed';}
+  finally{this.inFlight.delete(i);if(!this.destroyed){this.deadlines[i]=this.now()+(this.error?10000:5000);this.report();this.arm(i);}}
+ }
+ destroy(){this.destroyed=true;this.clear();}
+}
+return{styles,transition,interval,Scheduler,CardScheduler};
 });

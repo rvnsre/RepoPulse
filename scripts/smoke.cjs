@@ -43,9 +43,9 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
   distinct:new Set(rows.map(r=>r.dataset.repoId)).size,columns:getComputedStyle(f).gridTemplateColumns.split(' ').length,
   rowGap:getComputedStyle(f).rowGap,columnGap:getComputedStyle(f).columnGap,
   inline:boxes[0].top===boxes[1].top&&boxes[0].left<boxes[1].left,
-  scope:document.querySelector('#systemInfo').textContent,fourth:boxes[2].top===boxes[3].top&&boxes[3].bottom<=f.getBoundingClientRect().bottom+2
+  systemLabelRemoved:document.querySelector('#systemInfo')===null,fourth:boxes[2].top===boxes[3].top&&boxes[3].bottom<=f.getBoundingClientRect().bottom+2
  };})()`);
- assert.deepEqual({...grid,scope:grid.scope.split(' ')[0]},{distinct:4,columns:2,rowGap:'32px',columnGap:'48px',inline:true,scope:'SYS:',fourth:true});
+ assert.deepEqual(grid,{distinct:4,columns:2,rowGap:'32px',columnGap:'48px',inline:true,systemLabelRemoved:true,fourth:true});
  await capture('desktop-preview.png');
  await evaluate("document.getElementById('miniButton').click()");
  await until(()=>evaluate("!document.getElementById('miniIsland').hidden"));

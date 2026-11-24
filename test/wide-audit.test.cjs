@@ -6,7 +6,7 @@ const repo=(id=1,full_name='owner/repo'+id)=>E.normalizeRepo({id,full_name,starg
 const invalid=[null,false,true,[],{},''];
 for(const key of ['hideDelay','idleSeconds','hoverDelay','hoverScale','focusMinutes','roundness','textScale','motionDuration','visibleRows','panelWidth','toastSeconds','windowMotionDuration'])
  for(const [i,value]of invalid.entries())test('Numeric setting '+key+' rejects malformed value '+i,()=>assert.equal(D.settings({[key]:value})[key],D.SETTINGS[key]));
-for(const [i,input]of [null,undefined,false,3,'bad',[]].entries())test('Settings tolerate malformed root '+i,()=>assert.equal(D.settings(input).minStars,5000));
+for(const [i,input]of [null,undefined,false,3,'bad',[]].entries())test('Settings tolerate malformed root '+i,()=>assert.equal(D.settings(input).minStars,20000));
 test('Language filters trim and deduplicate without discarding long valid names',()=>assert.deepEqual(D.settings({languages:[' Go ','Go','', 'A'.repeat(50)]}).languages,['Go','A'.repeat(50)]));
 test('Duplicate persisted repos cannot create duplicate daily cards',()=>{const s=D.initialize({...E.defaults(),cache:[repo(),repo(),repo(2)],daily:{day:E.localDay(),repos:[repo(),repo()]}});D.present(s);assert.equal(new Set(s.daily.repos.map(r=>r.id)).size,s.daily.repos.length);});
 test('Malformed persisted lists and profile recover without losing valid saves',()=>{const s=D.initialize({cache:{},saved:[null,repo()],seen:[-1,1,1,true],hidden:null,profile:null,daily:{repos:null},snoozed:{1:'forever',2:Date.now()+100000},blockedOwners:['Owner','owner']});assert.deepEqual(s.seen,[1]);assert.equal(s.saved.length,1);assert.deepEqual(s.profile.weights,{});assert.deepEqual(s.blockedOwners,['owner']);assert.equal(s.snoozed[1],undefined);});

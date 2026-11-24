@@ -60,7 +60,7 @@ test('Undo restores the last autonomous replacement without erasing no-repeat me
  const s=state(),before=structuredClone(s.daily);D.cycle(s,s.daily.repos[0].id);assert.equal(D.undo(s),true);assert.deepEqual(s.daily,before);assert.ok(s.seen.length>before.repos.length);
 });
 test('New rotation preferences validate and persist every supported scene',()=>{
- const s=D.settings({cycleMin:10,cycleMax:3,transitionStyle:'not-a-scene',dynamicRefresh:false});assert.equal(s.cycleMin,3);assert.equal(s.cycleMax,10);assert.equal(s.transitionStyle,'auto');assert.equal(s.dynamicRefresh,false);for(const [id]of styles)assert.equal(D.settings({transitionStyle:id}).transitionStyle,id);
+ const s=D.settings({cycleMin:10,cycleMax:3,transitionStyle:'not-a-scene',dynamicRefresh:false});assert.equal(s.cycleMin,3);assert.equal(s.cycleMax,10);assert.equal(s.transitionStyle,'soft-spring');assert.equal(s.dynamicRefresh,false);for(const [id]of styles)assert.equal(D.settings({transitionStyle:id}).transitionStyle,id);
 });
 
 test('Countdown progress has a full period and random endpoints stay inside 3–10 seconds',()=>{
@@ -72,4 +72,35 @@ test('Countdown progress has a full period and random endpoints stay inside 3–
 test('Intervals selected in HTML settings accept numeric strings and reject empty input',()=>{
  assert.deepEqual(interval({cycleMin:'5',cycleMax:'8'}),{min:5000,max:8000});
  assert.deepEqual(interval({cycleMin:'',cycleMax:null}),{min:3000,max:10000});
+});
+
+test('Independent card scheduler staggers slots, skips hovered card and resets on manual Next',async()=>{
+ let time=0,serial=0,hovered=1;
+ const jobs=new Map(),rotated=[];
+ const scheduler=new (require('../app/dynamic-feed.js').CardScheduler)({
+  now:()=>time,
+  setTimer:(fn,ms)=>{const id=++serial;jobs.set(id,{fn,at:time+ms});return id;},
+  clearTimer:id=>jobs.delete(id),
+  paused:index=>index===hovered,
+  rotate:index=>{rotated.push(index);return{changed:true};}
+ });
+ async function advance(ms){
+  const until=time+ms;
+  for(let guard=0;guard<1000;guard++){
+   const due=[...jobs].filter(([,job])=>job.at<=until).sort((a,b)=>a[1].at-b[1].at)[0];
+   if(!due)break;
+   time=due[1].at;jobs.delete(due[0]);due[1].fn();
+   await Promise.resolve();await Promise.resolve();
+  }
+  time=until;
+ }
+ scheduler.configure({dynamicRefresh:true},'catalog');
+ await advance(5900);
+ assert.ok(rotated.includes(0));
+ assert.ok(rotated.includes(2));
+ assert.ok(!rotated.includes(1));
+ hovered=-1;scheduler.reset();const before=rotated.length;
+ await advance(4999);assert.equal(rotated.length,before);
+ await advance(301);assert.ok(rotated.includes(1));
+ scheduler.destroy();assert.equal(jobs.size,0);
 });

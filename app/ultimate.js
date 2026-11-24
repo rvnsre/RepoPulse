@@ -160,9 +160,9 @@ function ultimateSettings(root){
  setting(advice,'screenContext','Use active-window context (Windows)','Uses the category of a recognized foreground app while enabled. Window titles and browser activity are never read. Other systems use your selected topic.');
  setting(advice,'workTopic','Work topic fallback','','select',Object.entries(state.topics).map(([key,t])=>[key,t.label]));
  advice.append(btn('Preview recommendation',async()=>{adopt(await api.previewInsight());render();},'secondary'));root.append(advice,el('p',{class:'intro'},'Context: '+state.contextStatus+'. Automatic suggestions pause while locked, hidden or in a workspace.'));
- root.append(el('h3',{class:'subheading'},'Live discovery / 3–10 seconds'));
+ root.append(el('h3',{class:'subheading'},'Live discovery / 5 seconds per card'));
  const live=el('div',{class:'settings-grid'});
- for(const [key,title,detail]of [['dynamicRefresh','Autonomous repository rotation','Replace one visible row without opening its page. No visit or preference is recorded.'],['cyclePauseHover','Pause over a repository','Keep the card steady while reading or clicking.'],['cyclePauseFocus','Pause during keyboard navigation','Keep a focused repository stable.'],['cycleCountdown','Show live countdown','A compact remaining-time indicator.'],['cycleAccent','Highlight arriving cards','A subtle outline pulse on replacement.']])setting(live,key,title,detail);
+ for(const [key,title,detail]of [['dynamicRefresh','Autonomous repository rotation','Replace each card every 5 seconds, staggered by 300 ms. No visit or preference is recorded.'],['cyclePauseHover','Pause over a repository','Pause only the hovered card while reading or clicking.'],['cyclePauseFocus','Pause during keyboard navigation','Keep a focused repository stable.'],['cycleCountdown','Show live countdown','A compact remaining-time indicator.'],['cycleAccent','Highlight arriving cards','A subtle outline pulse on replacement.']])setting(live,key,title,detail);
  setting(live,'cycleMin','Minimum interval','','select',Array.from({length:8},(_,i)=>[i+3,(i+3)+' seconds']));
  setting(live,'cycleMax','Maximum interval','','select',Array.from({length:8},(_,i)=>[i+3,(i+3)+' seconds']));
  setting(live,'transitionStyle','Repository transition','','select',[['auto','Automatic subtle mix'],...DynamicFeed.styles.map(([id,label])=>[id,label])]);setting(live,'cycleMotion','Transition speed','','select',[['adaptive','Mixed fast and slow'],['fast','Fast / 140 ms'],['slow','Smooth / 360 ms']]);root.append(live);
@@ -196,7 +196,7 @@ function ultimateCommands(root){
 
 
 /* Autonomous discovery owns a single cancellable timer and never records a view. */
-let dynamicScheduler=null,dynamicCursor=0,dynamicHoldUntil=0;
+let dynamicScheduler=null,dynamicHoldUntil=0;
 function dynamicBlocked(){
  if(document.hidden)return 'hidden';
  if(insightOpen)return 'recommendation';if(drawer)return 'workspace';
@@ -205,7 +205,6 @@ function dynamicBlocked(){
  if(Date.now()<dynamicHoldUntil)return 'interaction';
  if(busy||pending.size||slots.some(slot=>slot.desired))return 'busy';
  if(uFocusUntil>Date.now())return 'focus session';
- if(state.settings.cyclePauseHover&&document.querySelector('.repo-row:hover,#dockOpen:hover'))return 'hover';
  const active=document.activeElement;
  if(['INPUT','TEXTAREA','SELECT'].includes(active?.tagName))return 'editing';
  if(state.settings.cyclePauseFocus&&uKeyboardFocus&&document.hasFocus()&&active?.closest?.('.repo-row,#dockOpen'))return 'keyboard';
@@ -227,14 +226,18 @@ function dynamicSync(){
  dynamicScheduler.configure(s.settings,key);
 }
 function dynamicInit(){
- dynamicScheduler=new DynamicFeed.Scheduler({blocked:dynamicBlocked,onStatus:dynamicStatus,rotate:async()=>{
-  const rows=visible();if(!rows.length)return{exhausted:true};
-  const repo=rows[dynamicCursor++%rows.length];
-  const result=await api.cycle({id:repo.id,day:state.daily.day,epoch:state.feed?.epoch});
-  if(result.state)adopt(result.state);
-  if(result.changed){if(selectedId===repo.id)selectedId=result.id;render();}
-  return result;
- }});
+ dynamicScheduler=new DynamicFeed.CardScheduler({
+  blocked:dynamicBlocked,
+  paused:index=>state.settings.cyclePauseHover&&!!slots[index]?.element?.matches(':hover'),
+  onStatus:dynamicStatus,
+  rotate:async index=>{
+   const repo=visible()[index];if(!repo)return{exhausted:true};
+   const result=await api.cycle({id:repo.id,day:state.daily.day,epoch:state.feed?.epoch});
+   if(result.state)adopt(result.state);
+   if(result.changed){if(selectedId===repo.id)selectedId=result.id;render();}
+   return result;
+  }
+ });
  listen($('liveToggle'),'click',()=>run(()=>changeSettings({dynamicRefresh:!state.settings.dynamicRefresh})));
  listen(document,'pointerdown',()=>{dynamicHoldUntil=Date.now()+800;},{capture:true});
  const syncTimer=setInterval(dynamicSync,15000);
