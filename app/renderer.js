@@ -285,6 +285,9 @@ function reconcile(){
   (async()=>{
    if(changed&&rowMotion&&old){slot.effect=old.animate([{opacity:1,transform:'translateY(0) scale(1)',filter:'blur(0px)'},{opacity:0,transform:'translateY(-10px) scale(.98)',filter:'blur(2px)'}],{duration:180,easing:'cubic-bezier(.22,1,.36,1)',fill:'forwards'});try{await slot.effect.finished;}catch{}}
    if(serial!==slot.version)return;
+   // Focus can enter after the timer/request starts or during an exit animation.
+   // Keep the existing card intact; focusout will retry reconciliation.
+   if(changed&&old?.contains(document.activeElement)){slot.effect?.cancel();slot.desired=null;return;}
    const node=row(repo,i);slot.element.replaceChildren(node);slot.id=repo.id;slot.key=key;slot.desired=null;
    if(hadFocus)node.querySelector('.repo-name').focus({preventScroll:true});
    if(changed&&rowMotion){slot.effect=node.animate([{opacity:0,transform:'translateY(10px) scale(.98)',filter:'blur(2px)'},{opacity:1,transform:'translateY(0) scale(1)',filter:'blur(0px)'}],{duration:360,easing:'cubic-bezier(.22,1,.36,1)',fill:'both'});try{await slot.effect.finished;}catch{}}
@@ -343,7 +346,11 @@ function collectionView(root,history=false){
 function tune(root){heading(root,'A feed shaped around you',[btn('Import browser profile',async()=>{const next=await api.importProfile();if(next){state=next;draft={...state.profile.weights};render();}},'secondary'),btn('Export interests',()=>api.exportData('profile'),'secondary')]);root.append(el('p',{class:'intro'},'Choose your interests. First-time choices update the feed immediately; later reactions shape new discoveries without rearranging the projects you are reading.'));
  const grid=el('div',{class:'topic-grid'});for(const [key,t]of Object.entries(state.topics)){const b=btn(t.label,()=>{if(draft[key])delete draft[key];else draft[key]=8;renderDrawer();},`topic ${draft[key]?'selected':''}`);b.setAttribute('aria-pressed',String(!!draft[key]));b.append(el('span',{},draft[key]?'Selected':'+'));grid.append(b);}root.append(grid,btn('Save interests',async()=>{state=await api.profile(draft);render();toast('Your interests have been saved.');},'primary'),el('div',{class:'notice'},'The browser companion analyzes recent history on your device when you request it. Import its score-only JSON profile here. No cookies, URLs or page titles are uploaded. Reactions can be paused in Settings.'));
 }
-async function changeSettings(update){adopt(await api.settings(update));render();}
+async function changeSettings(update){
+ if(update.dynamicRefresh===true)dynamicScheduler?.resume();
+ if(update.dynamicRefresh===false||update.reducedMotion===true||update.motion==='none')dynamicScheduler?.suspend();
+ adopt(await api.settings(update));render();
+}
 function setting(root,key,title,detail,kind='checkbox',options){const label=el('label',{class:'setting'}),text=el('div');text.append(el('span',{},title));if(detail)text.append(el('small',{},detail));let input;
  if(kind==='select'){input=el('select',{'aria-label':title});for(const [value,name]of options)input.append(el('option',{value},name));input.value=String(state.settings[key]);}
  else{input=el('input',{type:kind,'aria-label':title});if(kind==='checkbox'){input.setAttribute('role','switch');input.checked=!!state.settings[key];}else{input.min='65';input.max='100';input.value=String(state.settings[key]);}}
@@ -358,7 +365,7 @@ function settingsView(root){heading(root,'Settings',[btn('Export RSS',()=>api.ex
  setting(grid,'cooldownWindowMs','Replay cooldown','','select',[[1800000,'30 minutes'],[43200000,'12 hours'],[86400000,'24 hours']]);
  for(const [key,title,detail]of [['autoReplace','Replace after opening','The clicked row is replaced with a new unseen project.'],['pinned','Always on top','Keep the panel above other windows.'],['hoverExpand','Expand on hover','Reveal a collapsed panel when the pointer enters.'],['reducedMotion','Reduced motion','Disable entry animations.'],['pausedLearning','Pause reaction learning','Keep manual interests without learning from opens and likes.'],['notifications','New-day notification','Notify when a new day of discoveries is ready.'],['launchAtLogin','Launch at login','Start RepoPulse when you sign in.']])setting(grid,key,title,detail);
 
-setting(grid,'density','Density','','select',[['comfortable','Comfortable'],['compact','Compact']]);setting(grid,'minStars','Minimum stars','','select',[[5000,'5K+'],[10000,'10K+'],[25000,'25K+'],[50000,'50K+'],[70000,'70K+'],[75000,'75K+'],[100000,'100K+'],[200000,'200K+']]);
+setting(grid,'density','Density','','select',[['comfortable','Comfortable'],['compact','Compact']]);setting(grid,'minStars','Minimum stars','','select',[[5000,'5K+'],[10000,'10K+'],[20000,'20K+'],[25000,'25K+'],[50000,'50K+'],[70000,'70K+'],[75000,'75K+'],[100000,'100K+'],[200000,'200K+']]);
  const display=el('div',{class:'settings-grid'});
  setting(display,'theme','Panel theme','','select',[['reference','RSS dark'],['light','Light'],['graphite','Dark'],['contrast','High contrast']]);
  setting(display,'textScale','Text size','Readable sizes across the entire interface.','select',[[100,'100%'],[115,'115%'],[130,'130%'],[150,'150%']]);
@@ -476,7 +483,10 @@ function renderPagination(){
  const loading=pending.has('next'),finished=remaining===0;
  const button=$('next');
  const label=finished?(canRestartManual?'Browse again':'Open library'):'Next';
- button.disabled=loading||!state.catalogSize;
+ // Disabling a focused native button drops focus while its request is pending.
+ // Keep it focusable; the pending guard prevents duplicate requests.
+ button.disabled=!state.catalogSize;
+ button.setAttribute('aria-disabled',String(loading||!state.catalogSize));
  if(button.firstChild.textContent!==label+' ')button.firstChild.textContent=label+' ';
  button.title=finished?(canRestartManual?'Start another pass with the same filters':'Browse the full cached catalog'):'Show the next repositories';
  button.setAttribute('aria-busy',String(loading));
@@ -499,12 +509,12 @@ listen($('next'),'click',()=>run(async()=>{
   }
   if(!result.changed){render();return;}
   manualPaging=true;
-   dynamicScheduler?.reset?.();
+  if(dynamicScheduler?.enabled)dynamicScheduler.reset();
   $('feed').scrollTop=0;
   pair=0;
   selectedId=repos()[0]?.id??null;
   render();
-  undoToast(result.count===1?'1 project shown.':result.count+' projects shown.');
+  undoToast(result.count+' new repositories shown. '+(state.feed?.manualRemaining??0)+' eligible repositories remain.');
  }finally{
   pending.delete('next');
   renderPagination();

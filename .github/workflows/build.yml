@@ -21,6 +21,23 @@ jobs:
           node-version: '24'
       - run: npm test
       - run: npm run check
+  accessibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --no-audit --no-fund
+      - run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2t64 libgbm1
+      - run: xvfb-run -a npm run test:accessibility -- --no-sandbox
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: RepoPulse-accessibility-evidence
+          path: dist/accessibility/
+          if-no-files-found: error
   catalog:
     runs-on: ubuntu-latest
     timeout-minutes: 20
