@@ -1,0 +1,536 @@
+You are an expert software engineer, HCI/accessibility specialist, security reviewer, and research-software product engineer working on RepoPulse (GitHub RSS+) v13.x.
+
+Repository:
+https://github.com/rvnsre/RepoPulse
+
+MISSION
+
+Improve RepoPulse without changing its core purpose: a privacy-respecting desktop discovery island for GitHub repositories.
+
+Make it genuinely useful to:
+- software engineers,
+- electrical, mechanical and civil engineers,
+- clinicians and biomedical researchers,
+- professors and teachers,
+- students,
+- scientists and research software users.
+
+Do not turn RepoPulse into an EHR, clinical decision-support system, generic paper manager, or social network.
+
+NON-NEGOTIABLE PROCESS
+
+1. AUDIT BEFORE EDITING
+   - Pull current main.
+   - Record exact commit SHA and package version.
+   - Inspect:
+     - README.md
+     - package.json / package-lock.json
+     - app/
+     - src/
+     - scripts/
+     - test/
+     - .github/workflows/
+     - current GitHub release configuration
+     - open issues and recent merged PRs
+   - Do not assume PR #14 is correct merely because CI passed.
+
+2. REPRODUCE BEFORE FIXING
+   For every suspected defect:
+   - reproduce it,
+   - document expected vs actual behavior,
+   - add or extend a regression test where practical,
+   - then implement the fix.
+
+3. SMALL PRS
+   Split work into small, reviewable PRs:
+   - data/catalog correctness,
+   - rotation/accessibility,
+   - README/release consistency,
+   - security/release hardening,
+   - professional/research discovery,
+   - scholarly metadata adapters.
+   Do not mix unrelated refactors.
+
+4. NO FAKE DATA
+   Never fabricate:
+   - repository inventory,
+   - GitHub stars,
+   - “1000+ left”,
+   - queue counts,
+   - DOI metadata,
+   - citations,
+   - licenses,
+   - security status,
+   - regulatory approval,
+   - clinical validation,
+   - release status.
+
+   Every displayed count must be computed from real state.
+
+   Required invariant:
+   displayed_remaining <= verified_eligible_unseen_count
+
+5. GITHUB SEARCH CORRECTNESS
+   GitHub Search can expose at most 1,000 results per search query.
+   If collecting a larger catalog:
+   - shard deterministically using non-overlapping ranges
+     (stars, created/updated date, language, topic where appropriate),
+   - paginate correctly,
+   - deduplicate by immutable GitHub repository ID,
+   - detect incomplete_results,
+   - respect rate-limit headers,
+   - use bounded retries and exponential backoff,
+   - persist resumable collection state,
+   - store collection provenance,
+   - test boundary overlap/gap conditions.
+
+   Keep these concepts separate:
+   - MAX_CATALOG / capacity,
+   - collected inventory,
+   - eligible inventory,
+   - unseen inventory,
+   - displayed queue remaining.
+
+6. VERIFY THE V13 STAR-SETTING REGRESSION
+   On the audited v13 tree, app/ultimate.js had a Minimum Stars selector with:
+   5K, 10K, 25K, 50K, ...
+   while v13 could store/use a 20K default.
+
+   Confirm whether this is still true on current main.
+
+   If present:
+   - add a 20K option,
+   - test fresh installs,
+   - test v12.x -> v13.x migration,
+   - test changing away from and back to 20K,
+   - make reset behavior unambiguous.
+
+7. AUTO-ROTATION / HCI
+
+   Treat rotating repository cards as auto-updating content.
+
+   Default for NEW installs:
+   - automatic rotation OFF.
+
+   Modes:
+   - Manual
+   - 10 seconds
+   - 15 seconds
+   - 30 seconds
+   - Custom
+   - optional “Fast scan / 5 seconds”
+
+   Requirements:
+   - persistent Start/Pause control,
+   - keyboard accessible,
+   - placed before rotating content in logical focus order,
+   - explicit accessible name that reflects the action,
+   - entering a repository card with keyboard focus stops automatic rotation,
+   - do NOT silently restart when focus leaves,
+   - resume only after explicit user action,
+   - hover may pause the hovered card,
+   - hover must never be the only pause mechanism,
+   - manual Next must still work immediately,
+   - manual Next resets timers only if auto-rotation is enabled,
+   - hidden window, editing, workspace, focus session and pending operations must block swaps,
+   - no card may be automatically replaced while it or a descendant owns keyboard focus.
+
+8. SCREEN READER BEHAVIOR
+
+   Do not announce every automatic repository replacement using aria-live.
+
+   For automatic rotation:
+   - updates should be silent to live regions.
+
+   For manual Next:
+   - announce a concise status such as:
+     “4 new repositories shown. 327 eligible repositories remain.”
+
+   Preserve focus.
+   Never move the user to a new repository because of an automatic replacement.
+
+9. REDUCED MOTION
+
+   If prefers-reduced-motion is active:
+   - start with auto-rotation paused/off,
+   - remove non-essential transform, blur and scale animations,
+   - retain state changes without motion.
+
+   Existing motion may use:
+   cubic-bezier(0.22, 1, 0.36, 1)
+   when motion is allowed.
+
+10. VISUAL / ERGONOMIC QUALITY
+
+   Preserve the current clean 2x2 discovery surface.
+
+   Improve:
+   - Next button effective pointer target toward >=44x44 CSS px,
+   - visible keyboard focus,
+   - high-contrast / forced-colors support,
+   - text scaling,
+   - no layout shift during replacement,
+   - avatar preloading and cancellation,
+   - image fallback without flicker,
+   - clear loading/offline/error states.
+
+11. PROFESSIONAL / RESEARCH MODE
+
+   Do NOT rank only by stars.
+
+   Add an optional transparent multi-signal ranking model using evidence such as:
+   - repository relevance,
+   - maintenance recency,
+   - release cadence,
+   - license presence,
+   - security policy,
+   - security advisories,
+   - CI/build evidence,
+   - documentation,
+   - CITATION.cff,
+   - DOI/archive links,
+   - reproducibility artifacts,
+   - domain relevance,
+   - stars as ONE popularity signal.
+
+   Never expose a black-box “scientific quality score”
+   or “clinical trust score”.
+
+   Instead show evidence components and uncertainty.
+
+12. DOMAIN TAXONOMY
+
+   Support reusable filters / profiles for:
+   - software engineering,
+   - AI / machine learning,
+   - data science / statistics,
+   - bioinformatics,
+   - medical imaging,
+   - clinical research tooling,
+   - reproducible science,
+   - electronics / EDA,
+   - embedded systems / control,
+   - robotics,
+   - CAD / CAM,
+   - FEM / CFD,
+   - civil engineering / BIM / GIS,
+   - scientific computing,
+   - notebooks / teaching,
+   - research infrastructure.
+
+   Do not require a repository to have 20K stars to qualify for a professional domain.
+
+13. “WHY RECOMMENDED?”
+
+   Every recommendation must be explainable.
+
+   Example:
+   “Recommended because:
+    - matches medical-imaging topic,
+    - active release within 90 days,
+    - Apache-2.0 license,
+    - has security policy,
+    - has citation metadata,
+    - relevant to your saved biomedical profile.”
+
+   Include source timestamps.
+
+14. RESEARCH METADATA ADAPTERS
+
+   Implement these as optional, read-only, privacy-preserving adapters:
+   - CITATION.cff
+   - Crossref
+   - OpenAlex
+   - ORCID public data
+   - PubMed / NCBI E-utilities
+   - Europe PMC
+   - Zenodo
+   - arXiv
+   - Software Heritage
+   - GitHub Releases
+   - GitHub Issues
+   - GitHub Security Advisories
+   - GitHub Atom/RSS feeds
+
+   Every external metadata field must contain:
+   - source,
+   - fetched_at,
+   - identifier,
+   - verification state.
+
+   Cache responses with TTL and provenance.
+
+   Fail gracefully when APIs are offline or rate-limited.
+
+   NEVER infer or invent:
+   - DOI,
+   - ORCID identity,
+   - publication association,
+   - regulatory clearance.
+
+15. FAIR AND REPRODUCIBILITY
+
+   Provide transparent evidence for:
+   - persistent identifiers,
+   - exact software version,
+   - archived source,
+   - license,
+   - citation metadata,
+   - documentation,
+   - tests/CI,
+   - environment/container metadata,
+   - dataset/model links where explicitly declared by the repository.
+
+   Treat FAIR/reproducibility as a checklist/evidence view,
+   not as a single opaque numeric truth score.
+
+16. MEDICAL SAFETY
+
+   RepoPulse is a discovery tool, not clinical decision support.
+
+   Add a clear medical-domain notice:
+   - GitHub popularity is not scientific validity.
+   - RepoPulse ranking is not clinical validation.
+   - Repository presence does not imply regulatory clearance.
+   - Users must verify intended use, evidence, license and regulatory status.
+
+   Never:
+   - accept patient identifiers as ranking input,
+   - ingest/store PHI,
+   - diagnose,
+   - recommend treatment,
+   - perform patient-specific risk stratification,
+   - claim FDA/CE approval without an authoritative verified source.
+
+17. PRIVACY
+
+   Preserve local-first behavior.
+
+   Do not upload:
+   - browsing history,
+   - notes,
+   - collections,
+   - reaction history,
+   - user-interest weights,
+   - local workspace data,
+   - patient data,
+   - credentials.
+
+   Optional GitHub credentials must remain protected by the OS credential store/keychain.
+
+   Document:
+   - every external endpoint,
+   - fields sent,
+   - fields cached,
+   - cache lifetime,
+   - deletion behavior.
+
+18. OFFLINE MODE
+
+   RepoPulse must remain useful offline.
+
+   Show:
+   “Cached as of <timestamp>”
+
+   Clearly distinguish:
+   - cached metadata,
+   - live metadata,
+   - stale metadata,
+   - unavailable enrichment.
+
+   Never silently present stale metadata as fresh.
+
+19. LOCALIZATION
+
+   Introduce proper localization infrastructure instead of hard-coded UI strings.
+
+   First supported locales:
+   - English
+   - Azerbaijani
+
+   Use locale-aware:
+   - dates,
+   - numbers,
+   - compact star counts,
+   - pluralization.
+
+20. SECURITY REVIEW
+
+   Audit Electron configuration and IPC.
+
+   Review:
+   - contextIsolation,
+   - nodeIntegration,
+   - sandboxing,
+   - preload bridge surface,
+   - CSP,
+   - URL opening/validation,
+   - remote content,
+   - HTML/Markdown sanitization,
+   - credential storage,
+   - import/export parsing,
+   - dependency vulnerabilities,
+   - malicious repository metadata,
+   - prototype pollution / unsafe merge patterns,
+   - path traversal,
+   - arbitrary shell execution.
+
+21. RELEASE / SUPPLY CHAIN GATES
+
+   Before release require:
+   - unit tests,
+   - integration tests,
+   - smoke tests,
+   - accessibility tests,
+   - security scan,
+   - dependency audit,
+   - secret scan,
+   - SBOM generation,
+   - artifact SHA-256 verification,
+   - installer signing/notarization status,
+   - Windows package test,
+   - macOS arm64/x64 package test,
+   - Linux AppImage/deb/rpm smoke test.
+
+   Do not publish on red, skipped-without-reason, or ambiguous gates.
+
+22. REQUIRED TESTS
+
+   Add or extend tests for:
+
+   Catalog:
+   - sharding boundaries,
+   - gaps,
+   - overlaps,
+   - duplicate repository IDs,
+   - incomplete_results,
+   - rate limits,
+   - retries,
+   - resume after interruption,
+   - real counter invariants.
+
+   Settings:
+   - fresh install,
+   - migration,
+   - 20K selector,
+   - reset behavior.
+
+   Rotation:
+   - 4 independent timers,
+   - 300 ms stagger,
+   - fake timers,
+   - hover pause,
+   - keyboard focus pause,
+   - global Pause/Resume,
+   - manual Next,
+   - hidden window,
+   - editing state,
+   - workspace,
+   - focus session,
+   - failure recovery.
+
+   Accessibility:
+   - logical tab order,
+   - accessible names,
+   - roles/states,
+   - focus preservation,
+   - no automatic live-region spam,
+   - reduced-motion,
+   - forced colors.
+
+   Privacy/security:
+   - malformed external metadata,
+   - malicious URLs,
+   - HTML/script strings,
+   - import/export validation,
+   - no sensitive data leakage.
+
+   Offline:
+   - no cache,
+   - valid cache,
+   - stale cache,
+   - enrichment unavailable.
+
+23. ACCEPTANCE CRITERIA
+
+   The work is not complete until:
+
+   - no fabricated counter or inventory exists;
+   - README, package version, release notes and binaries agree;
+   - 20K setting is representable and regression-tested;
+   - automatic rotation is fully user-controlled;
+   - no automatically changing card can steal or relocate focus;
+   - reduced-motion users receive no non-essential animated replacement;
+   - screen readers are not repeatedly interrupted by automatic updates;
+   - offline mode exposes freshness;
+   - scientific metadata exposes source + timestamp + identifier;
+   - medical mode makes no unsupported clinical claims;
+   - no patient-data path exists;
+   - all supported platform CI gates pass.
+
+24. USABILITY VALIDATION
+
+   Prepare a test protocol for:
+   - clinicians / biomedical researchers,
+   - engineers,
+   - professors / researchers,
+   - students / teachers.
+
+   Tasks:
+   - find a repository for a real domain need,
+   - distinguish popularity from evidence,
+   - pause and resume rotation,
+   - use the product keyboard-only,
+   - inspect license/security/release freshness,
+   - save a project,
+   - export a citation,
+   - revisit it offline.
+
+   Measure:
+   - task success,
+   - completion time,
+   - errors,
+   - backtracks,
+   - focus loss,
+   - SUS,
+   - UMUX-Lite,
+   - perceived interruptions,
+   - trust calibration.
+
+   Compare:
+   - Manual rotation,
+   - 5-second rotation,
+   - 15-second rotation.
+
+25. PR DELIVERY FORMAT
+
+   Every PR must contain:
+   - problem statement,
+   - evidence/reproduction,
+   - files changed,
+   - tests added,
+   - test results,
+   - screenshots/video for UI changes,
+   - accessibility impact,
+   - privacy impact,
+   - security impact,
+   - migration impact,
+   - rollback plan.
+
+26. FINAL REPORT
+
+   After all implementation PRs are complete, produce a consolidated report containing:
+   - exact commit SHAs,
+   - version,
+   - PR list,
+   - test commands and results,
+   - platform matrix,
+   - accessibility results,
+   - security results,
+   - real catalog inventory counts,
+   - API/rate-limit observations,
+   - before/after usability KPIs,
+   - unresolved risks,
+   - confirmation that no fake counts/data were introduced.
+
+DO NOT publish a new release until every required gate passes.
