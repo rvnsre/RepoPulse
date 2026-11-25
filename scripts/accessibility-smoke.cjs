@@ -35,6 +35,10 @@ async function main(){
  assert.equal(await evaluate('dynamicScheduler.enabled'),false);
  await evaluate("document.getElementById('liveToggle').click()");
  await until('dynamicScheduler.enabled');
+ const epoch=await evaluate('state.feed.epoch');
+ await evaluate("document.getElementById('next').focus();document.getElementById('next').click()");
+ await until('state.feed.epoch>'+epoch+'&&!pending.has("next")');
+ assert.equal(await evaluate('dynamicScheduler.enabled&&!manualPaging'),true,'Manual Next retains explicitly enabled rotation');
  await evaluate("document.getElementById('liveToggle').click()");await until('!dynamicScheduler.enabled');
  await evaluate("document.getElementById('next').focus();document.getElementById('next').click()");
  await until("document.getElementById('toast').textContent.includes('eligible repositories remain.')");
