@@ -15,21 +15,24 @@
   · <a href="#build-from-source">Build from source</a>
 </p>
 
-## Download v12.1.0
+## Download v13.0.0
 
 | Platform | Downloads |
 | --- | --- |
-| Windows x64 | [Installer](https://github.com/rvnsre/RepoPulse/releases/download/v12.1.0/RepoPulse-12.1.0-Windows-x64-Setup.exe) · [Portable](https://github.com/rvnsre/RepoPulse/releases/download/v12.1.0/RepoPulse-12.1.0-Windows-x64-Portable.exe) |
-| macOS Apple silicon | [DMG](https://github.com/rvnsre/RepoPulse/releases/download/v12.1.0/RepoPulse-12.1.0-macOS-arm64.dmg) · [ZIP](https://github.com/rvnsre/RepoPulse/releases/download/v12.1.0/RepoPulse-12.1.0-macOS-arm64.zip) |
-| Linux x64 | [AppImage](https://github.com/rvnsre/RepoPulse/releases/download/v12.1.0/RepoPulse-12.1.0-Linux-x86_64.AppImage) · [DEB](https://github.com/rvnsre/RepoPulse/releases/download/v12.1.0/RepoPulse-12.1.0-Linux-amd64.deb) · [RPM](https://github.com/rvnsre/RepoPulse/releases/download/v12.1.0/RepoPulse-12.1.0-Linux-x86_64.rpm) |
+| Windows x64 | [Installer](https://github.com/rvnsre/RepoPulse/releases/download/v13.0.0/RepoPulse-13.0.0-Windows-x64-Setup.exe) · [Portable](https://github.com/rvnsre/RepoPulse/releases/download/v13.0.0/RepoPulse-13.0.0-Windows-x64-Portable.exe) |
+| macOS Apple silicon | [DMG](https://github.com/rvnsre/RepoPulse/releases/download/v13.0.0/RepoPulse-13.0.0-macOS-arm64.dmg) · [ZIP](https://github.com/rvnsre/RepoPulse/releases/download/v13.0.0/RepoPulse-13.0.0-macOS-arm64.zip) |
+| macOS Intel x64 | [DMG](https://github.com/rvnsre/RepoPulse/releases/download/v13.0.0/RepoPulse-13.0.0-macOS-x64.dmg) · [ZIP](https://github.com/rvnsre/RepoPulse/releases/download/v13.0.0/RepoPulse-13.0.0-macOS-x64.zip) |
+| Linux x64 | [AppImage](https://github.com/rvnsre/RepoPulse/releases/download/v13.0.0/RepoPulse-13.0.0-Linux-x86_64.AppImage) · [DEB](https://github.com/rvnsre/RepoPulse/releases/download/v13.0.0/RepoPulse-13.0.0-Linux-amd64.deb) · [RPM](https://github.com/rvnsre/RepoPulse/releases/download/v13.0.0/RepoPulse-13.0.0-Linux-x86_64.rpm) |
 
-The installers are unsigned. [SHA-256 checksums](https://github.com/rvnsre/RepoPulse/releases/download/v12.1.0/SHA256SUMS.txt) · [Release notes](https://github.com/rvnsre/RepoPulse/releases/tag/v12.1.0)
+The installers are unsigned. [SHA-256 checksums](https://github.com/rvnsre/RepoPulse/releases/download/v13.0.0/SHA256SUMS.txt) · [Release notes](https://github.com/rvnsre/RepoPulse/releases/tag/v13.0.0)
+
+v13.0.0 is an existing release. The subsequent master-specification work is being reviewed in separate pull requests; these downloads do not include those changes or establish that the new accessibility, security and installed-package gates have passed.
 
 ## What you can do
 
 | Task | How RepoPulse helps |
 | --- | --- |
-| Find projects worth exploring | Browse more than 10,000 public repositories with at least 5,000 stars. Narrow the catalog by interests and star count, or tap **Next** to see another set. |
+| Find projects worth exploring | Browse cached public repositories. The source catalog accepts 5K+ stars and the v13 discovery filter defaults to 20K+. Narrow by interests and star count, or tap **Next** to see another set. Counts reflect actual matching records, not catalog capacity. |
 | Keep discovery within reach | The island docks to the top of the display. Show it from the system tray or with **Ctrl/Cmd + Shift + P**. |
 | Organize what you find | Bookmark and queue projects, add private notes and tags, group projects into collections, and compare them side by side. |
 | Go from discovery to download | Open the original GitHub repository, check its public release assets, or copy a clone command to run yourself. |
