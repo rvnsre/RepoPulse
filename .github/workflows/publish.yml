@@ -62,10 +62,12 @@ jobs:
           if (sameBuild && ((!mainBuild && process.env.GITHUB_REF !== 'refs/tags/' + tag) || process.env.GITHUB_SHA !== sha)) throw Error('Release commit changed during build.');
           const runs = sameBuild ? [{id:Number(process.env.GITHUB_RUN_ID),run_attempt:Number(process.env.GITHUB_RUN_ATTEMPT)}] :
             api(root + 'workflows/build.yml/runs?event=push&status=completed&head_sha=' + sha + '&per_page=100').workflow_runs.filter(run => (run.head_branch === tag || run.head_branch === 'main') && run.head_sha === sha);
-          const required = ['verify','catalog','extension','package (windows-latest)','package (macos-15)','package (macos-15-intel)','package (ubuntu-24.04)'];
+          const {missingGates} = require('./scripts/release-gates.cjs');
           const build = runs.find(run => {
             const jobs = api(root + 'runs/' + run.id + '/attempts/' + run.run_attempt + '/jobs?per_page=100').jobs;
-            return required.every(name => jobs.some(job => job.name === name && job.conclusion === 'success'));
+            const missing = missingGates(jobs);
+            if (missing.length) console.log('Publication blocked; missing or unsuccessful gates: ' + missing.join(', '));
+            return missing.length === 0;
           });
           if (!build) throw Error('No successful package build was found for the exact tag.');
           let notes = '';
