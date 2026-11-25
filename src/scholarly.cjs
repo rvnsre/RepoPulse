@@ -1,6 +1,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path');
 const YAML=require('yaml'),{XMLParser,XMLValidator}=require('fast-xml-parser');
+const {readUtf8}=require('./bounded-file.cjs');
 const MAX_BYTES=2*1024*1024,TTL=86400000;
 const SOURCES=Object.freeze({citation:'CITATION.cff',crossref:'Crossref',openalex:'OpenAlex',orcid:'ORCID public record',pubmed:'PubMed',europepmc:'Europe PMC',zenodo:'Zenodo',arxiv:'arXiv',softwareheritage:'Software Heritage',releases:'GitHub Releases',issues:'GitHub Issues',advisories:'GitHub published security advisories',atom:'GitHub release Atom feed'});
 const REPOSITORY_SOURCES=new Set(['citation','releases','issues','advisories','atom']);
@@ -73,10 +74,10 @@ function wrap(source,id,values,fetched_at){
 class ScholarlyClient{
  constructor({file=null,fetchImpl=fetch,now=Date.now}={}){
   this.file=file;this.fetch=fetchImpl;this.now=now;this.cache=new Map();this.inflight=new Map();this.generation=0;this.limits=new Map();
-  if(file)try{if(fs.statSync(file).size>4*MAX_BYTES)throw Error('Metadata cache too large.');const saved=JSON.parse(fs.readFileSync(file,'utf8'));if(saved.schema!==1)throw Error('Unknown metadata cache.');for(const record of array(saved.records).slice(-128)){const id=identifier(record.adapter,record.identifier);if(record.source!==endpoint(record.adapter,id)||!Number.isFinite(Date.parse(record.fetched_at))||Date.parse(record.fetched_at)>this.now()+60000||!record.fields)continue;const values=Object.fromEntries(Object.entries(record.fields).filter(([k,f])=>/^[a-z_]{1,64}$/.test(k)&&f&&Object.hasOwn(f,'value')).map(([k,f])=>[k,f.value]));this.cache.set(record.adapter+':'+id,wrap(record.adapter,id,values,record.fetched_at));}}catch{this.cache.clear();}
+  if(file)try{const saved=JSON.parse(readUtf8(file,4*MAX_BYTES));if(saved.schema!==1)throw Error('Unknown metadata cache.');for(const record of array(saved.records).slice(-128)){const id=identifier(record.adapter,record.identifier);if(record.source!==endpoint(record.adapter,id)||!Number.isFinite(Date.parse(record.fetched_at))||Date.parse(record.fetched_at)>this.now()+60000||!record.fields)continue;const values=Object.fromEntries(Object.entries(record.fields).filter(([k,f])=>/^[a-z_]{1,64}$/.test(k)&&f&&Object.hasOwn(f,'value')).map(([k,f])=>[k,f.value]));this.cache.set(record.adapter+':'+id,wrap(record.adapter,id,values,record.fetched_at));}}catch{this.cache.clear();}
  }
  result(source,id,error=null,live=false){const record=this.cache.get(source+':'+id);const age=this.now()-Date.parse(record?.fetched_at);return{status:!record?'unavailable':live?'live':age>=0&&age<TTL?'cached':'stale',record:record?structuredClone(record):null,error,ttl:TTL};}
- persist(){if(!this.file)return;const content=JSON.stringify({schema:1,records:[...this.cache.values()]});if(Buffer.byteLength(content)>4*MAX_BYTES)throw Error('Metadata cache exceeds limit.');fs.mkdirSync(path.dirname(this.file),{recursive:true});const temp=this.file+'.tmp';try{fs.writeFileSync(temp,content,{mode:0o600});fs.renameSync(temp,this.file);}finally{fs.rmSync(temp,{force:true});}}
+ persist(){if(!this.file)return;const content=JSON.stringify({schema:1,records:[...this.cache.values()]});if(Buffer.byteLength(content)>4*MAX_BYTES)throw Error('Metadata cache exceeds limit.');fs.mkdirSync(path.dirname(this.file),{recursive:true});const temp=this.file+'.'+require('node:crypto').randomUUID()+'.tmp';try{fs.writeFileSync(temp,content,{mode:0o600,flag:'wx'});fs.renameSync(temp,this.file);}finally{fs.rmSync(temp,{force:true});}}
  async get(source,input,{refresh=false}={}){
   const id=identifier(source,input),key=source+':'+id;if(!refresh)return this.result(source,id);if(this.inflight.has(key))return this.inflight.get(key);const generation=this.generation,url=endpoint(source,id),origin=new URL(url).origin;
   if((this.limits.get(origin)||0)>this.now())return this.result(source,id,'Provider rate limit; cached timestamps are retained.');
