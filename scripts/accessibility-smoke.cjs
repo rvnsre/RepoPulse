@@ -67,6 +67,27 @@ async function main(){
  }
  await evaluate('changeSettings({textScale:150})');
  assert.ok(await evaluate('document.documentElement.scrollWidth<=innerWidth'),'150% text must not cause horizontal page overflow');
+ await evaluate("openDrawer('professional')");
+ await until("!!document.querySelector('select[aria-label=\"Professional domain\"]')");
+ await evaluate("professionalDomain='imaging';loadProfessional(false)");
+ assert.ok(await evaluate("professionalSnapshot.medicalNotice.includes('not clinical validation')"));
+ await evaluate('loadProfessional(true)');
+ assert.equal(await evaluate('professionalSnapshot.entries.length'),2);
+ assert.ok(await evaluate('professionalSnapshot.entries.every(e=>e.repo.stargazers_count<20000)'));
+ assert.equal(await evaluate('window.professionalInjected===true'),false,'External HTML must be rendered as text');
+ await evaluate("document.querySelector('button[aria-label^=\"Toggle bookmark for\"]').click()");
+ await until('state.saved.some(repo=>repo.id===professionalSnapshot.entries[0].repo.id)');
+ const professionalResults=await evaluate("axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','best-practice']}})");
+ fs.writeFileSync(path.join(directory,'axe-professional.json'),JSON.stringify(professionalResults,null,2));
+ console.log(JSON.stringify({surface:'professional',violations:professionalResults.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})),incomplete:professionalResults.incomplete.length},null,2));
+ assert.equal(professionalResults.violations.length,0,'Professional accessibility violations');
+ const professionalImage=await window.webContents.capturePage();fs.writeFileSync(path.join(directory,'professional-fixture.png'),professionalImage.toPNG());
+ await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]});
+ await evaluate('changeSettings({textScale:100})');
+ const normalProfessional=await evaluate("axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','best-practice']}})");
+ fs.writeFileSync(path.join(directory,'axe-professional-default.json'),JSON.stringify(normalProfessional,null,2));
+ assert.equal(normalProfessional.violations.length,0,'Professional default-theme accessibility violations');
+ const normalProfessionalImage=await window.webContents.capturePage();fs.writeFileSync(path.join(directory,'professional-default-fixture.png'),normalProfessionalImage.toPNG());
  assert.deepEqual(errors,[],'Renderer console errors');
  console.log('Renderer accessibility/focus/settings smoke passed. Automated checks do not replace screen-reader or participant testing.');
 }
