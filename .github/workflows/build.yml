@@ -144,7 +144,7 @@ jobs:
           retention-days: 30
   release:
     if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
-    needs: [verify, catalog, package, extension]
+    needs: [verify, catalog, package, extension, accessibility]
     permissions:
       contents: write
       actions: read
