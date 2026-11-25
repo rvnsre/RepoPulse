@@ -214,8 +214,8 @@ async function smoke({app,window,store,resize,TOPICS,snapshot}){
  await evaluate("document.activeElement.blur();changeSettings({panelWidth:920,textScale:100,visibleRows:2,autoHide:false,dynamicRefresh:false,cycleSeconds:5,cyclePauseHover:false,motion:'full',motionPreset:'snappy',motionDuration:80})");
  await until(()=>store.state.settings.dynamicRefresh===false);
  await evaluate("document.getElementById('liveToggle').click()");
- const cycleBefore=store.state.daily.repos.map(r=>r.id).join(',');
- await until(()=>store.state.daily.repos.map(r=>r.id).join(',')!==cycleBefore,160); // Includes the intentional 10-second post-Undo protection.
+ const cycleBefore=store.state.daily.repos.map(r=>r.id);
+ await until(()=>store.state.daily.repos.every((repo,index)=>repo.id!==cycleBefore[index]),160); // All four independent slots, including post-Undo protection.
  assert.equal(store.state.history.length,historyBefore,'Autonomous display must not become a recorded visit');
  assert.equal(JSON.stringify(store.state.profile.weights),weightsBefore,'Autonomous display must not train interests');
  await evaluate("document.getElementById('liveToggle').click()");

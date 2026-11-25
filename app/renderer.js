@@ -508,7 +508,7 @@ listen($('next'),'click',()=>run(async()=>{
    if(result.reason!=='stale')break;
   }
   if(!result.changed){render();return;}
-  manualPaging=true;
+  manualPaging=!dynamicScheduler?.enabled;
   if(dynamicScheduler?.enabled)dynamicScheduler.reset();
   $('feed').scrollTop=0;
   pair=0;

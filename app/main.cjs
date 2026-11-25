@@ -16,7 +16,8 @@ const {ActivityClient,observe,velocity,rememberRelease}=require('../src/activity
 if(process.platform==='linux'&&process.env.WAYLAND_DISPLAY){if(process.env.DISPLAY)app.commandLine.appendSwitch('ozone-platform','x11');else app.commandLine.appendSwitch('enable-features','GlobalShortcutsPortal');}
 const pointerTracker=new PointerTracker();let pointerTimer,lastPointerSent=0;
 let lastExternal=null,revision=0;
-let releaseClient,notifier,lastAutomaticAt=0,windowAnchor=null,lastWindowRequest=0;
+const rotationGate=new (require('../src/rotation-gate.cjs').RotationGate)();
+let releaseClient,notifier,windowAnchor=null,lastWindowRequest=0;
 const {RECHECK,CHECKOUT,createLicense}=require('../src/rss-plus.cjs'),watchlist=require('../src/watchlist.cjs');
 let license,licenseTimer;
 let window,store,tray,timer,refreshPromise,quitting=false,mode='panel',lastError=null,moveTimer,lastProgrammaticPosition=null;
@@ -287,11 +288,12 @@ function attachIpc(){
  handle('feed:cycle',payload=>{
   const prefs=store.state.settings;
   if(!prefs.dynamicRefresh||screenLocked||['workspace','insight'].includes(mode)||!window.isVisible())return{changed:false,reason:'paused',state:snapshot()};
-  if(Date.now()-lastAutomaticAt<3000)return{changed:false,reason:'cooldown',state:snapshot()};
   if(!payload||!Number.isSafeInteger(payload.id)||typeof payload.day!=='string')throw new Error('Invalid automatic replacement');
   if(payload.day!==localDay()||payload.epoch!=null&&payload.epoch!==store.state.feed?.epoch)return{changed:false,reason:'stale',state:snapshot()};
+  const slot=store.state.daily?.repos.findIndex(repo=>repo.id===payload.id)??-1;
+  if(!rotationGate.allowed(slot,prefs.cycleSeconds))return{changed:false,reason:'cooldown',state:snapshot()};
   let result;store.update(s=>{result=discovery.cycle(s,payload.id,payload.day);});
-  if(result.changed){lastAutomaticAt=Date.now();emit();}
+  if(result.changed){rotationGate.record(slot);emit();}
   return{...result,state:snapshot()};
  });
  handle('feed:undo',()=>{store.update(s=>discovery.undo(s));emit();return snapshot();});
