@@ -1,6 +1,10 @@
 'use strict';
 const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('pulse',Object.freeze({
+ metadataSources:()=>ipcRenderer.invoke('metadata:sources'),
+ metadataGet:input=>ipcRenderer.invoke('metadata:get',input),
+ metadataClear:()=>ipcRenderer.invoke('metadata:clear'),
+ metadataExport:repoId=>ipcRenderer.invoke('metadata:export',repoId),
  professionalGet:(domain,refresh)=>ipcRenderer.invoke('professional:get',domain,refresh),
  professionalClear:()=>ipcRenderer.invoke('professional:clear'),
  plusCheckout:()=>ipcRenderer.invoke('plus:checkout'),

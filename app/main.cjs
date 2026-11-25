@@ -20,6 +20,7 @@ let releaseClient,notifier,lastAutomaticAt=0,windowAnchor=null,lastWindowRequest
 const {RECHECK,CHECKOUT,createLicense}=require('../src/rss-plus.cjs'),watchlist=require('../src/watchlist.cjs');
 let license,licenseTimer;
 let professionalClient;
+let scholarlyClient;
 let window,store,tray,timer,refreshPromise,quitting=false,mode='panel',lastError=null,moveTimer,lastProgrammaticPosition=null;
 const opening=new Map(),smokeMode=!app.isPackaged&&process.argv.includes('--smoke-test');
 if(smokeMode&&process.platform==='linux')app.disableHardwareAcceleration();
@@ -226,6 +227,21 @@ function attachIpc(){
  const handle=(name,fn)=>ipcMain.handle(name,(event,...args)=>{if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('Untrusted sender');return fn(...args);});
  handle('professional:get',(domain,refresh)=>professionalClient.get(domain,{refresh:refresh===true}));
  handle('professional:clear',()=>{professionalClient.clear();return true;});
+ handle('metadata:sources',()=>require('../src/scholarly.cjs').SOURCES);
+ handle('metadata:get',input=>{
+  if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Invalid metadata request.');
+  const {REPOSITORY_SOURCES}=require('../src/scholarly.cjs');let id=input.identifier;
+  if(REPOSITORY_SOURCES.has(input.source)){const repo=Number.isSafeInteger(input.repoId)?findRepo(input.repoId):null;if(!repo)throw Error('Choose a known public repository.');id=repo.full_name;}
+  return scholarlyClient.get(input.source,id,{refresh:input.refresh===true});
+ });
+ handle('metadata:clear',()=>{scholarlyClient.clear();return true;});
+ handle('metadata:export',async repoId=>{
+  const repo=Number.isSafeInteger(repoId)?findRepo(repoId):null;if(!repo)throw Error('Choose a public repository.');
+  const {record}=await scholarlyClient.get('citation',repo.full_name);if(!record?.fields.title)throw Error('Load the declared CITATION.cff first.');
+  const citation=Object.fromEntries(Object.entries(record.fields).map(([key,field])=>[key,field.value]));
+  const result=await dialog.showSaveDialog(window,{title:'Export declared citation and provenance',defaultPath:repo.full_name.split('/')[1]+'-citation.json',filters:[{name:'Citation JSON with provenance',extensions:['json']}]});
+  if(result.canceled||!result.filePath)return false;fs.writeFileSync(result.filePath,JSON.stringify({schema:'repopulse.citation.v1',citation,provenance:record},null,2));return true;
+ });
  handle('plus:checkout',()=>shell.openExternal(CHECKOUT));
  handle('plus:activate',async input=>{
   if(!license)return {status:'unavailable'};
@@ -329,7 +345,7 @@ function attachIpc(){
  handle('exclusion:remove',(kind,value)=>{store.update(s=>{if(kind==='owner')s.blockedOwners=s.blockedOwners.filter(v=>v!==value);else if(kind==='hidden'&&Number.isSafeInteger(value)){s.hidden=s.hidden.filter(v=>v!==value);s.seen=s.seen.filter(v=>v!==value);}else if(kind==='snoozed'&&Number.isSafeInteger(value)){delete s.snoozed[value];s.seen=s.seen.filter(v=>v!==value);}else throw new Error('Invalid exclusion');discovery.present(s);});emit();return snapshot();});
  handle('data:reset-controls',async()=>{if(!await confirm('Restore hidden, snoozed and blocked projects?','Previously opened projects remain in your discovery history.'))return null;store.update(s=>{const restore=new Set([...s.hidden,...Object.keys(s.snoozed).map(Number)]);s.seen=s.seen.filter(id=>!restore.has(id));s.hidden=[];s.snoozed={};s.blockedOwners=[];discovery.present(s);});emit();return snapshot();});
  handle('data:clear-history',async()=>{if(!await confirm('Clear your local viewing history?','No-repeat memory is retained so old projects do not reappear.'))return null;store.update(s=>{s.history=[];});emit();return snapshot();});
- handle('data:clear',async()=>{if(!await confirm('Delete all local RepoPulse data?','Interests, saved repositories and discovery history will be reset. Browser history and exported files are not deleted.'))return null;const next=discovery.initialize(defaults());discovery.bootstrap(next);license?.clear();professionalClient?.clear();licenseStatus=false;store.replace(next);await store.flush();github.set('');lastError=null;lastSyncAttempt=0;insight=null;advisor.stopForeground();context={topic:null,status:'off'};resize('panel',true);keepOnTop(true);window.setOpacity(1);configureLogin(app,false);emit();return snapshot();});
+ handle('data:clear',async()=>{if(!await confirm('Delete all local RepoPulse data?','Interests, saved repositories and discovery history will be reset. Browser history and exported files are not deleted.'))return null;const next=discovery.initialize(defaults());discovery.bootstrap(next);license?.clear();professionalClient?.clear();scholarlyClient?.clear();licenseStatus=false;store.replace(next);await store.flush();github.set('');lastError=null;lastSyncAttempt=0;insight=null;advisor.stopForeground();context={topic:null,status:'off'};resize('panel',true);keepOnTop(true);window.setOpacity(1);configureLogin(app,false);emit();return snapshot();});
 }
 if(singleton)app.whenReady().then(()=>{
  store=new Store(path.join(app.getPath('userData'),smokeMode?'smoke-state.json':'state.json'),{
@@ -347,6 +363,7 @@ if(singleton)app.whenReady().then(()=>{
  }
  github=require('../src/github-session.cjs').createGitHubSession({safeStorage,tokenPath:path.join(app.getPath('userData'),'github-token.enc')});
  professionalClient=new (require('../src/professional.cjs').ProfessionalClient)({file:smokeMode?null:path.join(app.getPath('userData'),'professional-cache.json'),fetchImpl:smokeMode?async()=>new Response(JSON.stringify({incomplete_results:false,total_count:2,items:require('../test/fixtures.cjs').slice(0,2).map(repo=>({...repo,stargazers_count:10,topics:['medical-imaging']}))})):github.request});
+ scholarlyClient=new (require('../src/scholarly.cjs').ScholarlyClient)({file:smokeMode?null:path.join(app.getPath('userData'),'metadata-cache.json'),fetchImpl:(url,options)=>new URL(url).origin==='https://api.github.com'?github.request(url,options):fetch(url,options)});
  activityClient=new ActivityClient(smokeMode?{fetchImpl:async url=>({ok:true,status:200,json:async()=>url.includes('commits?')?[{sha:'a'.repeat(40),commit:{committer:{date:new Date().toISOString()}}}]:{tag_name:'v1.0.0',published_at:new Date().toISOString()}})}:{fetchImpl:github.request});
  releaseClient=new ReleaseClient(smokeMode?{fetchImpl:async url=>({ok:true,json:async()=>[{tag_name:'v1.0.0',draft:false,assets:[{name:'fixture-linux-x64.deb',size:2048,state:'uploaded',browser_download_url:url.replace('api.github.com/repos/','github.com/').split('/releases?')[0]+'/releases/download/v1.0.0/fixture-linux-x64.deb'}]}]})}:{fetchImpl:github.request});
  createWindow();attachIpc();maybeNotify();if(license){void refreshLicense();licenseTimer=setInterval(refreshLicense,RECHECK);}schedulePointer();try{tray=new Tray(nativeImage.createFromDataURL(require('./tray-icon.cjs')));trayAvailable=true;tray.setToolTip('RepoPulse — GitHub feed');tray.setContextMenu(Menu.buildFromTemplate([{label:'Summon on active display',click:show},{label:'Collapse / expand',click:summon},{label:'Force GitHub sync',click:()=>void refresh(true)},{type:'separator'},{label:'Quit',click:()=>{quitting=true;app.quit();}}]));tray.on('click',summon);}catch{trayAvailable=false;}

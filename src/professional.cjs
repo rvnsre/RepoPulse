@@ -1,6 +1,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path');
 const {normalizeRepo}=require('./engine.cjs');
+const {readUtf8}=require('./bounded-file.cjs');
 const DOMAINS=Object.freeze({
  software:{label:'Software engineering',topic:'software-engineering'},
  ai:{label:'AI / machine learning',topic:'machine-learning'},
@@ -47,7 +48,7 @@ async function readJson(response){
 class ProfessionalClient{
  constructor({file=null,fetchImpl=fetch,now=Date.now}={}){
   this.file=file;this.fetch=fetchImpl;this.now=now;this.cache=new Map();this.inflight=new Map();this.generation=0;
-  if(file)try{if(fs.statSync(file).size<=MAX_BYTES){const saved=JSON.parse(fs.readFileSync(file,'utf8'));if(saved.schema!==1)throw Error('Invalid professional cache schema.');for(const [domain,page]of Object.entries(saved.pages||{})){domainInfo(domain);this.cache.set(domain,this.normalize(page,domain));}}}catch{this.cache.clear();}
+  if(file)try{const saved=JSON.parse(readUtf8(file,MAX_BYTES));if(saved.schema!==1)throw Error('Invalid professional cache schema.');for(const [domain,page]of Object.entries(saved.pages||{})){domainInfo(domain);this.cache.set(domain,this.normalize(page,domain));}}catch{this.cache.clear();}
  }
  normalize(page,domain){
   const at=Date.parse(page?.fetched_at);if(!Number.isFinite(at)||at>this.now()+60000||page.source!==queryUrl(domain)||!Array.isArray(page.entries)||page.entries.length>30)throw Error('Invalid professional cache.');
@@ -65,8 +66,8 @@ class ProfessionalClient{
  persist(){
   if(!this.file)return;const content=JSON.stringify({schema:1,pages:Object.fromEntries(this.cache)});
   if(Buffer.byteLength(content)>MAX_BYTES)throw Error('Professional cache exceeds its limit.');
-  fs.mkdirSync(path.dirname(this.file),{recursive:true});const temp=this.file+'.tmp';
-  try{fs.writeFileSync(temp,content,{mode:0o600});fs.renameSync(temp,this.file);}finally{fs.rmSync(temp,{force:true});}
+  fs.mkdirSync(path.dirname(this.file),{recursive:true});const temp=this.file+'.'+require('node:crypto').randomUUID()+'.tmp';
+  try{fs.writeFileSync(temp,content,{mode:0o600,flag:'wx'});fs.renameSync(temp,this.file);}finally{fs.rmSync(temp,{force:true});}
  }
  async get(domain,{refresh=false}={}){
   domainInfo(domain);if(!refresh)return this.snapshot(domain);

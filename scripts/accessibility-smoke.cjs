@@ -88,6 +88,17 @@ async function main(){
  fs.writeFileSync(path.join(directory,'axe-professional-default.json'),JSON.stringify(normalProfessional,null,2));
  assert.equal(normalProfessional.violations.length,0,'Professional default-theme accessibility violations');
  const normalProfessionalImage=await window.webContents.capturePage();fs.writeFileSync(path.join(directory,'professional-default-fixture.png'),normalProfessionalImage.toPNG());
+ await evaluate('openRepositoryMetadata(professionalSnapshot.entries[0].repo)');
+ assert.equal(await evaluate('Object.keys(metadataSources).length'),13);
+ await evaluate('loadMetadata(false)');assert.equal(await evaluate('metadataResult.status'),'unavailable');
+ await evaluate('loadMetadata(true)');assert.equal(await evaluate('metadataResult.record.fields.title.value'),'Synthetic citation fixture');
+ assert.equal(await evaluate('metadataResult.record.fields.title.verification_state'),'declared-by-repository');
+ assert.ok(await evaluate("[...document.querySelectorAll('button')].some(b=>b.textContent==='Export declared citation JSON')"));
+ const metadataScan=await evaluate("axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','best-practice']}})");
+ fs.writeFileSync(path.join(directory,'axe-metadata.json'),JSON.stringify(metadataScan,null,2));
+ console.log(JSON.stringify({surface:'metadata',violations:metadataScan.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})),incomplete:metadataScan.incomplete.length},null,2));
+ assert.equal(metadataScan.violations.length,0,'Metadata accessibility violations');
+ const metadataImage=await window.webContents.capturePage();fs.writeFileSync(path.join(directory,'metadata-fixture.png'),metadataImage.toPNG());
  assert.deepEqual(errors,[],'Renderer console errors');
  console.log('Renderer accessibility/focus/settings smoke passed. Automated checks do not replace screen-reader or participant testing.');
 }

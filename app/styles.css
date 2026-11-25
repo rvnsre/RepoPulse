@@ -90,6 +90,9 @@ body[data-roundness="28"] { --radius: 12px; }
 h1, h2, h3, p { margin: 0; }
 h1, h2, h3 { font-weight: 600; }
 .professional-evidence { overflow-wrap: anywhere; }
+.metadata-fields { overflow-wrap: anywhere; }
+.metadata-fields dt { margin-top: 16px; font-weight: 600; }
+.metadata-fields dd { margin: 4px 0; white-space: pre-wrap; }
 h2 { font-size: calc(26px * var(--s)); line-height: 1.22; overflow-wrap: anywhere; }
 button, input, select, textarea { font: inherit; }
 button {

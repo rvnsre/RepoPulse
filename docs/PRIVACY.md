@@ -1,5 +1,14 @@
 # Privacy and data flow
 
+## Optional scholarly metadata
+
+Metadata lookups send only an explicit public identifier to a selected provider
+after Fetch is chosen. Cached reads do not contact providers. Each field retains
+its source, identifier, fetch time and verification state. Public cache becomes
+stale after 24 hours and can be deleted independently; exported files remain
+where the user saved them. [All thirteen endpoints, sent/cached fields, limits
+and deletion behavior](SCHOLARLY-METADATA.md)
+
 ## Optional professional discovery
 
 Research presets read local cache until Search is chosen. Search sends only a

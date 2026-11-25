@@ -27,7 +27,7 @@ function professionalView(root){
   const why=el('details'),summary=el('summary',{},'Why recommended? / Evidence');why.append(summary);
   const facts=el('ul',{class:'professional-evidence'});
   for(const fact of [e.topicMatches.length?'Topic matches: '+e.topicMatches.join(', '):'Exact topic match not present in returned metadata',e.pushed_at?'GitHub reports last push: '+new Date(e.pushed_at).toLocaleString()+(e.recentPush?' (within 90 days)':''):'Push time unknown',e.license?'Reported license: '+e.license:'License unknown',Intl.NumberFormat().format(e.stars)+' stars — popularity only','Not checked: '+e.unknown.join(', '),'Source: '+e.source,'Fetched: '+new Date(e.fetched_at).toLocaleString(),'GitHub repository ID: '+e.identifier+' · '+e.verification_state])facts.append(el('li',{},fact));
-  why.append(facts);card.append(why);
+  why.append(facts);card.append(why,btn('Research metadata',()=>openRepositoryMetadata(repo),'secondary','Inspect public research metadata for '+repo.full_name));
   const actions=el('div',{class:'stack'});actions.append(btn('Open on GitHub',()=>openRepo(repo),'secondary','Open '+repo.full_name+' on GitHub'),btn(state.saved.some(r=>r.id===repo.id)?'Remove bookmark':'Bookmark',async()=>{await react(repo,'save');renderDrawer();},'secondary','Toggle bookmark for '+repo.full_name));card.append(actions);list.append(card);
  }
  root.append(list);
