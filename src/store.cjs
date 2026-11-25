@@ -3,6 +3,7 @@ const fs=require('node:fs'),path=require('node:path');
 const {defaults}=require('./engine.cjs');
 const {Worker}=require('node:worker_threads');
 const {setTimeout:delay}=require('node:timers/promises');
+const {readBuffer}=require('./bounded-file.cjs');
 const MAX_STATE_BYTES=32*1024*1024;
 const RETRIABLE=new Set(['EPERM','EBUSY','EACCES']);
 function serialize(state){
@@ -41,14 +42,17 @@ class Store{
   this.state=defaults();this.load();
  }
  load(){
-  if(!fs.existsSync(this.file))return;
+  let bytes;
   try{
-   if(fs.statSync(this.file).size>MAX_STATE_BYTES)throw Error('State file exceeds 32 MB');
-   const data=JSON.parse(fs.readFileSync(this.file,'utf8').replace(/^\uFEFF/,''));
+   bytes=readBuffer(this.file,MAX_STATE_BYTES);
+   const data=JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/,''));
    if(!data||Array.isArray(data)||data.version!==1)throw Error('Unsupported state version');
    this.state=require('./discovery.cjs').initialize({...defaults(),...data});
   }catch(error){
-   fs.copyFileSync(this.file,this.file+'.recovery-'+Date.now());
+   if(error.code==='ENOENT')return;
+   const recovery=this.file+'.recovery-'+require('node:crypto').randomUUID();
+   if(bytes)fs.writeFileSync(recovery,bytes,{mode:0o600,flag:'wx'});
+   else fs.renameSync(this.file,recovery);
    this.state=defaults();this.state.recoveryNotice='Settings could not be read. A recovery copy was preserved on this device.';
   }
  }

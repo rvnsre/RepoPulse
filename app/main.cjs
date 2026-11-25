@@ -208,8 +208,8 @@ async function exportData(kind){
 async function importData(kind){
  if(!['profile','collection','workspace'].includes(kind))throw new Error('Unsupported import');
  const result=await dialog.showOpenDialog(window,{title:`Import ${kind}`,filters:[{name:'RepoPulse JSON',extensions:['json']}],properties:['openFile']});if(result.canceled)return null;
- const file=result.filePaths[0];if(fs.statSync(file).size>(kind==='profile'?65536:2000000))throw new Error('The selected file is too large.');
- const input=JSON.parse(fs.readFileSync(file,'utf8').replace(/^\uFEFF/,''));
+ const file=result.filePaths[0];
+ const input=JSON.parse(require('../src/bounded-file.cjs').readUtf8(file,kind==='profile'?65536:2000000).replace(/^\uFEFF/,''));
  const data=kind==='profile'?validateProfile(input):kind==='workspace'?workspace.merge(store.state.workspace,input):discovery.collection(input);
  store.update(s=>{if(kind==='workspace')s.workspace=data;else if(kind==='profile'){const initial=!Object.keys(s.profile.weights).length;s.profile=data;if(initial){s.daily=null;discovery.present(s);}}else s.saved=[...new Map([...data,...s.saved].map(r=>[r.id,r])).values()];});emit();return snapshot();
 }
