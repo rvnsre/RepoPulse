@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="collapsed">
-  <section id="island" class="island">
+  <main id="island" class="island">
     <button id="edgeReveal" aria-label="Reveal RepoPulse" aria-expanded="false"><span aria-hidden="true"></span></button>
     <section id="miniIsland" aria-label="Dynamic Island" hidden>
       <button id="miniExpand" title="Open advanced view" aria-label="Open advanced view" aria-describedby="miniSummary">
@@ -56,18 +56,18 @@
           <p><span id="editionLabel"></span><span class="muted-separator" aria-hidden="true">·</span><span id="libraryStat"></span></p>
         </div>
         <div class="live-controls">
-          <button id="liveToggle" aria-label="Pause automatic repository rotation" aria-pressed="true">Live</button>
+          <button id="liveToggle" aria-label="Start automatic repository rotation" aria-pressed="false">Start rotation</button>
         </div>
         <button id="browseLibrary" class="browse-button" title="Open the cached project library">Library</button>
       </div>
-      <main id="discoveryPanel" aria-label="Personalized repositories">
-        <div id="feed" aria-label="Repository choices"></div>
-      </main>
+      <section id="discoveryPanel" aria-label="Personalized repositories">
+        <div id="feed" role="group" aria-label="Repository choices"></div>
+      </section>
       <footer>
         
         <span id="pickRange" class="pick-range" role="status"></span>
-        <div class="feed-pagination" aria-label="Browse repositories">
-          <span id="nextStatus" role="status"></span>
+        <div class="feed-pagination" role="group" aria-label="Browse repositories">
+          <span id="nextStatus"></span>
           <button id="next" type="button" aria-controls="feed" title="Show the next repositories">Next <span aria-hidden="true">→</span></button>
         </div>
         <div class="foot-actions">
@@ -103,7 +103,7 @@
       <div class="insight-actions"><button id="insightOpen" class="primary">Open on GitHub</button><button id="insightDisable" class="secondary">Turn off</button></div>
     </aside>
     <div id="notifications"><div id="toast" role="status" aria-live="polite" hidden></div></div>
-  </section>
+  </main>
   <div id="announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
   <script src="feed-ui.js"></script>
   <script src="morph.js"></script>

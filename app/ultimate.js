@@ -160,11 +160,16 @@ function ultimateSettings(root){
  setting(advice,'screenContext','Use active-window context (Windows)','Uses the category of a recognized foreground app while enabled. Window titles and browser activity are never read. Other systems use your selected topic.');
  setting(advice,'workTopic','Work topic fallback','','select',Object.entries(state.topics).map(([key,t])=>[key,t.label]));
  advice.append(btn('Preview recommendation',async()=>{adopt(await api.previewInsight());render();},'secondary'));root.append(advice,el('p',{class:'intro'},'Context: '+state.contextStatus+'. Automatic suggestions pause while locked, hidden or in a workspace.'));
- root.append(el('h3',{class:'subheading'},'Live discovery / 5 seconds per card'));
+ root.append(el('h3',{class:'subheading'},'Repository rotation'));
  const live=el('div',{class:'settings-grid'});
- for(const [key,title,detail]of [['dynamicRefresh','Autonomous repository rotation','Replace each card every 5 seconds, staggered by 300 ms. No visit or preference is recorded.'],['cyclePauseHover','Pause over a repository','Pause only the hovered card while reading or clicking.'],['cyclePauseFocus','Pause during keyboard navigation','Keep a focused repository stable.'],['cycleCountdown','Show live countdown','A compact remaining-time indicator.'],['cycleAccent','Highlight arriving cards','A subtle outline pulse on replacement.']])setting(live,key,title,detail);
- setting(live,'cycleMin','Minimum interval','','select',Array.from({length:8},(_,i)=>[i+3,(i+3)+' seconds']));
- setting(live,'cycleMax','Maximum interval','','select',Array.from({length:8},(_,i)=>[i+3,(i+3)+' seconds']));
+ for(const [key,title,detail]of [['dynamicRefresh','Automatic rotation','Off means Manual. Start/Pause is always available before the cards. Keyboard focus stops rotation until you explicitly start it again.'],['cyclePauseHover','Pause over a repository','Pause only the hovered card while reading or clicking.'],['cycleCountdown','Show live countdown','A compact remaining-time indicator.'],['cycleAccent','Highlight arriving cards','A subtle outline pulse on replacement.']])setting(live,key,title,detail);
+ const intervalLabel=el('label',{class:'setting'}),intervalSelect=el('select',{'aria-label':'Rotation interval'});
+ for(const [value,name]of [[10,'10 seconds'],[15,'15 seconds'],[30,'30 seconds'],[5,'Fast scan / 5 seconds'],['custom','Custom']])intervalSelect.append(el('option',{value},name));
+ intervalSelect.value=[5,10,15,30].includes(state.settings.cycleSeconds)?String(state.settings.cycleSeconds):'custom';
+ intervalSelect.addEventListener('change',()=>{if(intervalSelect.value!=='custom')run(()=>changeSettings({cycleSeconds:Number(intervalSelect.value)}));else customInterval.focus();});
+ intervalLabel.append(el('span',{},'Rotation interval'),intervalSelect);live.append(intervalLabel);
+ const customLabel=el('label',{class:'setting'}),customInterval=el('input',{type:'number',min:'5',max:'3600',step:'1','aria-label':'Custom rotation interval in seconds'});customInterval.value=String(state.settings.cycleSeconds);
+ customInterval.addEventListener('change',()=>{if(customInterval.reportValidity())run(()=>changeSettings({cycleSeconds:Number(customInterval.value)}));});customLabel.append(el('span',{},'Custom interval (5–3600 seconds)'),customInterval);live.append(customLabel);
  setting(live,'transitionStyle','Repository transition','','select',[['auto','Automatic subtle mix'],...DynamicFeed.styles.map(([id,label])=>[id,label])]);setting(live,'cycleMotion','Transition speed','','select',[['adaptive','Mixed fast and slow'],['fast','Fast / 140 ms'],['slow','Smooth / 360 ms']]);root.append(live);
  root.append(el('p',{class:'intro'},'Uses unseen, eligible cached projects. Pauses while editing, in a workspace or focus session, when hidden, and during an operation. Unseen projects appear first. When exhausted, the least recently shown eligible projects return automatically. Current cards are never removed just because the unseen pool is exhausted. Next shows each matching project once during manual browsing. Relevance is balanced with star-tier weights: 200K+ highest, 100K–200K medium, 50K–100K lower.'));
  root.append(el('h3',{class:'subheading'},'Dynamic Island / Ultimate'));
@@ -207,15 +212,15 @@ function dynamicBlocked(){
  if(uFocusUntil>Date.now())return 'focus session';
  const active=document.activeElement;
  if(['INPUT','TEXTAREA','SELECT'].includes(active?.tagName))return 'editing';
- if(state.settings.cyclePauseFocus&&uKeyboardFocus&&document.hasFocus()&&active?.closest?.('.repo-row,#dockOpen'))return 'keyboard';
+ if(active?.closest?.('.repo-row,#dockOpen'))return 'keyboard';
  return '';
 }
 function dynamicStatus(status){
  const control=$('liveToggle');if(!control||!state)return;
  control.setAttribute('aria-pressed',String(status.enabled));
- control.setAttribute('aria-label',status.enabled?'Pause automatic repository rotation':'Resume automatic repository rotation');
+ control.setAttribute('aria-label',status.enabled?'Pause automatic repository rotation':'Start automatic repository rotation');
  const sync=FeedUI.sync(state),prefix=sync.fresh?'Live':'Cached';if(!repos().length){control.textContent=state.catalogSize?'No filter matches':'Loading catalog';control.title='Use Reset feed filters or restore exclusions in Settings.';return;}
- control.textContent=!status.enabled?'Rotation paused':status.reason==='exhausted'?prefix+' · no alternatives':status.busy?prefix+' · changing':status.reason?prefix+' · paused':prefix+(state.settings.cycleCountdown?' · '+Math.ceil(status.remaining/1000)+'s':' · rotating');
+ control.textContent=!status.enabled?'Start rotation':status.reason==='exhausted'?'Pause rotation · no alternatives':status.busy?'Pause rotation · changing':status.reason?'Pause rotation · waiting':'Pause rotation'+(state.settings.cycleCountdown?' · '+Math.ceil(status.remaining/1000)+'s':'');
  control.title=(sync.fresh?'Recently synced. ':sync.label+'. ')+(status.error||status.reason||'Automatic rotation')+'. Click to pause or resume.';
 
 }
@@ -238,7 +243,16 @@ function dynamicInit(){
    return result;
   }
  });
- listen($('liveToggle'),'click',()=>run(()=>changeSettings({dynamicRefresh:!state.settings.dynamicRefresh})));
+ const stop=()=>{dynamicScheduler.suspend();if(state?.settings.dynamicRefresh)run(()=>changeSettings({dynamicRefresh:false}));};
+ listen($('liveToggle'),'click',()=>run(async()=>{
+  if(dynamicScheduler.enabled){stop();return;}
+  manualPaging=false;dynamicScheduler.resume();await changeSettings({dynamicRefresh:true});
+ }));
+ listen(document,'focusin',event=>{if(event.target.closest?.('.repo-row,#dockOpen'))stop();});
+ listen(document,'focusout',event=>{if(event.target.closest?.('.repo-row'))queueMicrotask(()=>render());});
+ const reduced=matchMedia('(prefers-reduced-motion: reduce)');
+ if(reduced.matches||state.settings.reducedMotion||state.settings.motion==='none')stop();
+ listen(reduced,'change',event=>{if(event.matches)stop();});
  listen(document,'pointerdown',()=>{dynamicHoldUntil=Date.now()+800;},{capture:true});
  const syncTimer=setInterval(dynamicSync,15000);
  onRendererCleanup(()=>{clearInterval(syncTimer);dynamicScheduler.destroy();});
