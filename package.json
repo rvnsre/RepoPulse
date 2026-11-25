@@ -111,5 +111,9 @@
   "homepage": "https://github.com/rvnsre/RepoPulse",
   "overrides": {
     "minimatch": "11.0.9"
+  },
+  "dependencies": {
+    "fast-xml-parser": "5.12.1",
+    "yaml": "2.9.1"
   }
 }

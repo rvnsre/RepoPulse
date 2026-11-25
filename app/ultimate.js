@@ -5,6 +5,7 @@ let uResetRevision=0;
 const uDrafts=new Map(),uCompare=new Set(),uSelected=new Set();
 function resetWorkspaceView(){
  if(typeof professionalSnapshot!=='undefined'){professionalSnapshot=null;professionalDomain='software';}
+ if(typeof metadataResult!=='undefined'){metadataResult=null;metadataRepo=null;metadataDeclaredDoi='';metadataIdentifier='';}
  uResetRevision++;uDrafts.clear();uCompare.clear();uSelected.clear();uResults=[];uQueryVersion++;uLimit=60;
  Object.assign(uFilters,{query:'',scope:'all',sort:'stars',language:'',topic:'',license:'',collection:'',pinnedFirst:true});
  clearInterval(uFocusTimer);uFocusUntil=0;islandController?.hold('focus session',false);islandController?.pause(0);drawerStamp='';draft={};
