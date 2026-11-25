@@ -1,6 +1,8 @@
 'use strict';
 const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('pulse',Object.freeze({
+ professionalGet:(domain,refresh)=>ipcRenderer.invoke('professional:get',domain,refresh),
+ professionalClear:()=>ipcRenderer.invoke('professional:clear'),
  plusCheckout:()=>ipcRenderer.invoke('plus:checkout'),
  plusActivate:key=>ipcRenderer.invoke('plus:activate',key),
  plusClear:()=>ipcRenderer.invoke('plus:clear'),

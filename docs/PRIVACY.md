@@ -1,5 +1,13 @@
 # Privacy and data flow
 
+## Optional professional discovery
+
+Research presets read local cache until Search is chosen. Search sends only a
+fixed public GitHub topic query; local history, notes, collections and weights
+are not included. Cached public samples show their original fetch time, become
+stale after 24 hours, and can be deleted separately from bookmarks. Do not enter
+patient data. [Exact fields, endpoint, retention and deletion](PROFESSIONAL-DISCOVERY.md)
+
 RepoPulse requests public GitHub repository metadata and release availability. Personal notes, tags, collections, ratings, reading queues, viewing history and interest weights are not included in those requests. GitHub receives ordinary connection metadata such as the IP address.
 
 ## Desktop storage

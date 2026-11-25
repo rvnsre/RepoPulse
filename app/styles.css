@@ -89,6 +89,7 @@ body[data-roundness="28"] { --radius: 12px; }
 [hidden] { display: none !important; }
 h1, h2, h3, p { margin: 0; }
 h1, h2, h3 { font-weight: 600; }
+.professional-evidence { overflow-wrap: anywhere; }
 h2 { font-size: calc(26px * var(--s)); line-height: 1.22; overflow-wrap: anywhere; }
 button, input, select, textarea { font: inherit; }
 button {
