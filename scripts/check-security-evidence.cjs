@@ -1,5 +1,6 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path');
+const {readUtf8}=require('../src/bounded-file.cjs');
 function sarif(report){
  if(report?.version!=='2.1.0'||!Array.isArray(report.runs)||!report.runs.length)throw Error('Missing or malformed SARIF evidence.');
  let findings=0;
@@ -9,7 +10,7 @@ function sarif(report){
 }
 function directory(root){
  const files=fs.readdirSync(root).filter(name=>name.endsWith('.sarif'));if(!files.length)throw Error('No SARIF evidence produced.');
- return files.map(name=>{const file=path.join(root,name);if(!fs.lstatSync(file).isFile())throw Error('Invalid SARIF evidence file.');return sarif(JSON.parse(fs.readFileSync(file,'utf8')));});
+ return files.map(name=>sarif(JSON.parse(readUtf8(path.join(root,name),16*1024*1024))));
 }
 function secretSummary(findings,commit){
  if(!Array.isArray(findings)||typeof commit!=='string'||!/^[0-9a-f]{40}$/.test(commit))throw Error('Missing secret scan evidence.');

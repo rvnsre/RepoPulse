@@ -1,6 +1,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {normalizeRepo}=require('../src/engine.cjs');
+const {readUtf8}=require('../src/bounded-file.cjs');
 const MAX_PAGE_BYTES=1024*1024;
 class CatalogCheckpoint{
  constructor(directory,{now=Date.now,ttl=3600000}={}){this.directory=directory;this.now=now;this.ttl=ttl;this.pages=new Map();this.resumed=0;}
@@ -11,8 +12,7 @@ class CatalogCheckpoint{
  }
  read(url){
   try{
-   const file=this.file(url);if(fs.statSync(file).size>MAX_PAGE_BYTES)return null;
-   const page=JSON.parse(fs.readFileSync(file,'utf8'));
+   const page=JSON.parse(readUtf8(this.file(url),MAX_PAGE_BYTES));
    const age=this.now()-Date.parse(page.fetched_at);
    if(page.schema!==1||page.source!==url||!Number.isFinite(age)||age<0||age>this.ttl||!validPage(page.data))return null;
    this.pages.set(url,page.fetched_at);this.resumed++;return page.data;

@@ -70,7 +70,7 @@ test('Watchlist exports official release feed URLs and only matching release met
  const repo={id:3,full_name:'org/repo',stargazers_count:60000};
  const items=toggle([],repo);
  assert.equal(toggle(items,repo).length,0);
- assert.match(exportWatchlist(items,'rss'),/https:\/\/github.com\/org\/repo\/releases.atom/);
+ assert.ok(exportWatchlist(items,'rss').includes('xmlUrl="https://github.com/org/repo/releases.atom"'));
  assert.match(exportWatchlist(items,'digest',{3:{fullName:'org/repo',tag:'v2'}}),/v2/);
  assert.doesNotMatch(exportWatchlist(items,'digest',{3:{fullName:'else/repo',tag:'v2'}}),/v2/);
 });

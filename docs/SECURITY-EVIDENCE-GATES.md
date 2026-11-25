@@ -50,6 +50,18 @@ all vulnerabilities or secrets have been found. Any false-positive exception
 must be narrow, evidence-backed and documented; do not add broad path exclusions
 or silently accept results merely to get a green gate.
 
+The first CI run, 45580333453, exercised these gates: all four renderer platforms,
+dependency audit, SBOM, secret scan and catalog validation passed. CodeQL produced
+five results and the explicit gate correctly failed. Four concerned stat/read
+path races in checkpoint loading, SARIF loading, workspace import and state
+loading; the fifth was an imprecise URL regex in a test assertion. The follow-up
+uses one bounded opened descriptor, catches growth after fstat, and preserves
+already-read corrupt-state bytes for recovery. Oversized/unreadable originals
+are preserved by rename rather than an unbounded copy. URL testing now checks
+the exact XML attribute string. No scan result was suppressed. Three additional
+real-filesystem tests reproduce path replacement and growth and verify bounds;
+490 local tests pass. The new CodeQL run must independently confirm the fixes.
+
 ## Remaining publication blockers
 
 The policy still requires artifact checksum verification, signing/notarization
