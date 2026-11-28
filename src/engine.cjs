@@ -46,6 +46,8 @@ function repoTopics(r) {
 }
 function tierWeight(stars){return stars>=200000?6:stars>=100000?2.5:1;}
 const rankingFeatures=new Map();
+// V14: validate eligibility without allocating normalized repository objects in hot ranking loops.
+function rankingEligible(r){return !!r&&Number.isSafeInteger(r.id)&&r.id>0&&typeof r.full_name==='string'&&r.full_name.length<=140&&/^[\w.-]+\/[\w.-]+$/.test(r.full_name)&&!r.full_name.split('/').some(p=>p==='.'||p==='..')&&Number.isSafeInteger(r.stargazers_count)&&r.stargazers_count>=MIN_STARS&&!r.archived&&!r.fork; }
 function features(repo,day,withTopics){
   const topicsKey=withTopics?[repo.full_name,repo.description,repo.language,repo.topics?.join(' ')].join('\0'):null;
   const saved=rankingFeatures.get(repo.id);
@@ -61,7 +63,9 @@ function features(repo,day,withTopics){
 }
 function ranked(repos, profile, day) {
   const weights = validWeights(profile), values=Object.values(weights), maximum = Math.max(1,...values);
-  return repos.filter(eligible).map(repo=>{
+  const unique=new Map();
+  for(const repo of repos){if(rankingEligible(repo)&&!unique.has(repo.id))unique.set(repo.id,repo);}
+  return [...unique.values()].map(repo=>{
     const {tags,jitter}=features(repo,day,values.length>0);
     const matches = Object.keys(tags).filter(k=>weights[k]).sort((a,b)=>weights[b]*tags[b]-weights[a]*tags[a]);
     const affinity = matches.reduce((sum,k)=>sum+(weights[k]/maximum)*Math.min(tags[k],4),0);

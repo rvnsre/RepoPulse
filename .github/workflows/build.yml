@@ -1,7 +1,7 @@
 name: Build and verify RepoPulse
 on:
   push:
-    branches: [main]
+    branches: [main, repopulse-v14]
     paths-ignore: ['**/*.md', 'docs/**']
     tags: ['v*']
   pull_request:
